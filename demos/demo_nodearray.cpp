@@ -45,7 +45,7 @@ int main(int argc, char **argv)
 {
 
     // Testing= with input from JSON strings
-    ChemicalEngineArray engine;
+    ChemicalEngineArray engine(5);
     int f1, f2, f3;
     std::string dch_json = "";
     std::string ipm_json = "";

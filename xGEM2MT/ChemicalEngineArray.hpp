@@ -38,16 +38,13 @@ struct ChemicalEngineArrayOptions
 /// A wrapper class for ChemicalEngineArray code
 class ChemicalEngineArray
 {
+
 public:
-    /// Construct a default ChemicalEngineArray object.
-    ChemicalEngineArray();
 
-    /// Construct a ChemicalEngineArray object from a GEM-Selektor project file.
-    /// @param filename The name of the file containing the definition of the chemical system
-    ChemicalEngineArray(std::string filename);
+// new --------------------
 
-    /// Destroy this ChemicalEngineArray instance.
-    virtual ~ChemicalEngineArray();
+    /// Construct a ChemicalEngineArray object for the 1D arrangement of nodes
+    ChemicalEngineArray(long int n_nodes);
 
     /// Construct a copy of a ChemicalEngineArray object.
     ChemicalEngineArray(const ChemicalEngineArray& other) = delete;
@@ -55,38 +52,30 @@ public:
     /// Assign another ChemicalEngineArray object to this.
     auto operator=(ChemicalEngineArray other) -> ChemicalEngineArray& = delete;
 
-    /// Reallocates chemical engine vectors and matrix upon node initialization from files or json
-    /// Used only inside of initialize() or initializeFromJsonStrings()
-    auto reallocateEngineArrays() -> void;
+    /// Destroy this ChemicalEngineArray instance.
+    virtual ~ChemicalEngineArray();
+
+    /// Set the options of the ChemicalEngineArray instance
+    auto setOptions(const ChemicalEngineArrayOptions& options) -> void;
+    /// Set smart start initial approximation (faster convergence, can be less accurate)
+    auto setWarmStart() -> void;
+    /// Set cold start automatic initial approximation (slower convergence, more accurate)
+    auto setColdStart() -> void;
 
     /// Initialize the ChemicalEngineArray object from a GEM-Selektor project file.
     /// @param filename The name of the file containing the definition of the chemical system
-    auto initialize(std::string filename) -> void;
-    
-    /// Initialize the ChemicalEngineArray object from JSON strings for dch, ipm and dbr exported from GEM-Selektor \ .
-    /// Normally to be used after ChemicalEngineArray();
-    /// @param dch_json The json string containing the definition of the chemical system
-    /// @param ipm_json The json string containing the parameters and settings for GEMS3K IPM-3 algorithm
-    /// @param dbr_json The json string containing the input node composition of the chemical system
-    auto initializeFromJsonStrings( std::string dch_json, std::string ipm_json, std::string dbr_json) -> void;
+    auto initialize(std::string ipm_filename, std::string dbr_filename, long int* nodeTypes) -> void;
 
-    /// Reads another DBR file (with input system composition, T,P etc.) \ . The DBR file must be compatible with
-    /// the currently loaded IPM and DCH files (see description of initialize() function call).
+    /// Reads another DBR file (with input system composition, T,P etc.) to a node with absolute index ndx.
+    /// The DBR file must be compatible with the currently loaded IPM and DCH files
+    /// (see description of initialize() function call).
     /// @param Null-terminated (C) string containing a full path to the input DBR disk file.
-    auto readDbrFromFile(std::string filename) -> void;
+    auto readDbrFromFile(long int ndx, std::string filename) -> void;
 
-    /// Reads another DBR object (with input system composition, T,P etc.) from JSON string \ . The DBR file 
-    /// must be compatible with the currently loaded IPM and DCH objects (see description of initialize() function call).
-    /// @param Null-terminated (C) string containing a full path to the input DBR disk file.
-    auto readDbrFromJsonString( std::string dbr_json) -> void;
-
-    /// Writes a DBR file (normally after some changes via API and GEM calculation). 
+    /// Writes a DBR file (normally after some changes via API and GEM calculation) from a node
+    /// with absolute index ndx.
     /// @param Null-terminated (C) string containing a full path to the output DBR disk file.
-    auto writeDbrToFile(std::string filename) -> void;
-
-    /// Returns a DBR object (normally after some changes via API and GEM calculation) as JSON string. \ .
-    /// In case of error raises an exception or returns empty string. 
-    auto writeDbrToJsonString() -> const std::string;
+    auto writeDbrToFile(long int ndx, std::string filename) -> void;
 
     /// Return the number of elements.
     auto numElements() const -> Index;
@@ -97,26 +86,23 @@ public:
     /// Return the number of phases.
     auto numPhases() const -> Index;
 
-    /// Return the numbegems3kr of species in a phase or 0, if the phase was not found
+    /// Return the number of species in a phase or 0, if the phase was not found
     /// @param iphase The index of the phase.
     auto numSpeciesInPhase(Index iphase) const -> Index;
 
     /// Return the name of an element.
     /// @param ielement The index of the element.
-    /// In case of error raises an exception or returns empty string. 
+    /// In case of error raises an exception or returns empty string.
     auto elementName(Index ielement) const -> std::string;
 
     /// Return the name of a species.
     /// @param ispecies The index of the species.
-    /// In case of error raises an exception or returns empty string. 
+    /// In case of error raises an exception or returns empty string.
     auto speciesName(Index ispecies) const -> std::string;
-
-    /// Return charge of a species.
-    auto speciesCharge(Index ispecies) const -> double;
 
     /// Return the name of a phase
     /// @param iphase The index of the phase.
-    /// In case of error returns null string. 
+    /// In case of error returns null string.
     auto phaseName(Index iphase) const -> std::string;
 
     /// Return the index of an @param element name, or number of elements, if not found.
@@ -147,72 +133,84 @@ public:
     /// @param iphase The index of the phase.
     auto indexFirstSpeciesInPhase(Index iphase) const -> Index;
 
+    /// Return the formula matrix of elements in species (in moles per mole species)
+    /// (rows: elements, cols: species).
+    auto formulaMatrix() const -> MatrixConstRef;
+
+    /// Sets pressure to @param P (in Pa) and temperature to @param T (in K)
+    /// in ndx instance without computing the equilibrium state
+    /// Returns false if P.T was reset o.k., or true if P or T is out of
+    /// range for the lookup for thermodynamic data in the node (with old P,T retained).
+    auto setPT(long int ndx, double P, double T) const -> bool;
+
+    /// Sets the amounts of elements (vector b) in moles into ndx
+    /// instance without computing the equilibrium state
+    auto setB(long int ndx, VectorConstRef b) -> void;
+
+    /// Sets the whole speciation vector xDC to amounts provided in n and resets bIC bector accordingly
+    ///  (often used for input initial guess of GEM solution in reactive transport sims)
+    auto setSpeciesAmounts(long int ndx, VectorConstRef n) -> void;
+    /// Set the species name to the new amount in xDC vector and adds this to bIC vector
+    auto setSpeciesAmount(long int ndx, std::string name, double amount) -> void;
+    /// Set the species with index ispecies to the new amount in xDC vector and adds this to bIC vector
+    auto setSpeciesAmount(long int ndx, Index ispecies, double amount) -> void;
+
+    // Caution: this may be ambiguous as in GEMS3K, species with the same name
+    //   may occur in more than one condensed phase!
+    // An overload including phase name is needed!
+    /// Set the species @param name @param amount upper bound in dul vector
+    /// if amount < 0 then resets to default 1e6
+    auto setSpeciesUpperLimit(long int ndx, std::string name, double amount) -> void;
+    /// Set species with index @param ispecies upper bound to @param amount in dul vector
+    /// if @param amount < 0 then resets to default 1e6
+    auto setSpeciesUpperLimit(long int ndx, Index ispecies, double amount) -> void;
+    /// set all the upper limits for the species dul (in units of mol)
+    auto setSpeciesUpperLimits(long int ndx, VectorConstRef n) -> void;
+
+    /// Set the species @param name @param amount lower bound in dll vector
+    /// if @param amount < 0 then resets to default 0
+    auto setSpeciesLowerLimit(long int ndx, std::string name, double amount) -> void;
+    /// Set species with index @param ispecies upper bound to @param amount in dul vector
+    /// if @param amount < 0 then resets to default 0
+    auto setSpeciesLowerLimit(long int ndx, Index ispecies, double amount) -> void;
+    /// set all the lower limits for the species dll (in units of mol)
+    auto setSpeciesLowerLimits(long int ndx, VectorConstRef n) -> void;
+
+// old -----------------------------
+
+    /// Initialize the ChemicalEngineArray object from JSON strings for dch, ipm and dbr exported from GEM-Selektor \ .
+    /// Normally to be used after ChemicalEngineArray();
+    /// @param dch_json The json string containing the definition of the chemical system
+    /// @param ipm_json The json string containing the parameters and settings for GEMS3K IPM-3 algorithm
+    /// @param dbr_json The json string containing the input node composition of the chemical system
+    auto initializeFromJsonStrings( std::string dch_json, std::string ipm_json, std::string dbr_json) -> void;
+
+    /// Reallocates chemical engine vectors and matrix upon node initialization from files or json
+    /// Used only inside of initialize() or initializeFromJsonStrings()
+    auto reallocateEngineArrays() -> void;
+
+    /// Reads another DBR object (with input system composition, T,P etc.) from JSON string
+    /// to a node with absolute index ndx. The DBR file must be compatible with the currently
+    /// loaded IPM and DCH objects (see description of initialize() function call).
+    /// @param Null-terminated (C) string containing a full path to the input DBR disk file.
+    auto readDbrFromJsonString(long int  ndx, std::string dbr_json) -> void;
+
+    /// Returns a DBR object (normally after some changes via API and GEM calculation) as JSON string
+    /// from a node with absolute index ndx
+    /// In case of error raises an exception or returns empty string.
+    auto writeDbrToJsonString(long int  ndx) -> const std::string;
+
+    /// Return charge of a species.
+    auto speciesCharge(Index ispecies) const -> double;
+
     /// Return the molar masses of the elements (in units of kg/mol)
     auto elementMolarMasses() const -> VectorConstRef;
 
     /// Return the molar masses of the species (in units of kg/mol)
     auto speciesMolarMasses() const -> VectorConstRef;
 
-    /// Return the formula matrix of elements in species (in moles per mole species)
-    /// (rows: elements, cols: species).
-    auto formulaMatrix() const -> MatrixConstRef;
-
-    /// Sets the whole speciation vector xDC to amounts provided in n and resets bIC bector accordingly
-    ///  (often used for input initial guess of GEM solution in reactive transport sims)
-    auto setSpeciesAmounts(VectorConstRef n) -> void;
-
-    /// Set the species name to the new amount in xDC vector and adds this to bIC vector
-    auto setSpeciesAmount(std::string name, double amount) -> void;
-
-    /// Set the species with index ispecies to the new amount in xDC vector and adds this to bIC vector
-    auto setSpeciesAmount(Index ispecies, double amount) -> void;
-
-    /// Set the options of the ChemicalEngine instance
-    auto setOptions(const ChemicalEngineArrayOptions& options) -> void;
-
-    /// Set smart start initial approximation (faster convergence, can be less accurate)
-    auto setWarmStart() -> void;
-
-    /// Set cold start automatic initial approximation (slower convergence, more accurate)
-    auto setColdStart() -> void;
-
-    // Caution: this may be ambiguous as in GEMS3K, species with the same name 
-    //   may occur in more than one condensed phase!
-    // An overload including phase name is needed!  
-    /// Set the species @param name @param amount upper bound in dul vector
-    /// if amount < 0 then resets to default 1e6
-    auto setSpeciesUpperLimit(std::string name, double amount) -> void;
-
-    /// Set the species @param name @param amount lower bound in dll vector
-    /// if @param amount < 0 then resets to default 0
-    auto setSpeciesLowerLimit(std::string name, double amount) -> void;
-
-    /// Set species with index @param ispecies upper bound to @param amount in dul vector
-    /// if @param amount < 0 then resets to default 1e6
-    auto setSpeciesUpperLimit(Index ispecies, double amount) -> void;
-   
-    /// Set species with index @param ispecies upper bound to @param amount in dul vector
-    /// if @param amount < 0 then resets to default 0 
-    auto setSpeciesLowerLimit(Index ispecies, double amount) -> void;
-
     /// Set the species @param name StandardMolarGibbsEnergy @param value
     auto setStandardMolarGibbsEnergy(std::string name, double value) -> void;
-
-    /// set all the upper limits for the species dul (in units of mol)
-    auto setSpeciesUpperLimits(VectorConstRef n) -> void;
-    /// set all the lower limits for the species dll (in units of mol)
-    auto setSpeciesLowerLimits(VectorConstRef n) -> void;
-
-  
-    /// Sets pressure to @param P (in Pa) and temperature to @param T (in K)
-    /// in ChemicalEngine instance without computing the equilibrium state
-    /// Returns false if P.T was reset o.k., or true if P or T is out of 
-    /// range for the lookup for thermodynamic data in the node (with old P,T retained).  
-    auto setPT( double P, double T) const -> bool;  
-    
-    /// Sets the amounts of elements (vector b) in moles into ChemicalEngine
-    /// instance without computing the equilibrium state
-    auto setB( VectorConstRef b) -> void;
 
     /// recalculate the equilibrium state with preset P,T,B and other inputs
     /// If @param warmstart is true then GEMS3K uses contents of node as initial 

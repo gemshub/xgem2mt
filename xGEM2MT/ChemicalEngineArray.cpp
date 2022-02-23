@@ -29,18 +29,34 @@
 #include <GEMS3K/nodearray.h>
 #include <GEMS3K/gems3k_impex.h>
 
-#define NODE  pimpl->node
-#define CSD   pimpl->node->pCSD()
-
 namespace xGEM2MT {
 
 struct ChemicalEngineArray::Impl
 {
-    /// The TNode instance from ChemicalEngineArray
-    std::unique_ptr<TNode> node;
+    /// Construct a default Impl instance
+    Impl(long int nodes): n_nodes(nodes)
+    {}
 
     /// The options for ChemicalEngineArray
     ChemicalEngineArrayOptions options;
+
+    /// Number of allocated nodes
+    long int n_nodes;
+
+    /// The TNodeArray instance from ChemicalEngineArray
+    std::unique_ptr<TNodeArray> node_array;
+
+    /// Write IPM, DCH and DBR files (in binary, txt or json mode)
+    GEMS3KGenerator::IOModes io_mode = GEMS3KGenerator::f_key_value;
+
+    /// The formula matrix of the species
+    Matrix formula_matrix;
+
+// old
+
+    /// The TNode instance from ChemicalEngineArray
+    std::unique_ptr<TNode> node;
+
 
     /// Molar masses of elements
     Vector elemMolMasses;
@@ -48,9 +64,6 @@ struct ChemicalEngineArray::Impl
     /// Molar masses of species
     Vector molMasses;
     
-    /// The formula matrix of the species
-    Matrix formula_matrix;
-
     /// The elapsed time of the equilibrate method (in units of s)
     double elapsed_time = 0;
 
@@ -115,28 +128,353 @@ struct ChemicalEngineArray::Impl
     /// Json string with I/O node (DBR) object in JSON format
     std::string dbr_json;
 
-    /// Write IPM, DCH and DBR files (in binary, txt or json mode)
-    GEMS3KGenerator::IOModes io_mode = GEMS3KGenerator::f_key_value;
-
-
-    /// Construct a default Impl instance
-    Impl()
-    {}
 };
 
-ChemicalEngineArray::ChemicalEngineArray()
-: pimpl(new Impl())
+
+//  new ----------------------------------------------
+
+
+auto ChemicalEngineArray::initialize(std::string ipm_filename, std::string dbr_filename, long int* nodeTypes) -> void
+{
+    // Initialize the GEMS input files mode
+    GEMS3KGenerator generator_data(ipm_filename.c_str());
+    pimpl->io_mode =   generator_data.files_mode();
+
+    // Allocate memory for the GEMS `node` member
+    pimpl->node_array = std::unique_ptr<TNodeArray>(new TNodeArray(pimpl->n_nodes) );
+
+    // Initialize the GEMS `nodes` member
+    long int res = pimpl->node_array->GEM_init(ipm_filename.c_str(),
+                                               dbr_filename.empty() ? nullptr : dbr_filename.c_str(),
+                                               nodeTypes,
+                                               false );
+
+    // Check if there was a system error during node initialization
+    if(res == -1)
+        throw std::runtime_error("\n*** ERROR ***\n"
+            "Could not initialize the ChemicalEngineArray object.\n"
+                "There was a problem during memory allocation.");
+
+    // Check if there was a file read error during node initialization
+    if(res == 1)
+        throw std::runtime_error("\n*** ERROR ***\n"
+            "Could not initialize the ChemicalEngineArray object.\n"
+                "Make sure the provided file exists relative to the working directory.");
+
+    reallocateEngineArrays();
+}
+
+ChemicalEngineArray::ChemicalEngineArray(long int nodes)
+: pimpl(new Impl(nodes))
 {
 }
 
-ChemicalEngineArray::ChemicalEngineArray(std::string filename)
-: pimpl(new Impl())
-{
-    initialize(filename);
-}
 
 ChemicalEngineArray::~ChemicalEngineArray()
 {}
+
+auto ChemicalEngineArray::setOptions(const ChemicalEngineArrayOptions& options) -> void
+{
+    pimpl->options = options;
+}
+
+auto ChemicalEngineArray::setWarmStart() -> void
+{
+    pimpl->options.warmstart = true;
+}
+
+auto ChemicalEngineArray::setColdStart() -> void
+{
+    pimpl->options.warmstart = false;
+}
+
+auto ChemicalEngineArray::readDbrFromFile(long int  ndx, std::string filename) -> void
+{
+    try {
+        // Reads another dbr file with input system composition
+        pimpl->node_array->GEMS3k_read_dbr(ndx, filename, pimpl->io_mode);
+    }
+    catch(TError& err)
+    {
+        throw std::runtime_error("\n*** ERROR ***\n"
+                                 "Could not find the provided dbr file.\n"
+                                 "Make sure the provided file path exists relative to the working directory.");
+    }
+    catch(...)
+    {
+        throw std::runtime_error("\n*** ERROR ***\n"
+                                 "Could not find the provided dbr file.\n"
+                                 "There was a problem during memory allocation.");
+    }
+}
+
+auto ChemicalEngineArray::writeDbrToFile(long int  ndx, std::string filename) -> void
+{
+    // Write current node into a dbr file into path filename
+    pimpl->node_array->GEMS3k_write_dbr(filename.c_str(), pimpl->io_mode);
+}
+
+auto ChemicalEngineArray::numElements() const -> Index
+{
+    return pimpl->node_array->pCSD()->nIC;
+}
+
+auto ChemicalEngineArray::numSpecies() const -> Index
+{
+    return pimpl->node_array->pCSD()->nDC;
+}
+
+auto ChemicalEngineArray::numPhases() const -> Index
+{
+    return pimpl->node_array->pCSD()->nPH;
+}
+
+auto ChemicalEngineArray::numSpeciesInPhase(Index iphase) const -> Index
+{
+    return pimpl->node_array->pCSD()->nDCinPH[iphase];
+}
+
+auto ChemicalEngineArray::elementName(Index ielement) const -> std::string
+{
+    std::string name = pimpl->node_array->pCSD()->ICNL[ielement];
+    if( name.length() > MaxICnameLength )
+        name.resize( MaxICnameLength );
+    return name;
+}
+
+auto ChemicalEngineArray::speciesName(Index ispecies) const -> std::string
+{
+    std::string name = pimpl->node_array->pCSD()->DCNL[ispecies];
+       if( name.length() > MaxDCnameLength )
+        name.resize( MaxDCnameLength );
+    return name;
+}
+
+auto ChemicalEngineArray::phaseName(Index iphase) const -> std::string
+{
+    std::string name = pimpl->node_array->pCSD()->PHNL[iphase];
+       if( name.length() > MaxPHnameLength )
+        name.resize( MaxPHnameLength );
+    return name;
+}
+
+auto ChemicalEngineArray::indexElement(std::string element) const -> Index
+{
+    const Index size = numElements();
+    for(Index i = 0; i < size; ++i)
+        if(elementName(i) == element)
+            return i;
+    return size; // in case that element name was not found
+}
+
+auto ChemicalEngineArray::indexSpecies(std::string species) const -> Index
+{
+    const Index size = numSpecies();
+    for(Index i = 0; i < size; ++i)
+        if(speciesName(i) == species)
+            return i;
+    return size; // in case that species name was not found
+}
+
+auto ChemicalEngineArray::indexSpeciesAll(std::string species) const -> VectorXi
+{
+    std::vector<Index> occur;
+    occur.resize(0);
+    const Index size = numSpecies();
+    for(Index i = 0; i < size; ++i)
+        if(speciesName(i) == species)
+            occur.push_back(i);
+    Index n_species_found = occur.size();
+    VectorXi result;
+    result.resize(0);
+    if(n_species_found > 0)
+    {
+        result.resize(n_species_found);
+        for(Index is=0; is<n_species_found; is++)
+            result(is) = occur.at(is);
+    }
+    return result;
+}
+
+// Index of phase searched by name
+auto ChemicalEngineArray::indexPhase(std::string phase) const -> Index
+{
+    const Index size = numPhases();
+    for(Index i = 0; i < size; ++i)
+        if(phaseName(i) == phase)
+            return i;
+    return size; // in case that phase name was not found
+}
+
+auto ChemicalEngineArray::indexPhaseAll(std::string phase) const -> VectorXi
+{
+    std::vector<Index> occur;
+    occur.resize(0);
+    const Index size = numPhases();
+    for(Index i = 0; i < size; ++i)
+        if(phaseName(i) == phase)
+            occur.push_back(i);
+    Index n_phases_found = occur.size();
+    VectorXi result;
+    result.resize(0);
+    if(n_phases_found > 0)
+    {
+        result.resize(n_phases_found);
+        for(Index is=0; is<n_phases_found; is++)
+            result(is) = occur.at(is);
+    }
+    return result;
+}
+
+auto ChemicalEngineArray::indexPhaseWithSpecies(Index ispecies) const -> Index
+{
+    const Index size = numPhases();
+    Index counter = 0;
+    for(Index i = 0; i < size; ++i)
+    {
+        counter += numSpeciesInPhase(i);
+        if(counter > ispecies) return i;
+    }
+    return size; // in case that species name was not found
+}
+
+auto ChemicalEngineArray::indexFirstSpeciesInPhase(Index iphase) const -> Index
+{
+    Index counter = 0;
+    for(Index i = 0; i < iphase; ++i)
+        counter += numSpeciesInPhase(i);
+    return counter;
+}
+
+auto ChemicalEngineArray::formulaMatrix() const -> MatrixConstRef
+{
+    return pimpl->formula_matrix;
+}
+
+auto ChemicalEngineArray::setPT(long int ndx, double P, double T) const -> bool
+{
+    // Check if P, T are feasible
+    if(pimpl->node_array->getCalcNode()->check_TP( T, P )==false)
+        return true;
+    // Set temperature and pressure
+    pimpl->node_array->pNodT1()[ndx]->TK = T;
+    pimpl->node_array->pNodT1()[ndx]->P = P;
+    return false;
+}
+
+auto ChemicalEngineArray::setB(long int ndx, VectorConstRef b ) -> void
+{
+    // Set the mole amounts of elements
+    for(Index i = 0; i < numElements(); ++i)
+        pimpl->node_array->pNodT1()[ndx]->bIC[i] = b[i];
+}
+
+auto ChemicalEngineArray::setSpeciesAmounts(long int ndx, VectorConstRef n) -> void
+{
+    MatrixConstRef W = formulaMatrix();
+    // Updates all the species amount
+    long int jj;
+    for(jj = 0; jj <numSpecies(); jj++)
+        pimpl->node_array->pNodT1()[ndx]->xDC[jj] = n[jj];
+    // Correction of the bIC vector
+    long int ii;
+
+    for( ii=0; ii<numElements(); ii++ )
+        pimpl->node_array->pNodT1()[ndx]->bIC[ii] = 0.0;
+    for(jj = 0; jj <numSpecies(); jj++)
+        for( ii=0; ii<numElements(); ii++ )
+            pimpl->node_array->pNodT1()[ndx]->bIC[ii] += speciesAmounts()[jj] * W(ii , jj);
+}
+
+// Set the species of name (string) with the new amount
+// Caution: this may be ambiguous as in GEMS3K, species with the same name
+//   may occur in more than one condensed phase!
+// An overload including phase name is needed!
+auto ChemicalEngineArray::setSpeciesAmount(long int ndx, std::string name, double amount) -> void
+{
+    MatrixConstRef W = formulaMatrix();
+    auto ispecies = indexSpecies(name);
+    // Updates the species amount
+    pimpl->node_array->pNodT1()[ndx]->xDC[ispecies] = amount;
+    // Correction of the bIC vector
+    long int ii;
+    long int jj;
+    for( ii=0; ii<numElements(); ii++ )
+        pimpl->node_array->pNodT1()[ndx]->bIC[ii] = 0.0;
+    for(jj = 0; jj <numSpecies(); jj++)
+        for( ii=0; ii<numElements(); ii++ )
+            pimpl->node_array->pNodT1()[ndx]->bIC[ii] += speciesAmounts()[jj] * W(ii , jj);
+}
+
+auto ChemicalEngineArray::setSpeciesAmount(long int ndx, Index ispecies, double amount) -> void
+{
+    MatrixConstRef W = formulaMatrix();
+    // Updates the species amount
+    pimpl->node_array->pNodT1()[ndx]->xDC[ispecies] = amount;
+    // Correction of the bIC vector
+    long int ii;
+    long int jj;
+    for( ii=0; ii<numElements(); ii++ )
+        pimpl->node_array->pNodT1()[ndx]->bIC[ii] = 0.0;
+    for(jj = 0; jj <numSpecies(); jj++)
+        for( ii=0; ii<numElements(); ii++ )
+            pimpl->node_array->pNodT1()[ndx]->bIC[ii] += speciesAmounts()[jj] * W(ii , jj);
+}
+
+// These methods may be ambiguous, as in GEMS3K, species with the same name
+//   may occur in more than one condensed phase!
+// An overload including phase name or index is needed!
+//
+auto ChemicalEngineArray::setSpeciesUpperLimit(long int ndx, std::string name, double amount) -> void
+{
+    auto ispecies = indexSpecies(name);
+    double bound = (amount < 0.0? 1e6: amount);
+    pimpl->node_array->pNodT1()[ndx]->dul[ispecies] = bound;
+}
+
+// Overload!
+auto ChemicalEngineArray::setSpeciesUpperLimit(long int ndx, Index ispecies, double amount) -> void
+{
+    double bound = (amount < 0.0? 1e6: amount);
+    pimpl->node_array->pNodT1()[ndx]->dul[ispecies] = bound;
+}
+
+auto ChemicalEngineArray::setSpeciesUpperLimits(long int ndx, VectorConstRef n) -> void
+{
+    double bound;
+    for(Index jj = 0; jj <numSpecies(); jj++) {
+        bound = (n[jj] < 0.0? 0.0: n[jj]);
+        pimpl->node_array->pNodT1()[ndx]->dul[jj] = bound;
+    }
+}
+
+auto ChemicalEngineArray::setSpeciesLowerLimit(long int ndx, std::string name, double amount) -> void
+{
+    auto ispecies = indexSpecies(name);
+    double bound = (amount < 0.0? 0.0: amount);
+    pimpl->node_array->pNodT1()[ndx]->dll[ispecies] = bound;
+}
+
+// Overload!
+auto ChemicalEngineArray::setSpeciesLowerLimit(long int ndx, Index ispecies, double amount) -> void
+{
+    double bound = (amount < 0.0? 0.0: amount);
+    pimpl->node_array->pNodT1()[ndx]->dll[ispecies] = bound;
+}
+
+auto ChemicalEngineArray::setSpeciesLowerLimits(long int ndx, VectorConstRef n) -> void
+{
+    double bound;
+    for(Index jj = 0; jj <numSpecies(); jj++) {
+        bound = (n[jj] < 0.0? 0.0: n[jj]);
+        pimpl->node_array->pNodT1()[ndx]->dll[jj] = bound;;
+    }
+}
+
+
+//  old ----------------------------------------------
+
+
 
 auto ChemicalEngineArray::reallocateEngineArrays() -> void
 {
@@ -147,7 +485,7 @@ auto ChemicalEngineArray::reallocateEngineArrays() -> void
     pimpl->formula_matrix = Matrix::Zero(E, N);
     for(Index i = 0; i < N; ++i)
         for(Index j = 0; j < E; ++j)
-            pimpl->formula_matrix(j, i) = pimpl->node->DCaJI(i, j);
+            pimpl->formula_matrix(j, i) = pimpl->node_array->DCaJI(i, j);
 
     // Allocate memory for vector members
     pimpl->elemMolMasses.resize(E);
@@ -177,33 +515,6 @@ auto ChemicalEngineArray::reallocateEngineArrays() -> void
     // pimpl->stMolarVolumes.resize(N);                  // in m3/mol
 }
 
-auto ChemicalEngineArray::initialize(std::string filename) -> void
-{
-    // Initialize the GEMS input files mode
-    GEMS3KGenerator generator_data(filename.c_str());
-    pimpl->io_mode =   generator_data.files_mode();
-
-    // Allocate memory for the GEMS `node` member
-    pimpl->node = std::unique_ptr<TNode>(new TNode);
-
-    // Initialize the GEMS `node` member
-    long int res = pimpl->node->GEM_init(filename.c_str());
-
-    // Check if there was a system error during node initialization
-    if(res == -1)
-        throw std::runtime_error("\n*** ERROR ***\n"
-            "Could not initialize the ChemicalEngineArray object.\n"
-                "There was a problem during memory allocation.");
-
-    // Check if there was a file read error during node initialization
-    if(res == 1)
-        throw std::runtime_error("\n*** ERROR ***\n"
-            "Could not initialize the ChemicalEngineArray object.\n"
-                "Make sure the provided file exists relative to the working directory.");
-
-    reallocateEngineArrays();
-}
-
 
 auto ChemicalEngineArray::initializeFromJsonStrings( std::string dch_json, std::string ipm_json, std::string dbr_json) -> void
 {
@@ -229,26 +540,7 @@ auto ChemicalEngineArray::initializeFromJsonStrings( std::string dch_json, std::
     reallocateEngineArrays();
 }
 
-
-auto ChemicalEngineArray::readDbrFromFile(std::string filename) -> void
-{
-    // Reads another dbr file with input system composition
-    long int res = pimpl->node->GEM_read_dbr(filename.c_str(), pimpl->io_mode);
-
-        // Check if there was a system error during node initialization
-    if(res == -1)
-        throw std::runtime_error("\n*** ERROR ***\n"
-            "Could not find the provided dbr file.\n"
-                "There was a problem during memory allocation.");
-
-    // Check if there was a file read error during node initialization
-    if(res >= 1)
-        throw std::runtime_error("\n*** ERROR ***\n"
-            "Could not find the provided dbr file.\n"
-                "Make sure the provided file path exists relative to the working directory.");
-}
-
-auto ChemicalEngineArray::readDbrFromJsonString( std::string dbr_json) -> void
+auto ChemicalEngineArray::readDbrFromJsonString(long int  ndx, std::string dbr_json) -> void
 {
     // Reads another dbr file with input system composition
     long int res = pimpl->node->GEM_read_dbr( dbr_json, true );
@@ -267,16 +559,10 @@ auto ChemicalEngineArray::readDbrFromJsonString( std::string dbr_json) -> void
                 "Make sure that this JSON string is not empty and is in correct format and parameter position.");
 }
 
-auto ChemicalEngineArray::writeDbrToFile(std::string filename) -> void
-{
-    // Write current node into a dbr file into path filename
-    pimpl->node->GEM_write_dbr(filename.c_str(), pimpl->io_mode);
-}
-
-auto ChemicalEngineArray::writeDbrToJsonString() -> const std::string
+auto ChemicalEngineArray::writeDbrToJsonString(long int  ndx) -> const std::string
 {
     // Writes another node dbr with input system composition into json string dbr_json
-    std::string dbr_json = ""; 
+    std::string dbr_json = "";
     long int res = pimpl->node->GEM_write_dbr( dbr_json );
 
     // Check if there was a json write error
@@ -284,45 +570,11 @@ auto ChemicalEngineArray::writeDbrToJsonString() -> const std::string
         throw std::runtime_error("\n*** ERROR ***\n"
             "Could not process the provided DBR into JSON string.\n"
                 "Check the code.");
-    
-    return dbr_json;            
+
+    return dbr_json;
 }
 
-auto ChemicalEngineArray::numElements() const -> Index
-{
-    return pimpl->node->pCSD()->nIC;
-}
 
-auto ChemicalEngineArray::numSpecies() const -> Index
-{
-    return pimpl->node->pCSD()->nDC;
-}
-
-auto ChemicalEngineArray::numPhases() const -> Index
-{
-    return pimpl->node->pCSD()->nPH;
-}
-
-auto ChemicalEngineArray::numSpeciesInPhase(Index iphase) const -> Index
-{
-    return pimpl->node->pCSD()->nDCinPH[iphase];
-}
-
-auto ChemicalEngineArray::elementName(Index ielement) const -> std::string
-{
-    std::string name = pimpl->node->pCSD()->ICNL[ielement];
-    if( name.length() > MaxICnameLength )
-        name.resize( MaxICnameLength );
-    return name;
-}
-
-auto ChemicalEngineArray::speciesName(Index ispecies) const -> std::string
-{
-    std::string name = pimpl->node->pCSD()->DCNL[ispecies];
-       if( name.length() > MaxDCnameLength )
-        name.resize( MaxDCnameLength );
-    return name;
-}
 
 auto ChemicalEngineArray::speciesCharge(Index ispecies) const -> double
 {
@@ -331,59 +583,6 @@ auto ChemicalEngineArray::speciesCharge(Index ispecies) const -> double
     return W(chargeRow -1 , ispecies);
 }
 
-auto ChemicalEngineArray::phaseName(Index iphase) const -> std::string
-{
-    std::string name = pimpl->node->pCSD()->PHNL[iphase];
-       if( name.length() > MaxPHnameLength )
-        name.resize( MaxPHnameLength );
-    return name;
-}
-
-// These methods may be ambiguous, as in GEMS3K, species with the same name 
-//   may occur in more than one condensed phase!
-// An overload including phase name or index is needed! 
-//
-auto ChemicalEngineArray::setSpeciesUpperLimit(std::string name, double amount) -> void
-{
-    auto ispecies = indexSpecies(name);
-    double bound = (amount < 0.0? 1e6: amount);
-    pimpl->node->pCNode()->dul[ispecies] = bound;
-}
-
-auto ChemicalEngineArray::setSpeciesLowerLimit(std::string name, double amount) -> void
-{
-    auto ispecies = indexSpecies(name);
-    double bound = (amount < 0.0? 0.0: amount);
-    pimpl->node->pCNode()->dll[ispecies] = bound;
-}
-
-// Overload!
-auto ChemicalEngineArray::setSpeciesUpperLimit(Index ispecies, double amount) -> void
-{   
-    double bound = (amount < 0.0? 1e6: amount);
-    pimpl->node->pCNode()->dul[ispecies] = bound;
-}
-
-// Overload!
-auto ChemicalEngineArray::setSpeciesLowerLimit(Index ispecies, double amount) -> void
-{
-    double bound = (amount < 0.0? 0.0: amount);
-    pimpl->node->pCNode()->dll[ispecies] = bound;
-}
-
-auto ChemicalEngineArray::setSpeciesUpperLimits(VectorConstRef n) -> void
-{
-
-    // Updates all the specied upper limits
-    for(Index jj = 0; jj <numSpecies(); jj++)
-      pimpl->node->Set_dul(jj,n[jj]);
-}
-auto ChemicalEngineArray::setSpeciesLowerLimits(VectorConstRef n) -> void
-{
-    // Updates all the specied lower limits
-    for(Index jj = 0; jj <numSpecies(); jj++)
-      pimpl->node->Set_dll(jj,n[jj]);
-}
 
 auto ChemicalEngineArray::setStandardMolarGibbsEnergy(std::string name, double value) -> void
 {
@@ -392,94 +591,6 @@ auto ChemicalEngineArray::setStandardMolarGibbsEnergy(std::string name, double v
     double P = pimpl->node->cP();
     auto idc = pimpl->node->DC_xDB_to_xCH( ispecies );
     pimpl->node->Set_DC_G0(idc, P, TK,  value);  
-}
-
-auto ChemicalEngineArray::indexElement(std::string element) const -> Index
-{
-    const Index size = numElements();
-    for(Index i = 0; i < size; ++i)
-        if(elementName(i) == element)
-            return i;
-    return size; // in case that element name was not found 
-}
-
-auto ChemicalEngineArray::indexSpecies(std::string species) const -> Index
-{
-    const Index size = numSpecies();
-    for(Index i = 0; i < size; ++i)
-        if(speciesName(i) == species)
-            return i;
-    return size; // in case that species name was not found 
-}
-
-auto ChemicalEngineArray::indexSpeciesAll(std::string species) const -> VectorXi
-{
-    std::vector<Index> occur;
-    occur.resize(0);
-    const Index size = numSpecies();
-    for(Index i = 0; i < size; ++i)
-        if(speciesName(i) == species)
-            occur.push_back(i);
-    Index n_species_found = occur.size();
-    VectorXi result;
-    result.resize(0);
-    if(n_species_found > 0)        
-    {
-        result.resize(n_species_found);
-        for(Index is=0; is<n_species_found; is++)
-            result(is) = occur.at(is);
-    }
-    return result;
-}
-
-// Index of phase searched by name
-auto ChemicalEngineArray::indexPhase(std::string phase) const -> Index
-{
-    const Index size = numPhases();
-    for(Index i = 0; i < size; ++i)
-        if(phaseName(i) == phase)
-            return i;
-    return size; // in case that phase name was not found 
-}
-
-auto ChemicalEngineArray::indexPhaseAll(std::string phase) const -> VectorXi
-{
-    std::vector<Index> occur;
-    occur.resize(0);
-    const Index size = numPhases();
-    for(Index i = 0; i < size; ++i)
-        if(phaseName(i) == phase)
-            occur.push_back(i);
-    Index n_phases_found = occur.size();
-    VectorXi result;
-    result.resize(0);
-    if(n_phases_found > 0)        
-    {
-        result.resize(n_phases_found);
-        for(Index is=0; is<n_phases_found; is++)
-            result(is) = occur.at(is);
-    }
-    return result;
-}
-
-auto ChemicalEngineArray::indexPhaseWithSpecies(Index ispecies) const -> Index
-{
-    const Index size = numPhases();
-    Index counter = 0;
-    for(Index i = 0; i < size; ++i)
-    {
-        counter += numSpeciesInPhase(i);
-        if(counter > ispecies) return i;
-    }
-    return size; // in case that species name was not found 
-}
-
-auto ChemicalEngineArray::indexFirstSpeciesInPhase(Index iphase) const -> Index
-{
-    Index counter = 0;
-    for(Index i = 0; i < iphase; ++i)
-        counter += numSpeciesInPhase(i);
-    return counter;
 }
 
 auto ChemicalEngineArray::elementMolarMasses() const -> VectorConstRef
@@ -495,44 +606,6 @@ auto ChemicalEngineArray::speciesMolarMasses() const -> VectorConstRef
         pimpl->molMasses[i] = pimpl->node->pCSD()->DCmm[i];
     return pimpl->molMasses;
 }
-
-auto ChemicalEngineArray::formulaMatrix() const -> MatrixConstRef
-{
-    return pimpl->formula_matrix;
-}
-
-auto ChemicalEngineArray::setOptions(const ChemicalEngineArrayOptions& options) -> void
-{
-    pimpl->options = options;
-}
-
-auto ChemicalEngineArray::setWarmStart() -> void
-{
-    pimpl->options.warmstart = true;
-}
-
-auto ChemicalEngineArray::setColdStart() -> void
-{
-    pimpl->options.warmstart = false;
-}
-
-auto ChemicalEngineArray::setPT( double P, double T) const -> bool
-{
-    // Check if P, T are feasible
-    if(pimpl->node->check_TP( T, P )==false)
-        return true;
-    // Set temperature and pressure
-    pimpl->node->Set_TK(T);
-    pimpl->node->Set_P(P);
-    return false;    
-}  
-
-auto ChemicalEngineArray::setB( VectorConstRef b ) -> void
-{
-    // Set the mole amounts of elements
-    for(Index i = 0; i < numElements(); ++i)
-        pimpl->node->Set_bIC(i, b[i]);
-}  
 
 auto ChemicalEngineArray::reequilibrate( bool warmstart ) -> int
 {
@@ -574,62 +647,6 @@ auto ChemicalEngineArray::equilibrate(double T, double P, VectorConstRef b) -> i
     // Set the elapsed time member
     pimpl->elapsed_time = std::chrono::duration<double>(end - begin).count();
     return valueOutputGem;
-}
-
-auto ChemicalEngineArray::setSpeciesAmounts(VectorConstRef n) -> void
-{
-
-    MatrixConstRef W = formulaMatrix();
-    // Updates all the species amount
-    long int jj;
-    for(jj = 0; jj <numSpecies(); jj++)
-        pimpl->node->pCNode()->xDC[jj] = n[jj];
-    // Correction of the bIC vector
-    long int ii;
-
-    for( ii=0; ii<numElements(); ii++ )
-        pimpl->node->pCNode()->bIC[ii] = 0.0;
-    for(jj = 0; jj <numSpecies(); jj++)
-        for( ii=0; ii<numElements(); ii++ )
-            pimpl->node->pCNode()->bIC[ii] += speciesAmounts()[jj] * W(ii , jj);
-}
-
-// Set the species of name (string) with the new amount
-// Caution: this may be ambiguous as in GEMS3K, species with the same name 
-//   may occur in more than one condensed phase!
-// An overload including phase name is needed! 
-auto ChemicalEngineArray::setSpeciesAmount(std::string name, double amount) -> void
-{
-
-    MatrixConstRef W = formulaMatrix();
-    auto ispecies = indexSpecies(name);
-    // Updates the species amount
-    pimpl->node->pCNode()->xDC[ispecies] = amount;
-    // Correction of the bIC vector
-    long int ii;
-    long int jj;
-    for( ii=0; ii<numElements(); ii++ )
-        pimpl->node->pCNode()->bIC[ii] = 0.0;
-    for(jj = 0; jj <numSpecies(); jj++)
-        for( ii=0; ii<numElements(); ii++ )
-            pimpl->node->pCNode()->bIC[ii] += speciesAmounts()[jj] * W(ii , jj);
-}
-
-
-auto ChemicalEngineArray::setSpeciesAmount(Index ispecies, double amount) -> void
-{
-
-    MatrixConstRef W = formulaMatrix();
-    // Updates the species amount
-    pimpl->node->pCNode()->xDC[ispecies] = amount;
-    // Correction of the bIC vector
-    long int ii;
-    long int jj;
-    for( ii=0; ii<numElements(); ii++ )
-        pimpl->node->pCNode()->bIC[ii] = 0.0;
-    for(jj = 0; jj <numSpecies(); jj++)
-        for( ii=0; ii<numElements(); ii++ )
-            pimpl->node->pCNode()->bIC[ii] += speciesAmounts()[jj] * W(ii , jj);
 }
 
 auto ChemicalEngineArray::converged() const -> bool
