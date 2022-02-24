@@ -60,7 +60,7 @@ int main(int argc, char **argv)
     {
         engine.initializeFromJsonStrings(dch_json, ipm_json, dbr_json);
 
-        Vector bj = engine.elementAmounts();
+        Vector bj = engine.elementAmounts(0);
 
         std::cout << "Vector bj: " << bj.transpose() << std::endl;
 

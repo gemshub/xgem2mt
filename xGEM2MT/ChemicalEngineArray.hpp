@@ -176,6 +176,65 @@ public:
     /// set all the lower limits for the species dll (in units of mol)
     auto setSpeciesLowerLimits(long int ndx, VectorConstRef n) -> void;
 
+    /// Return the convergence result of the equilibrium calculation
+    auto converged(long int ndx) const -> bool;
+
+    /// Return the number of iterations of the equilibrium calculation
+    auto numIterations(long int ndx) const -> Index;
+
+    /// Return the temperature (in units of K)
+    auto temperature(long int ndx) const -> double;
+
+    /// Return the pressure (in units of Pa)
+    auto pressure(long int ndx) const -> double;
+
+    /// Return the amounts of the elements (in units of mol)
+    auto elementAmounts(long int ndx) const -> Vector;
+
+    /// Return the amounts of the elements in a phase.
+    /// @param iphase The index of the phase.
+    auto elementAmountsInPhase(long int ndx, Index iphase) const -> Vector;
+
+    /// Return the amounts of the elements in a group of species.
+    /// @param ispecies The vector of indices of the species.
+    auto elementAmountsInSpecies(long int ndx, VectorXiConstRef ispecies) const -> Vector;
+
+    /// Return the amounts of the species (in units of mol)
+    auto speciesAmounts(long int ndx) const -> VectorConstRef;
+
+    /// Return the amount of the species with index @param ispecies (in units of mol)
+    auto speciesAmount(long int ndx, Index ispecies) const -> double;
+
+    /// Return the amount of the species with name @param name (in units of mol)
+    auto speciesAmount(long int ndx, std::string name) const -> double;
+
+    /// Return the upper limits for the species dul (in units of mol)
+    auto speciesUpperLimits(long int ndx) const -> VectorConstRef;
+    /// Return the lower limits for the species dll (in units of mol)
+    auto speciesLowerLimits(long int ndx) const -> VectorConstRef;
+
+    /// Return the mass of the system (in units of kg).
+    auto systemMass(long int ndx) const -> double;
+
+    /// Return the volume of the system (in units of m3).
+    auto systemVolume(long int ndx) const -> double;
+
+    /// Return the ionic strength of the aqueous phase (in units of molal).
+    auto ionicStrength(long int ndx) const -> double;
+
+    /// Return the pH of the aqueous phase.
+    auto pH(long int ndx) const -> double;
+
+    /// Return the pe of the aqueous phase.
+    auto pe(long int ndx) const -> double;
+
+    /// Return the Eh of the aqueous phase.
+    auto Eh(long int ndx) const -> double;
+
+    /// Return the total Gibbs energy of the system.
+    auto systemGibbsEnergy(long int ndx) const -> double;
+
+
 // old -----------------------------
 
     /// Initialize the ChemicalEngineArray object from JSON strings for dch, ipm and dbr exported from GEM-Selektor \ .
@@ -225,47 +284,10 @@ public:
     /// Returns the return code of GEMS3K GEM_run call
     auto equilibrate(double T, double P, VectorConstRef b) -> int;
 
-    /// Return the convergence result of the equilibrium calculation
-    auto converged() const -> bool;
-
-    /// Return the number of iterations of the equilibrium calculation
-    auto numIterations() const -> Index;
-
     /// Return the wall time of the equilibrium calculation (in units of s)
     auto elapsedTime() const -> double;
 
-    /// Return the temperature (in units of K)
-    auto temperature() const -> double;
-
-    /// Return the pressure (in units of Pa)
-    auto pressure() const -> double;
-
-    /// Return the amounts of the elements (in units of mol)
-    auto elementAmounts() const -> VectorConstRef;
-
-    /// Return the amounts of the elements in a phase.
-    /// @param iphase The index of the phase.
-    auto elementAmountsInPhase(Index iphase) const -> Vector;
-
-    /// Return the amounts of the elements in a group of species.
-    /// @param ispecies The vector of indices of the species.
-    auto elementAmountsInSpecies(VectorXiConstRef ispecies) const -> Vector; // commented out until Eigen 3.4 is released on conda forge
-
-    /// Return the amounts of the species (in units of mol)
-    auto speciesAmounts() const -> VectorConstRef;
-
-    /// Return the amount of the species with index @param ispecies (in units of mol)
-    auto speciesAmount(Index ispecies) const -> double;
-
-    /// Return the amount of the species with name @param name (in units of mol)
-    auto speciesAmount(std::string name) const -> double;
-
-    /// Return the upper limits for the species dul (in units of mol)
-    auto speciesUpperLimits() const -> VectorConstRef;
-    /// Return the lower limits for the species dll (in units of mol)
-    auto speciesLowerLimits() const -> VectorConstRef;
-
-    /// Return the molalities of the species. Aquatic systems only (assuming 
+    /// Return the molalities of the species. Aquatic systems only (assuming
     /// the aqueous phase is the first one and H2O-solvent is the last species in it)
     auto speciesMolalities() const -> VectorConstRef;
 
@@ -403,27 +425,6 @@ public:
        
     /// Returns saturation (stability) index (in log10 units) of phase @param iphase.
     auto phaseSatIndex(Index iphase) const -> double;
-
-    /// Return the mass of the system (in units of kg).
-    auto systemMass() const -> double;
-
-    /// Return the volume of the system (in units of m3).
-    auto systemVolume() const -> double;
-
-    /// Return the ionic strength of the aqueous phase (in units of molal).
-    auto ionicStrength() const -> double;
-
-    /// Return the pH of the aqueous phase.
-    auto pH() const -> double;
-
-    /// Return the pe of the aqueous phase.
-    auto pe() const -> double;
-
-    /// Return the Eh of the aqueous phase.
-    auto Eh() const -> double;
-
-    /// Return the total Gibbs energy of the system.
-    auto systemGibbsEnergy() const -> double;
 
      /// Return the total enthalpy of the system.
     auto systemEnthalpy() const -> double;

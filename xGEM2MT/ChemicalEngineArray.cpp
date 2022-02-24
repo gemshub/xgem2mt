@@ -52,18 +52,17 @@ struct ChemicalEngineArray::Impl
     /// The formula matrix of the species
     Matrix formula_matrix;
 
-// old
-
-    /// The TNode instance from ChemicalEngineArray
-    std::unique_ptr<TNode> node;
-
-
     /// Molar masses of elements
     Vector elemMolMasses;
 
     /// Molar masses of species
     Vector molMasses;
-    
+
+// old
+
+    /// The TNode instance from ChemicalEngineArray
+    std::unique_ptr<TNode> node;
+
     /// The elapsed time of the equilibrate method (in units of s)
     double elapsed_time = 0;
 
@@ -351,6 +350,21 @@ auto ChemicalEngineArray::formulaMatrix() const -> MatrixConstRef
     return pimpl->formula_matrix;
 }
 
+auto ChemicalEngineArray::elementMolarMasses() const -> VectorConstRef
+{
+    for(Index i = 0; i < numElements(); ++i)
+        pimpl->elemMolMasses[i] = pimpl->node_array->pCSD()->ICmm[i];
+    return pimpl->elemMolMasses;
+}
+
+auto ChemicalEngineArray::speciesMolarMasses() const -> VectorConstRef
+{
+    for(Index i = 0; i < numSpecies(); ++i)
+        pimpl->molMasses[i] = pimpl->node_array->pCSD()->DCmm[i];
+    return pimpl->molMasses;
+}
+
+
 auto ChemicalEngineArray::setPT(long int ndx, double P, double T) const -> bool
 {
     // Check if P, T are feasible
@@ -383,7 +397,7 @@ auto ChemicalEngineArray::setSpeciesAmounts(long int ndx, VectorConstRef n) -> v
         pimpl->node_array->pNodT1()[ndx]->bIC[ii] = 0.0;
     for(jj = 0; jj <numSpecies(); jj++)
         for( ii=0; ii<numElements(); ii++ )
-            pimpl->node_array->pNodT1()[ndx]->bIC[ii] += speciesAmounts()[jj] * W(ii , jj);
+            pimpl->node_array->pNodT1()[ndx]->bIC[ii] += speciesAmounts(ndx)[jj] * W(ii , jj);
 }
 
 // Set the species of name (string) with the new amount
@@ -403,7 +417,7 @@ auto ChemicalEngineArray::setSpeciesAmount(long int ndx, std::string name, doubl
         pimpl->node_array->pNodT1()[ndx]->bIC[ii] = 0.0;
     for(jj = 0; jj <numSpecies(); jj++)
         for( ii=0; ii<numElements(); ii++ )
-            pimpl->node_array->pNodT1()[ndx]->bIC[ii] += speciesAmounts()[jj] * W(ii , jj);
+            pimpl->node_array->pNodT1()[ndx]->bIC[ii] += speciesAmounts(ndx)[jj] * W(ii , jj);
 }
 
 auto ChemicalEngineArray::setSpeciesAmount(long int ndx, Index ispecies, double amount) -> void
@@ -418,7 +432,7 @@ auto ChemicalEngineArray::setSpeciesAmount(long int ndx, Index ispecies, double 
         pimpl->node_array->pNodT1()[ndx]->bIC[ii] = 0.0;
     for(jj = 0; jj <numSpecies(); jj++)
         for( ii=0; ii<numElements(); ii++ )
-            pimpl->node_array->pNodT1()[ndx]->bIC[ii] += speciesAmounts()[jj] * W(ii , jj);
+            pimpl->node_array->pNodT1()[ndx]->bIC[ii] += speciesAmounts(ndx)[jj] * W(ii , jj);
 }
 
 // These methods may be ambiguous, as in GEMS3K, species with the same name
@@ -471,6 +485,115 @@ auto ChemicalEngineArray::setSpeciesLowerLimits(long int ndx, VectorConstRef n) 
     }
 }
 
+auto ChemicalEngineArray::converged(long int ndx) const -> bool
+{
+    const auto status = pimpl->node_array->pNodT1()[ndx]->NodeStatusCH;
+    return status == OK_GEM_AIA || status == OK_GEM_SIA;
+}
+
+auto ChemicalEngineArray::numIterations(long int ndx) const -> Index
+{
+    return pimpl->node_array->pNodT1()[ndx]->IterDone;
+}
+
+auto ChemicalEngineArray::temperature(long int ndx) const -> double
+{
+    return pimpl->node_array->pNodT1()[ndx]->TK;
+}
+
+auto ChemicalEngineArray::pressure(long int ndx) const -> double
+{
+    return pimpl->node_array->pNodT1()[ndx]->P;
+}
+
+auto ChemicalEngineArray::elementAmounts(long int ndx) const -> Vector
+{
+    return Vector::Map(pimpl->node_array->pNodT1()[ndx]->bIC, numElements());
+}
+
+auto ChemicalEngineArray::elementAmountsInPhase(long int ndx, Index iphase) const -> Vector
+{
+    MatrixConstRef W = formulaMatrix();
+    VectorConstRef n = speciesAmounts(ndx);
+    const Index first = indexFirstSpeciesInPhase(iphase);
+    const Index size = numSpeciesInPhase(iphase);
+    MatrixConstRef Wp = W.middleCols(first, size);
+    VectorConstRef np = n.segment(first, size);
+    Vector res = Wp * np;
+    return res;
+}
+
+auto ChemicalEngineArray::elementAmountsInSpecies(long int ndx, VectorXiConstRef ispecies) const -> Vector
+{
+    MatrixConstRef W = formulaMatrix();
+    VectorConstRef n = speciesAmounts(ndx);
+    MatrixConstRef Wp = W(all, ispecies);
+    VectorConstRef np = n(ispecies);
+    Vector res = Wp * np;
+    return res;
+}
+
+auto ChemicalEngineArray::speciesAmount(long int ndx, Index ispecies) const -> double
+{
+    return pimpl->node_array->pNodT1()[ndx]->xDC[ispecies];
+}
+
+auto ChemicalEngineArray::speciesAmount(long int ndx, std::string name) const -> double
+{
+    return pimpl->node_array->pNodT1()[ndx]->xDC[indexSpecies(name)];
+}
+
+auto ChemicalEngineArray::speciesAmounts(long int ndx) const -> VectorConstRef
+{
+    return Vector::Map(pimpl->node_array->pNodT1()[ndx]->xDC, numSpecies());
+}
+
+auto ChemicalEngineArray::speciesUpperLimits(long int ndx) const -> VectorConstRef
+{
+    return Vector::Map(pimpl->node_array->pNodT1()[ndx]->dul, numSpecies());
+}
+auto ChemicalEngineArray::speciesLowerLimits(long int ndx) const -> VectorConstRef
+{
+    return Vector::Map(pimpl->node_array->pNodT1()[ndx]->dll, numSpecies());
+}
+
+auto ChemicalEngineArray::systemVolume(long int ndx) const -> double
+{
+    return pimpl->node_array->pNodT1()[ndx]->Vs;
+    // return pimpl->node_array->pNodT1()[ndx]->cVs();
+}
+
+auto ChemicalEngineArray::systemMass(long int ndx) const -> double
+{
+    //return pimpl->node_array->pNodT1()[ndx]->cMs();
+    return pimpl->node_array->pNodT1()[ndx]->Ms;
+}
+
+auto ChemicalEngineArray::ionicStrength(long int ndx) const -> double
+{
+    return pimpl->node_array->pNodT1()[ndx]->IC;
+}
+
+auto ChemicalEngineArray::pH(long int ndx) const -> double
+{
+    return pimpl->node_array->pNodT1()[ndx]->pH;
+}
+
+auto ChemicalEngineArray::pe(long int ndx) const -> double
+{
+    return pimpl->node_array->pNodT1()[ndx]->pe;
+}
+
+auto ChemicalEngineArray::Eh(long int ndx) const -> double
+{
+    return pimpl->node_array->pNodT1()[ndx]->Eh;
+}
+
+auto ChemicalEngineArray::systemGibbsEnergy(long int ndx) const -> double
+{
+    return pimpl->node_array->pNodT1()[ndx]->Gs;   // *RT to get it in J
+}
+
 
 //  old ----------------------------------------------
 
@@ -490,6 +613,7 @@ auto ChemicalEngineArray::reallocateEngineArrays() -> void
     // Allocate memory for vector members
     pimpl->elemMolMasses.resize(E);
     pimpl->molMasses.resize(N);
+
     pimpl->ln_activity_coefficients.resize(N);
     pimpl->ln_activities.resize(N);
     pimpl->ln_concentrations.resize(N);
@@ -593,20 +717,6 @@ auto ChemicalEngineArray::setStandardMolarGibbsEnergy(std::string name, double v
     pimpl->node->Set_DC_G0(idc, P, TK,  value);  
 }
 
-auto ChemicalEngineArray::elementMolarMasses() const -> VectorConstRef
-{
-    for(Index i = 0; i < numElements(); ++i)
-        pimpl->elemMolMasses[i] = pimpl->node->pCSD()->ICmm[i];
-    return pimpl->elemMolMasses;
-}
-
-auto ChemicalEngineArray::speciesMolarMasses() const -> VectorConstRef
-{
-    for(Index i = 0; i < numSpecies(); ++i)
-        pimpl->molMasses[i] = pimpl->node->pCSD()->DCmm[i];
-    return pimpl->molMasses;
-}
-
 auto ChemicalEngineArray::reequilibrate( bool warmstart ) -> int
 {
     pimpl->options.warmstart = warmstart;
@@ -649,102 +759,29 @@ auto ChemicalEngineArray::equilibrate(double T, double P, VectorConstRef b) -> i
     return valueOutputGem;
 }
 
-auto ChemicalEngineArray::converged() const -> bool
-{
-    const auto status = pimpl->node->pCNode()->NodeStatusCH;
-    return status == OK_GEM_AIA || status == OK_GEM_SIA;
-}
-
-auto ChemicalEngineArray::numIterations() const -> Index
-{
-    return pimpl->node->pCNode()->IterDone;
-}
 
 auto ChemicalEngineArray::elapsedTime() const -> double
 {
     return pimpl->elapsed_time;
 }
 
-auto ChemicalEngineArray::temperature() const -> double
-{
-    return pimpl->node->Get_TK();
-}
-
-auto ChemicalEngineArray::pressure() const -> double
-{
-    return pimpl->node->Get_P();
-}
-
-auto ChemicalEngineArray::elementAmounts() const -> VectorConstRef
-{
-    return Vector::Map(pimpl->node->pCNode()->bIC, numElements());
-}
-
-auto ChemicalEngineArray::elementAmountsInPhase(Index iphase) const -> Vector
-{
-    MatrixConstRef W = formulaMatrix();
-    VectorConstRef n = speciesAmounts();
-    const Index first = indexFirstSpeciesInPhase(iphase);
-    const Index size = numSpeciesInPhase(iphase);
-    MatrixConstRef Wp = W.middleCols(first, size);
-    VectorConstRef np = n.segment(first, size);
-    Vector res = Wp * np;
-    return res;
-}
-
-auto ChemicalEngineArray::elementAmountsInSpecies(VectorXiConstRef ispecies) const -> Vector
-{
-    MatrixConstRef W = formulaMatrix();
-    VectorConstRef n = speciesAmounts();
-    MatrixConstRef Wp = W(all, ispecies);
-    VectorConstRef np = n(ispecies);
-    Vector res = Wp * np;
-    return res;
-}
-
-auto ChemicalEngineArray::speciesAmount(Index ispecies) const -> double
-{
-    return pimpl->node->pCNode()->xDC[ispecies];
-}
-
-auto ChemicalEngineArray::speciesAmount(std::string name) const -> double
-{
-    return pimpl->node->pCNode()->xDC[indexSpecies(name)];
-}
-
-auto ChemicalEngineArray::speciesAmounts() const -> VectorConstRef
-{
-    return Vector::Map(pimpl->node->pCNode()->xDC, numSpecies());
-}
-
-auto ChemicalEngineArray::speciesUpperLimits() const -> VectorConstRef
-{
-    return Vector::Map(pimpl->node->pCNode()->dul, numSpecies());
-}
-auto ChemicalEngineArray::speciesLowerLimits() const -> VectorConstRef
-{
-    return Vector::Map(pimpl->node->pCNode()->dll, numSpecies());
-}
-
-
-
-// Aquatic systems only (assuming aqueous phase is the first one and H2O-solvent 
+// Aquatic systems only (assuming aqueous phase is the first one and H2O-solvent
 // is the last species in it)
-auto ChemicalEngineArray::speciesMolalities() const -> VectorConstRef
-{
-    for(Index i = 0; i < numSpecies(); ++i)
-        pimpl->molalities[i] = pimpl->node->Get_cDC(i);
-    if(numSpecies() > numSpeciesInPhase(0)) 
-    {
-        Vector amountSp = Vector::Map(pimpl->node->pCNode()->xDC, numSpecies());
-        Index H2Oindex = numSpeciesInPhase(0)-1;
-        double H2Omass = pimpl->node->Get_nDC(H2Oindex)*pimpl->node->DCmm(H2Oindex); // in kg
-        if( H2Omass != 0.0 )
-            for(Index i = H2Oindex+1; i < numSpecies(); ++i)
-                pimpl->molalities[i] = speciesAmounts()(i)/H2Omass; 
-    }               
-    return pimpl->molalities;
-}
+//auto ChemicalEngineArray::speciesMolalities() const -> VectorConstRef
+//{
+//    for(Index i = 0; i < numSpecies(); ++i)
+//        pimpl->molalities[i] = pimpl->node->Get_cDC(i);
+//    if(numSpecies() > numSpeciesInPhase(0))
+//    {
+//        Vector amountSp = Vector::Map(pimpl->node->pCNode()->xDC, numSpecies());
+//        Index H2Oindex = numSpeciesInPhase(0)-1;
+//        double H2Omass = pimpl->node->Get_nDC(H2Oindex)*pimpl->node->DCmm(H2Oindex); // in kg
+//        if( H2Omass != 0.0 )
+//            for(Index i = H2Oindex+1; i < numSpecies(); ++i)
+//                pimpl->molalities[i] = speciesAmounts()(i)/H2Omass;
+//    }
+//    return pimpl->molalities;
+//}
 
 auto ChemicalEngineArray::moleFractions() const -> VectorConstRef
 {
@@ -1116,43 +1153,6 @@ auto ChemicalEngineArray::phaseSatIndex(Index iphase) const -> double
     return pimpl->node->Ph_SatInd(iphase);
 }
 
-auto ChemicalEngineArray::systemVolume() const -> double
-{
-    return pimpl->node->pCNode()->Vs;
-    // return pimpl->node->cVs();
-}
-
-auto ChemicalEngineArray::systemMass() const -> double
-{
-    //return pimpl->node->cMs();
-    return pimpl->node->pCNode()->Ms;
-}
-
-auto ChemicalEngineArray::ionicStrength() const -> double
-{
-    return pimpl->node->pCNode()->IC;
-}
-
-auto ChemicalEngineArray::pH() const -> double
-{
-    return pimpl->node->pCNode()->pH;
-}
-
-auto ChemicalEngineArray::pe() const -> double
-{
-    return pimpl->node->pCNode()->pe;
-}
-
-auto ChemicalEngineArray::Eh() const -> double
-{
-    return pimpl->node->pCNode()->Eh;
-}
-
-auto ChemicalEngineArray::systemGibbsEnergy() const -> double
-{
-    return pimpl->node->pCNode()->Gs;   // *RT to get it in J
-}
-
 auto ChemicalEngineArray::systemEnthalpy() const -> double   // in J
 {
     // enth = pimpl->node->phEnthalpies.sum(); // needs to be computed first anyway
@@ -1176,9 +1176,9 @@ auto ChemicalEngineArray::systemHeatCapacityConstP() const -> double
 
 auto operator<<(std::ostream& out, const ChemicalEngineArray& state) -> std::ostream&
 {
-    const double T = state.temperature();
-    const double P = state.pressure();
-    VectorConstRef n = state.speciesAmounts();
+    const double T = state.temperature(0);
+    const double P = state.pressure(0);
+    VectorConstRef n = state.speciesAmounts(0);
     const Vector activity_coeffs = state.lnActivityCoefficients().array().exp();
     const Vector activities = state.lnActivities().array() * 0.4343; // .exp();
     const Vector chemical_potentials = state.chemicalPotentials().array() / 1000.;
@@ -1218,9 +1218,9 @@ auto operator<<(std::ostream& out, const ChemicalEngineArray& state) -> std::ost
     for(Index i = 0; i < state.numElements(); ++i)
     {
         out << std::left << std::setw(25) << state.elementName(i);
-        out << std::left << std::setw(25) << state.elementAmounts()[i];
+        out << std::left << std::setw(25) << state.elementAmounts(0)[i];
         for(Index j = 0; j < state.numPhases(); ++j)
-            out << std::left << std::setw(25) << state.elementAmountsInPhase(j)[i];
+            out << std::left << std::setw(25) << state.elementAmountsInPhase(0, j)[i];
         out << std::endl;
     }
     out << bar2 << std::endl;
@@ -1288,14 +1288,14 @@ auto operator<<(std::ostream& out, const ChemicalEngineArray& state) -> std::ost
     out << std::left << std::setw(25) << "pE";
     out << std::left << std::setw(25) << "Eh[V]";
     out << std::endl << bar2 << std::endl;
-    out << std::left << std::setw(25) << state.systemMass();
-    out << std::left << std::setw(25) << state.systemVolume();
-    out << std::left << std::setw(25) << state.systemGibbsEnergy();
+    out << std::left << std::setw(25) << state.systemMass(0);
+    out << std::left << std::setw(25) << state.systemVolume(0);
+    out << std::left << std::setw(25) << state.systemGibbsEnergy(0);
     out << std::left << std::setw(25) << state.systemEnthalpy()/1000.0;
-    out << std::left << std::setw(25) << state.ionicStrength();
-    out << std::left << std::setw(25) << state.pH();
-    out << std::left << std::setw(25) << state.pe();
-    out << std::left << std::setw(25) << state.Eh();
+    out << std::left << std::setw(25) << state.ionicStrength(0);
+    out << std::left << std::setw(25) << state.pH(0);
+    out << std::left << std::setw(25) << state.pe(0);
+    out << std::left << std::setw(25) << state.Eh(0);
     out << std::endl << bar1 << std::endl;
 
     // Recover the previous state of `out`
