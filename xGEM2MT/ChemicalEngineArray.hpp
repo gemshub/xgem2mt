@@ -133,6 +133,9 @@ public:
     /// @param iphase The index of the phase.
     auto indexFirstSpeciesInPhase(Index iphase) const -> Index;
 
+    /// Return charge of a species.
+    auto speciesCharge(Index ispecies) const -> double;
+
     /// Return the formula matrix of elements in species (in moles per mole species)
     /// (rows: elements, cols: species).
     auto formulaMatrix() const -> MatrixConstRef;
@@ -234,6 +237,53 @@ public:
     /// Return the total Gibbs energy of the system.
     auto systemGibbsEnergy(long int ndx) const -> double;
 
+    /// Return the densities of the phases (in units of kg/m3).
+    auto phaseDensities(long int ndx) const -> Vector;
+
+     /// Return the density of the phase @param iphase (in units of kg/m3).
+    auto phaseDensity(long int ndx, Index iphase) const -> double;
+
+    /// Return the masses of the phases (in units of kg).
+    auto phaseMasses(long int ndx) const -> Vector;
+
+    /// Return the mass of the phase @param iphase (in units of kg).
+    auto phaseMass(long int ndx, Index iphase) const -> double;
+
+    /// Return the molar amounts of the phases (in units of mol).
+    auto phaseAmounts(long int ndx) const -> Vector;
+
+    /// Return the molar amount of the phase @param iphase (in units of mol).
+    auto phaseAmount(long int ndx, Index iphase) const -> double;
+
+    /// Return the volumes of the phases (in units of m3).
+    auto phaseVolumes(long int ndx) const -> Vector;
+
+    /// Return the volume of the phase @param iphase (in units of m3).
+    auto phaseVolume(long int ndx, Index iphase) const -> double;
+
+    /// Return the enthalpies of the phases (in units of J).
+    auto phaseEnthalpies(long int ndx) const -> Vector;
+
+    /// Returns the enthalpy of the phase @param iphase (in units of J).
+    auto phaseEnthalpy(long int ndx, Index iphase) const -> double;
+
+    /// Return the entropies of the phases (in units of J/K).
+    auto phaseEntropies(long int ndx) const -> Vector;
+
+    /// Returns the entropy of the phase @param iphase (in units of J/K).
+    auto phaseEntropy(long int ndx, Index iphase) const -> double;
+
+    /// Return the heat capacities Cp of the phases (in units of J/k).
+    auto phaseHeatCapacitiesConstP(long int ndx) const -> Vector;
+
+    /// Returns the heat capacity Cp of the phase @param iphase (in units of J/K).
+    auto phaseHeatCapacityConstP(long int ndx, Index iphase) const -> double;
+
+    /// Return the saturation (stability) indices  of the phases (in log10 units).
+    auto phaseSatIndices(long int ndx) const -> Vector;
+
+    /// Returns saturation (stability) index (in log10 units) of phase @param iphase.
+    auto phaseSatIndex(long int ndx, Index iphase) const -> double;
 
 // old -----------------------------
 
@@ -259,8 +309,6 @@ public:
     /// In case of error raises an exception or returns empty string.
     auto writeDbrToJsonString(long int  ndx) -> const std::string;
 
-    /// Return charge of a species.
-    auto speciesCharge(Index ispecies) const -> double;
 
     /// Return the molar masses of the elements (in units of kg/mol)
     auto elementMolarMasses() const -> VectorConstRef;
@@ -378,53 +426,6 @@ public:
     /// TBD Return the specific isochoric heat capacities of the phases (in units of J/(kg*K)).
     // auto phaseSpecificHeatCapacityConstV(Index iphase) const -> double;
 
-    /// Return the densities of the phases (in units of kg/m3).
-    auto phaseDensities() const -> VectorConstRef;
-
-     /// Return the density of the phase @param iphase (in units of kg/m3).
-    auto phaseDensity(Index iphase) const -> double;
-
-    /// Return the masses of the phases (in units of kg).
-    auto phaseMasses() const -> VectorConstRef;
- 
-    /// Return the mass of the phase @param iphase (in units of kg).
-    auto phaseMass(Index iphase) const -> double;
-    
-    /// Return the molar amounts of the phases (in units of mol).
-    auto phaseAmounts() const -> VectorConstRef;
-
-    /// Return the molar amount of the phase @param iphase (in units of mol).
-    auto phaseAmount(Index iphase) const -> double;
-
-    /// Return the volumes of the phases (in units of m3).
-    auto phaseVolumes() const -> VectorConstRef;
-  
-    /// Return the volume of the phase @param iphase (in units of m3).
-    auto phaseVolume(Index iphase) const -> double;  
-
-    /// Return the enthalpies of the phases (in units of J).
-    auto phaseEnthalpies() const -> VectorConstRef;
-    
-    /// Returns the enthalpy of the phase @param iphase (in units of J).
-    auto phaseEnthalpy(Index iphase) const -> double;
-
-    /// Return the entropies of the phases (in units of J/K).
-    auto phaseEntropies() const -> VectorConstRef;
-    
-    /// Returns the entropy of the phase @param iphase (in units of J/K).
-    auto phaseEntropy(Index iphase) const -> double;
-
-    /// Return the heat capacities Cp of the phases (in units of J/k).
-    auto phaseHeatCapacitiesConstP() const -> VectorConstRef;
-    
-    /// Returns the heat capacity Cp of the phase @param iphase (in units of J/K).
-    auto phaseHeatCapacityConstP(Index iphase) const -> double;
-
-    /// Return the saturation (stability) indices  of the phases (in log10 units).
-    auto phaseSatIndices() const -> VectorConstRef;
-       
-    /// Returns saturation (stability) index (in log10 units) of phase @param iphase.
-    auto phaseSatIndex(Index iphase) const -> double;
 
      /// Return the total enthalpy of the system.
     auto systemEnthalpy() const -> double;
@@ -439,6 +440,8 @@ private:
     struct Impl;
 
     std::unique_ptr<Impl> pimpl;
+
+    void setCorrectionbIC(long ndx);
 };
 
 /// Output the state of the ChemicalEngineArray object.
