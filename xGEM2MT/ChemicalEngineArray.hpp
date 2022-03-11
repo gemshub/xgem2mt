@@ -140,6 +140,30 @@ public:
     /// (rows: elements, cols: species).
     auto formulaMatrix() const -> MatrixConstRef;
 
+    /// Return the molar masses of the elements (in units of kg/mol)
+    auto elementMolarMasses() const -> VectorConstRef;
+
+    /// Return the molar masses of the species (in units of kg/mol)
+    auto speciesMolarMasses() const -> VectorConstRef;
+
+    /// Set the species @param name StandardMolarGibbsEnergy @param value
+    auto setStandardMolarGibbsEnergy(std::string name, double TK, double P, double value) -> void;
+
+    /// Return the standard  molar Gibbs energy of the species (in units of J/mol).
+    auto standardMolarGibbsEnergy(double TK, double P, Index ispecies) const -> double;
+
+    /// Return the standard  molar enthalpy of the species (in units of J/mol).
+    auto standardMolarEnthalpy(double TK, double P, Index ispecies) const -> double;
+
+    /// Return the standard  molar volume of the species (in units of m3/mol).
+    auto standardMolarVolume(double TK, double P, Index ispecies) const -> double;
+
+    /// Return the standard  molar entropies of the species (in units of J/(mol*K)).
+    auto standardMolarEntropy(double TK, double P, Index ispecies) const -> double;
+
+    /// Return the standard  molar isobaric heat capacities of the species (in units of J/(mol*K)).
+    auto standardMolarHeatCapacityConstP(double TK, double P, Index ispecies) const -> double;
+
     /// Sets pressure to @param P (in Pa) and temperature to @param T (in K)
     /// in ndx instance without computing the equilibrium state
     /// Returns false if P.T was reset o.k., or true if P or T is out of
@@ -285,6 +309,60 @@ public:
     /// Returns saturation (stability) index (in log10 units) of phase @param iphase.
     auto phaseSatIndex(long int ndx, Index iphase) const -> double;
 
+    /// Return the molar Gibbs energies of the phases (in units of J/mol).
+    auto phaseMolarGibbsEnergy(long int ndx, Index iphase) const -> double;
+
+    /// Return the molar enthalpy of the phase @param iphase (in units of J/mol).
+    auto phaseMolarEnthalpy(long int ndx, Index iphase) const -> double;
+
+    /// Return the molar volume of the phase @param iphase (in units of m3/mol).
+    auto phaseMolarVolume(long int ndx, Index iphase) const -> double;
+
+    /// Return the molar entropy of the phase @param iphase (in units of J/(mol*K)).
+    auto phaseMolarEntropy(long int ndx, Index iphase) const -> double;
+
+    /// Return the mole fractions of the species.
+    auto moleFractions(long int ndx) const -> Vector;
+
+    /// Return the ln activity coefficients of the species (in mole fraction scale).
+    auto lnActivityCoefficients(long int ndx) const -> Vector;
+
+    /// Return the ln activities of the species.
+    auto lnActivities(long int ndx) const -> Vector;
+
+    /// Return the ln of concentrations of the species in their respective phases.
+    auto lnConcentrations(long int ndx) const -> Vector;
+
+    /// Return the chemical potentials of species (in units of J/mol).
+    auto chemicalPotentials(long int ndx) const -> Vector;
+
+    /// Return the molar isobaric heat capacity of phase @param iphase (in units of J/(mol*K)).
+    auto phaseMolarHeatCapacityConstP(long int ndx, Index iphase) const -> double;
+
+    /// Return the specific isobaric heat capacity of phase @param iphase (in units of J/(kg*K)).
+    auto phaseSpecificHeatCapacityConstP(long int ndx, Index iphase) const -> double;
+
+    /// Return the specific Gibbs energy of the phase @param iphase (in units of J/kg).
+    auto phaseSpecificGibbsEnergy(long int ndx, Index iphase) const -> double;
+
+    /// Return the specific enthalpy of the phase @param iphase (in units of J/kg).
+    auto phaseSpecificEnthalpy(long int ndx, Index iphase) const -> double;
+
+    /// Return the specific volume of the phase @param iphase (in units of m3/kg).
+    auto phaseSpecificVolume(long int ndx, Index iphase) const -> double;
+
+    /// Return the specific entropy of the phase @param iphase (in units of J/(kg*K)).
+    auto phaseSpecificEntropy(long int ndx, Index iphase) const -> double;
+
+    /// Return the total enthalpy of the system.
+   auto systemEnthalpy(long int ndx) const -> double;
+
+   /// Return the total entropy of the system.
+   auto systemEntropy(long int ndx) const -> double;
+
+   /// Return the total heat capacity Cp of the system.
+   auto systemHeatCapacityConstP(long int ndx) const -> double;
+
 // old -----------------------------
 
     /// Initialize the ChemicalEngineArray object from JSON strings for dch, ipm and dbr exported from GEM-Selektor \ .
@@ -309,16 +387,6 @@ public:
     /// In case of error raises an exception or returns empty string.
     auto writeDbrToJsonString(long int  ndx) -> const std::string;
 
-
-    /// Return the molar masses of the elements (in units of kg/mol)
-    auto elementMolarMasses() const -> VectorConstRef;
-
-    /// Return the molar masses of the species (in units of kg/mol)
-    auto speciesMolarMasses() const -> VectorConstRef;
-
-    /// Set the species @param name StandardMolarGibbsEnergy @param value
-    auto setStandardMolarGibbsEnergy(std::string name, double value) -> void;
-
     /// recalculate the equilibrium state with preset P,T,B and other inputs
     /// If @param warmstart is true then GEMS3K uses contents of node as initial 
     ///   guess, otherwise (false) it gets the simplex LP initial guess.
@@ -333,38 +401,11 @@ public:
     auto equilibrate(double T, double P, VectorConstRef b) -> int;
 
     /// Return the wall time of the equilibrium calculation (in units of s)
-    auto elapsedTime() const -> double;
+    //auto elapsedTime() const -> double;
 
-    /// Return the molalities of the species. Aquatic systems only (assuming
+    /// TDB Return the molalities of the species. Aquatic systems only (assuming
     /// the aqueous phase is the first one and H2O-solvent is the last species in it)
-    auto speciesMolalities() const -> VectorConstRef;
-
-    /// Return the mole fractions of the species.
-    auto moleFractions() const -> VectorConstRef;
-
-    /// Return the ln activity coefficients of the species (in mole fraction scale).
-    auto lnActivityCoefficients() const -> VectorConstRef;
-
-    /// Return the ln activities of the species.
-    auto lnActivities() const -> VectorConstRef;
-
-    /// Return the ln of concentrations of the species in their respective phases.
-    auto lnConcentrations() const -> VectorConstRef;
-
-    /// Return the chemical potentials of species (in units of J/mol).
-    auto chemicalPotentials() const -> VectorConstRef;
-
-    /// Return the standard  molar Gibbs energy of the species (in units of J/mol).
-    auto standardMolarGibbsEnergy(Index ispecies) const -> double;
-
-    /// Return the standard  molar enthalpy of the species (in units of J/mol).
-    auto standardMolarEnthalpy(Index ispecies) const -> double;
-
-    /// Return the standard  molar volume of the species (in units of m3/mol).
-    auto standardMolarVolume(Index ispecies) const -> double;
-    
-    /// Return the standard  molar entropies of the species (in units of J/(mol*K)).
-    auto standardMolarEntropy(Index ispecies) const -> double;
+    //auto speciesMolalities() const -> VectorConstRef;
 
     /// TBD Return the standard  molar internal energies of the species (in units of J/mol).
     // auto standardMolarInternalEnergy(Index ispecies) const -> double;
@@ -372,23 +413,8 @@ public:
     /// TBD Return the standard  molar Helmholtz energies of the species (in units of J/mol).
     // auto standardMolarHelmholtzEnergy(Index ispecies) const -> double;
 
-    /// Return the standard  molar isobaric heat capacities of the species (in units of J/(mol*K)).
-    auto standardMolarHeatCapacityConstP(Index ispecies) const -> double;
-
     /// TBD Return the standard  molar isochoric heat capacities of the species (in units of J/(mol*K)).
     // auto standardMolarHeatCapacityConstV(Index ispecies) const -> double;
-
-    /// Return the molar Gibbs energies of the phases (in units of J/mol).
-    auto phaseMolarGibbsEnergy(Index iphase) const -> double;
-
-    /// Return the molar enthalpy of the phase @param iphase (in units of J/mol).
-    auto phaseMolarEnthalpy(Index iphase) const -> double;
-
-    /// Return the molar volume of the phase @param iphase (in units of m3/mol).
-    auto phaseMolarVolume(Index iphase) const -> double;
-
-    /// Return the molar entropy of the phase @param iphase (in units of J/(mol*K)).
-    auto phaseMolarEntropy(Index iphase) const -> double;
 
     /// TBD Return the molar internal energies of the phases (in units of J/mol).
     // auto phaseMolarInternalEnergy(Index iphase) const -> double;
@@ -396,23 +422,8 @@ public:
     /// TBD Return the molar Helmholtz energies of the phases (in units of J/mol).
     // auto phaseMolarHelmholtzEnergy(Index iphase) const -> double;
 
-    /// Return the molar isobaric heat capacity of phase @param iphase (in units of J/(mol*K)).
-    auto phaseMolarHeatCapacityConstP(Index iphase) const -> double;
-
     /// TBD Return the molar isochoric heat capacities of the phases (in units of J/(mol*K)).
     // auto phaseMolarHeatCapacityConstV(Index ispecies) const -> double;
-
-    /// Return the specific Gibbs energy of the phase @param iphase (in units of J/kg).
-    auto phaseSpecificGibbsEnergy(Index iphase) const -> double;
-
-    /// Return the specific enthalpy of the phase @param iphase (in units of J/kg).
-    auto phaseSpecificEnthalpy(Index iphase) const -> double;
-
-    /// Return the specific volume of the phase @param iphase (in units of m3/kg).
-    auto phaseSpecificVolume(Index iphase) const -> double;
-
-    /// Return the specific entropy of the phase @param iphase (in units of J/(kg*K)).
-    auto phaseSpecificEntropy(Index iphase) const -> double;
 
     /// TBD Return the specific internal energies of the phases (in units of J/kg).
     // auto phaseSpecificInternalEnergy(Index iphase) const -> double;
@@ -420,21 +431,8 @@ public:
     /// TBD Return the specific Helmholtz energies of the phases (in units of J/kg).
     // auto phaseSpecificHelmholtzEnergy(Index iphase) const -> double;
 
-    /// Return the specific isobaric heat capacity of phase @param iphase (in units of J/(kg*K)).
-    auto phaseSpecificHeatCapacityConstP(Index iphase) const -> double;
-
     /// TBD Return the specific isochoric heat capacities of the phases (in units of J/(kg*K)).
     // auto phaseSpecificHeatCapacityConstV(Index iphase) const -> double;
-
-
-     /// Return the total enthalpy of the system.
-    auto systemEnthalpy() const -> double;
-
-    /// Return the total entropy of the system.
-    auto systemEntropy() const -> double;
-
-    /// Return the total heat capacity Cp of the system.
-    auto systemHeatCapacityConstP() const -> double;
 
 private:
     struct Impl;

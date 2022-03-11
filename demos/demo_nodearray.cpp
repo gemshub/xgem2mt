@@ -64,7 +64,7 @@ int main(int argc, char **argv)
 
         std::cout << "Vector bj: " << bj.transpose() << std::endl;
 
-        std::cout << engine << std::endl;
+        //std::cout << engine << std::endl;
 
         // engine.equilibrate(  );
 
