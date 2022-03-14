@@ -105,14 +105,53 @@ auto ChemicalEngineArray::initialize(std::string ipm_filename, std::string dbr_f
     reallocateEngineArrays();
 }
 
-ChemicalEngineArray::ChemicalEngineArray(long int nodes)
-: pimpl(new Impl(nodes))
+auto ChemicalEngineArray::initializeFromJsonStrings( std::string dch_json, std::string ipm_json,
+                                                     std::vector<std::string> dbr_json, long int* nodeTypes) -> void
 {
+    pimpl->io_mode = GEMS3KGenerator::f_json;
+    // Allocate memory for the GEMS `node` member
+    pimpl->node_array = std::unique_ptr<TNodeArray>(new TNodeArray(pimpl->n_nodes) );
+
+
+    // Initialize the GEMS `node` member
+    long int res = pimpl->node_array->GEM_init( dch_json, ipm_json, dbr_json, nodeTypes );
+
+    // Check if there was a system error during node initialization
+    if(res == -1)
+        throw std::runtime_error("\n*** ERROR ***\n"
+            "Could not initialize the ChemicalEngineArray object from JSON strings. \n"
+                " There was a problem during memory allocation.");
+
+    // Check if there was a JSON parsing error during node initialization
+    if(res == 1)
+        throw std::runtime_error("\n*** ERROR ***\n"
+            "Could not initialize the ChemicalEngineArray object from JSON strings.\n"
+                "Make sure that these JSON strings are not empty and are in correct format.");
+
+    reallocateEngineArrays();
 }
 
+ChemicalEngineArray::ChemicalEngineArray(long int nodes)
+: pimpl(new Impl(nodes))
+{}
 
 ChemicalEngineArray::~ChemicalEngineArray()
 {}
+
+auto ChemicalEngineArray::reallocateEngineArrays() -> void
+{
+    // Assemble the formula matrix of the species
+    const Index E = numElements();
+    const Index N = numSpecies();
+    pimpl->formula_matrix = Matrix::Zero(E, N);
+    for(Index i = 0; i < N; ++i)
+        for(Index j = 0; j < E; ++j)
+            pimpl->formula_matrix(j, i) = pimpl->node_array->DCaJI(i, j);
+
+    // Allocate memory for vector members
+    pimpl->elemMolMasses.resize(E);
+    pimpl->molMasses.resize(N);
+}
 
 auto ChemicalEngineArray::setOptions(const ChemicalEngineArrayOptions& options) -> void
 {
@@ -131,35 +170,32 @@ auto ChemicalEngineArray::setColdStart() -> void
 
 auto ChemicalEngineArray::readDbrFromFile(long int  ndx, std::string filename) -> void
 {
-    try {
-        // Reads another dbr file with input system composition
-        pimpl->node_array->GEMS3k_read_dbr(ndx, filename, pimpl->io_mode);
-    }
-    catch(TError& err)
-    {
+    // Reads another dbr file with input system composition
+    long int res = pimpl->node_array->GEMS3k_read_dbr(ndx, filename.c_str(), pimpl->io_mode);
+
+        // Check if there was a system error during node initialization
+    if(res == -1)
         throw std::runtime_error("\n*** ERROR ***\n"
-                                 "Could not find the provided dbr file.\n"
-                                 "Make sure the provided file path exists relative to the working directory.");
-    }
-    catch(...)
-    {
+            "Could not find the provided dbr file.\n"
+                "There was a problem during memory allocation.");
+
+    // Check if there was a file read error during node initialization
+    if(res >= 1)
         throw std::runtime_error("\n*** ERROR ***\n"
-                                 "Could not find the provided dbr file.\n"
-                                 "There was a problem during memory allocation.");
-    }
+            "Could not find the provided dbr file.\n"
+                "Make sure the provided file path exists relative to the working directory.");
 }
 
 auto ChemicalEngineArray::writeDbrToFile(long int  ndx, std::string filename) -> void
 {
-    pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     // Write current node into a dbr file into path filename
-    pimpl->node_array->GEMS3k_write_dbr(filename.c_str(), pimpl->io_mode);
+    pimpl->node_array->GEMS3k_write_dbr( ndx, filename.c_str(), pimpl->io_mode);
 }
 
 auto ChemicalEngineArray::readDbrFromJsonString(long int  ndx, std::string dbr_json) -> void
 {
     // Reads another dbr file with input system composition
-    long int res = pimpl->node->GEM_read_dbr( dbr_json, true );
+    long int res = pimpl->node_array->GEMS3k_read_dbr( ndx, dbr_json, true );
     // res = 1;    // Temporary plug
 
         // Check if there was a system error during node initialization
@@ -177,10 +213,9 @@ auto ChemicalEngineArray::readDbrFromJsonString(long int  ndx, std::string dbr_j
 
 auto ChemicalEngineArray::writeDbrToJsonString(long int  ndx) -> const std::string
 {
-    pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     // Writes another node dbr with input system composition into json string dbr_json
     std::string dbr_json = "";
-    long int res = pimpl->node->GEM_write_dbr( dbr_json );
+    long int res = pimpl->node_array->GEMS3k_write_dbr( ndx, dbr_json );
 
     // Check if there was a json write error
     if(res == -1)
@@ -190,8 +225,6 @@ auto ChemicalEngineArray::writeDbrToJsonString(long int  ndx) -> const std::stri
 
     return dbr_json;
 }
-
-
 
 auto ChemicalEngineArray::numElements() const -> Index
 {
@@ -861,7 +894,6 @@ auto ChemicalEngineArray::chemicalPotentials(long int ndx) const -> Vector
     return chemPotentials;
 }
 
-//=================================================
 
 auto ChemicalEngineArray::phaseMolarHeatCapacityConstP(long int ndx, Index iphase) const -> double
 {
@@ -949,46 +981,7 @@ auto ChemicalEngineArray::systemHeatCapacityConstP(long int ndx) const -> double
 //  old ----------------------------------------------
 
 
-auto ChemicalEngineArray::reallocateEngineArrays() -> void
-{
-    // Assemble the formula matrix of the species
-    const Index E = numElements();
-    const Index N = numSpecies();
-    //const Index P = numPhases();
-    pimpl->formula_matrix = Matrix::Zero(E, N);
-    for(Index i = 0; i < N; ++i)
-        for(Index j = 0; j < E; ++j)
-            pimpl->formula_matrix(j, i) = pimpl->node_array->DCaJI(i, j);
 
-    // Allocate memory for vector members
-    pimpl->elemMolMasses.resize(E);
-    pimpl->molMasses.resize(N);
-}
-
-
-auto ChemicalEngineArray::initializeFromJsonStrings( std::string dch_json, std::string ipm_json, std::string dbr_json) -> void
-{
-    // pimpl->io_mode = "json";
-    // Allocate memory for the GEMS `node` member
-    pimpl->node = std::unique_ptr<TNode>(new TNode);
-
-    // Initialize the GEMS `node` member
-    long int res = pimpl->node->GEM_init( dch_json, ipm_json, dbr_json );
-
-    // Check if there was a system error during node initialization
-    if(res == -1)
-        throw std::runtime_error("\n*** ERROR ***\n"
-            "Could not initialize the ChemicalEngineArray object from JSON strings. \n"
-                " There was a problem during memory allocation.");
-
-    // Check if there was a JSON parsing error during node initialization
-    if(res == 1)
-        throw std::runtime_error("\n*** ERROR ***\n"
-            "Could not initialize the ChemicalEngineArray object from JSON strings.\n"
-                "Make sure that these JSON strings are not empty and are in correct format.");
-
-    reallocateEngineArrays();
-}
 
 auto ChemicalEngineArray::reequilibrate( bool warmstart ) -> int
 {

@@ -58,7 +58,7 @@ int main(int argc, char **argv)
     
     if( f1 == 0 && f2 == 0 && f3 == 0 )
     {
-        engine.initializeFromJsonStrings(dch_json, ipm_json, dbr_json);
+        engine.initializeFromJsonStrings(dch_json, ipm_json, {dbr_json}, nullptr );
 
         Vector bj = engine.elementAmounts(0);
 

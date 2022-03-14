@@ -66,6 +66,16 @@ public:
     /// @param filename The name of the file containing the definition of the chemical system
     auto initialize(std::string ipm_filename, std::string dbr_filename, long int* nodeTypes) -> void;
 
+    /// Initialize the ChemicalEngineArray object from JSON strings for dch, ipm and dbr exported from GEM-Selektor \ .
+    /// Normally to be used after ChemicalEngineArray();
+    /// @param dch_json The json string containing the definition of the chemical system
+    /// @param ipm_json The json string containing the parameters and settings for GEMS3K IPM-3 algorithm
+    /// @param dbr_json The vector of json string containing the input node composition of the chemical system
+    /// @param nodeTypes The initial node contents from DATABR files will be distributed among
+    ///                   nodes in array according to the distribution index list nodeTypes
+    auto initializeFromJsonStrings(std::string dch_json, std::string ipm_json,
+                                   std::vector<std::string> dbr_json, long int* nodeTypes) -> void;
+
     /// Reads another DBR file (with input system composition, T,P etc.) to a node with absolute index ndx.
     /// The DBR file must be compatible with the currently loaded IPM and DCH files
     /// (see description of initialize() function call).
@@ -364,13 +374,6 @@ public:
    auto systemHeatCapacityConstP(long int ndx) const -> double;
 
 // old -----------------------------
-
-    /// Initialize the ChemicalEngineArray object from JSON strings for dch, ipm and dbr exported from GEM-Selektor \ .
-    /// Normally to be used after ChemicalEngineArray();
-    /// @param dch_json The json string containing the definition of the chemical system
-    /// @param ipm_json The json string containing the parameters and settings for GEMS3K IPM-3 algorithm
-    /// @param dbr_json The json string containing the input node composition of the chemical system
-    auto initializeFromJsonStrings( std::string dch_json, std::string ipm_json, std::string dbr_json) -> void;
 
     /// Reallocates chemical engine vectors and matrix upon node initialization from files or json
     /// Used only inside of initialize() or initializeFromJsonStrings()
