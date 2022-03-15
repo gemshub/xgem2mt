@@ -58,22 +58,14 @@ struct ChemicalEngineArray::Impl
     /// Molar masses of species
     Vector molMasses;
 
-// old
-
-    /// The TNode instance from ChemicalEngineArray
-    std::unique_ptr<TNode> node;
-
-    /// The elapsed time of the equilibrate method (in units of s)
-    double elapsed_time = 0;
-
-    /// Json string with I/O node (DBR) object in JSON format
-    std::string dbr_json;
-
 };
 
+ChemicalEngineArray::ChemicalEngineArray(long int nodes)
+    : pimpl(new Impl(nodes))
+{}
 
-//  new ----------------------------------------------
-
+ChemicalEngineArray::~ChemicalEngineArray()
+{}
 
 auto ChemicalEngineArray::initialize(std::string ipm_filename, std::string dbr_filename, long int* nodeTypes) -> void
 {
@@ -93,14 +85,14 @@ auto ChemicalEngineArray::initialize(std::string ipm_filename, std::string dbr_f
     // Check if there was a system error during node initialization
     if(res == -1)
         throw std::runtime_error("\n*** ERROR ***\n"
-            "Could not initialize the ChemicalEngineArray object.\n"
-                "There was a problem during memory allocation.");
+                                 "Could not initialize the ChemicalEngineArray object.\n"
+                                 "There was a problem during memory allocation.");
 
     // Check if there was a file read error during node initialization
     if(res == 1)
         throw std::runtime_error("\n*** ERROR ***\n"
-            "Could not initialize the ChemicalEngineArray object.\n"
-                "Make sure the provided file exists relative to the working directory.");
+                                 "Could not initialize the ChemicalEngineArray object.\n"
+                                 "Make sure the provided file exists relative to the working directory.");
 
     reallocateEngineArrays();
 }
@@ -112,31 +104,104 @@ auto ChemicalEngineArray::initializeFromJsonStrings( std::string dch_json, std::
     // Allocate memory for the GEMS `node` member
     pimpl->node_array = std::unique_ptr<TNodeArray>(new TNodeArray(pimpl->n_nodes) );
 
-
     // Initialize the GEMS `node` member
     long int res = pimpl->node_array->GEM_init( dch_json, ipm_json, dbr_json, nodeTypes );
 
     // Check if there was a system error during node initialization
     if(res == -1)
         throw std::runtime_error("\n*** ERROR ***\n"
-            "Could not initialize the ChemicalEngineArray object from JSON strings. \n"
-                " There was a problem during memory allocation.");
+                                 "Could not initialize the ChemicalEngineArray object from JSON strings. \n"
+                                 " There was a problem during memory allocation.");
 
     // Check if there was a JSON parsing error during node initialization
     if(res == 1)
         throw std::runtime_error("\n*** ERROR ***\n"
-            "Could not initialize the ChemicalEngineArray object from JSON strings.\n"
-                "Make sure that these JSON strings are not empty and are in correct format.");
+                                 "Could not initialize the ChemicalEngineArray object from JSON strings.\n"
+                                 "Make sure that these JSON strings are not empty and are in correct format.");
 
     reallocateEngineArrays();
 }
 
-ChemicalEngineArray::ChemicalEngineArray(long int nodes)
-: pimpl(new Impl(nodes))
-{}
+long ChemicalEngineArray::reequilibrate(long ndx, bool warmstart)
+{
+    long int  Mode = pimpl->options.warmstart ? NEED_GEM_SIA : NEED_GEM_AIA;
+    TNode workNode(pimpl->node_array->getCalcNode());
+    return pimpl->node_array->RunGEM( workNode, ndx, Mode, pimpl->node_array->pNodT1() );
+}
 
-ChemicalEngineArray::~ChemicalEngineArray()
-{}
+void ChemicalEngineArray::reequilibrate(bool warmstart)
+{
+    long int  Mode = pimpl->options.warmstart ? NEED_GEM_SIA : NEED_GEM_AIA;
+    pimpl->node_array->RunGEM( Mode, pimpl->node_array->nNodes(), pimpl->node_array->pNodT1(), nullptr, nullptr );
+}
+
+bool ChemicalEngineArray::equilibrate(long ndx)
+{
+    TestModeGEMParam  mode_param(pimpl->options.warmstart ? NEED_GEM_SIA : NEED_GEM_AIA,
+                                 pimpl->options.useSIA,
+                                 pimpl->options.step,
+                                 pimpl->options.cdv,
+                                 pimpl->options.cez);
+    return pimpl->node_array->CalcIPM_One( mode_param, ndx, nullptr );
+}
+
+bool ChemicalEngineArray::equilibrate()
+{
+    TestModeGEMParam  mode_param(pimpl->options.warmstart ? NEED_GEM_SIA : NEED_GEM_AIA,
+                                 pimpl->options.useSIA,
+                                 pimpl->options.step,
+                                 pimpl->options.cdv,
+                                 pimpl->options.cez);
+    return pimpl->node_array->CalcIPM_List( mode_param, 0, pimpl->node_array->nNodes(), nullptr );
+}
+
+void ChemicalEngineArray::dumpGEMS3K(const std::string &filepath, bool put_all) const
+{
+    try
+    {
+        ProcessProgressFunction messageF = [](const std::string& , long ){
+            //std::cout << "TProcess GEM3k output" <<  message.c_str() << point << std::endl;
+            return false;
+        };
+        pimpl->node_array->genGEMS3KInputFiles(filepath, messageF, pimpl->node_array->nNodes(),
+                                               pimpl->io_mode, false, true, put_all, false );
+    }
+    catch(TError& err)
+    {
+        std::cout  << err.title << err.mess << std::endl;
+    }
+    catch(std::exception& e)
+    {
+        std::cout  << "std::exception: " << e.what() << std::endl;
+    }
+    catch(...)
+    {
+        std::cout  << "unknown exception" << std::endl;
+    }
+}
+
+void ChemicalEngineArray::nextTimePoint(bool always)
+{
+    DATACH* CH = pimpl->node_array->pCSD();       // DataCH structure
+    DATABRPTR* C0 = pimpl->node_array->pNodT0();  // nodes at current time point
+    DATABRPTR* C1 = pimpl->node_array->pNodT1();  // nodes at previous time point
+    auto nnodes = pimpl->node_array->nNodes();
+
+    for (long int ii=0; ii<nnodes; ii++)
+    {
+        bool NeedCopy = always;
+        if(!NeedCopy) {
+            for(long int ic=0; ic < CH->nICb-1; ic++) // do not check charge
+            {
+                auto dc = C0[ii]->bIC[ic] - C1[ii]->bIC[ic];
+                if( fabs( dc ) > std::min( pimpl->options.cdv, (C1[ii]->bIC[ic] * 1e-3)))
+                    NeedCopy = true;
+            }
+        }
+        if( NeedCopy )
+            pimpl->node_array->CopyNodeFromTo( ii, nnodes, C1, C0 );
+    }
+}
 
 auto ChemicalEngineArray::reallocateEngineArrays() -> void
 {
@@ -168,22 +233,27 @@ auto ChemicalEngineArray::setColdStart() -> void
     pimpl->options.warmstart = false;
 }
 
+long ChemicalEngineArray::nNodes() const
+{
+    return pimpl->n_nodes;
+}
+
 auto ChemicalEngineArray::readDbrFromFile(long int  ndx, std::string filename) -> void
 {
     // Reads another dbr file with input system composition
     long int res = pimpl->node_array->GEMS3k_read_dbr(ndx, filename.c_str(), pimpl->io_mode);
 
-        // Check if there was a system error during node initialization
+    // Check if there was a system error during node initialization
     if(res == -1)
         throw std::runtime_error("\n*** ERROR ***\n"
-            "Could not find the provided dbr file.\n"
-                "There was a problem during memory allocation.");
+                                 "Could not find the provided dbr file.\n"
+                                 "There was a problem during memory allocation.");
 
     // Check if there was a file read error during node initialization
     if(res >= 1)
         throw std::runtime_error("\n*** ERROR ***\n"
-            "Could not find the provided dbr file.\n"
-                "Make sure the provided file path exists relative to the working directory.");
+                                 "Could not find the provided dbr file.\n"
+                                 "Make sure the provided file path exists relative to the working directory.");
 }
 
 auto ChemicalEngineArray::writeDbrToFile(long int  ndx, std::string filename) -> void
@@ -198,17 +268,17 @@ auto ChemicalEngineArray::readDbrFromJsonString(long int  ndx, std::string dbr_j
     long int res = pimpl->node_array->GEMS3k_read_dbr( ndx, dbr_json, true );
     // res = 1;    // Temporary plug
 
-        // Check if there was a system error during node initialization
+    // Check if there was a system error during node initialization
     if(res == -1)
         throw std::runtime_error("\n*** ERROR ***\n"
-            "Could not process the provided DBR JSON string.\n"
-                "There was a problem during memory allocation.");
+                                 "Could not process the provided DBR JSON string.\n"
+                                 "There was a problem during memory allocation.");
 
     // Check if there was a JSON string read error during node initialization
     if(res >= 1)
         throw std::runtime_error("\n*** ERROR ***\n"
-            "Could not process the provided DBR JSON string.\n"
-                "Make sure that this JSON string is not empty and is in correct format and parameter position.");
+                                 "Could not process the provided DBR JSON string.\n"
+                                 "Make sure that this JSON string is not empty and is in correct format and parameter position.");
 }
 
 auto ChemicalEngineArray::writeDbrToJsonString(long int  ndx) -> const std::string
@@ -220,8 +290,8 @@ auto ChemicalEngineArray::writeDbrToJsonString(long int  ndx) -> const std::stri
     // Check if there was a json write error
     if(res == -1)
         throw std::runtime_error("\n*** ERROR ***\n"
-            "Could not process the provided DBR into JSON string.\n"
-                "Check the code.");
+                                 "Could not process the provided DBR into JSON string.\n"
+                                 "Check the code.");
 
     return dbr_json;
 }
@@ -257,7 +327,7 @@ auto ChemicalEngineArray::elementName(Index ielement) const -> std::string
 auto ChemicalEngineArray::speciesName(Index ispecies) const -> std::string
 {
     std::string name = pimpl->node_array->pCSD()->DCNL[ispecies];
-       if( name.length() > MaxDCnameLength )
+    if( name.length() > MaxDCnameLength )
         name.resize( MaxDCnameLength );
     return name;
 }
@@ -265,7 +335,7 @@ auto ChemicalEngineArray::speciesName(Index ispecies) const -> std::string
 auto ChemicalEngineArray::phaseName(Index iphase) const -> std::string
 {
     std::string name = pimpl->node_array->pCSD()->PHNL[iphase];
-       if( name.length() > MaxPHnameLength )
+    if( name.length() > MaxPHnameLength )
         name.resize( MaxPHnameLength );
     return name;
 }
@@ -653,7 +723,7 @@ auto ChemicalEngineArray::phaseDensities(long int ndx) const -> Vector
     {
         if( pimpl->node_array->getCalcNode().Ph_Volume(i) != 0.0)
             phDensities[i] = pimpl->node_array->getCalcNode().Ph_Mass(i)
-                             /  pimpl->node_array->getCalcNode().Ph_Volume(i);
+                    /  pimpl->node_array->getCalcNode().Ph_Volume(i);
         else
             phDensities[i] = 0.0;
     }
@@ -686,7 +756,7 @@ auto ChemicalEngineArray::phaseVolumes(long int ndx) const -> Vector
     Vector phVolumes(P);
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     for(Index i = 0; i < P; ++i)
-       phVolumes[i] = pimpl->node_array->getCalcNode().Ph_Volume(i);
+        phVolumes[i] = pimpl->node_array->getCalcNode().Ph_Volume(i);
     return phVolumes;
 }
 
@@ -978,58 +1048,7 @@ auto ChemicalEngineArray::systemHeatCapacityConstP(long int ndx) const -> double
     return 0.0;
 }
 
-//  old ----------------------------------------------
-
-
-
-
-auto ChemicalEngineArray::reequilibrate( bool warmstart ) -> int
-{
-    pimpl->options.warmstart = warmstart;
-    // Begin timing
-    auto begin = std::chrono::high_resolution_clock::now();
-    // Solve the equilibrium problem with gems
-    pimpl->node->pCNode()->NodeStatusCH = 
-       pimpl->options.warmstart ? NEED_GEM_SIA : NEED_GEM_AIA;
-    auto valueOutputGem = pimpl->node->GEM_run(false);
-    // Finish timing
-    auto end = std::chrono::high_resolution_clock::now();
-    // Set the elapsed time member
-    pimpl->elapsed_time = std::chrono::duration<double>(end - begin).count();
-    return valueOutputGem;
-}
-
-auto ChemicalEngineArray::equilibrate(double T, double P, VectorConstRef b) -> int
-{
-    // Begin timing
-    auto begin = std::chrono::high_resolution_clock::now();
-
-    // Set temperature and pressure
-    pimpl->node->Set_TK(T);
-    pimpl->node->Set_P(P);
-
-    // Set the mole amounts of the elements
-    for(Index i = 0; i < numElements(); ++i)
-        pimpl->node->Set_bIC(i, b[i]);
-
-    // Solve the equilibrium problem with gems
-    pimpl->node->pCNode()->NodeStatusCH = 
-       pimpl->options.warmstart ? NEED_GEM_SIA : NEED_GEM_AIA;
-    auto valueOutputGem = pimpl->node->GEM_run(false);
-
-    // Finish timing
-    auto end = std::chrono::high_resolution_clock::now();
-
-    // Set the elapsed time member
-    pimpl->elapsed_time = std::chrono::duration<double>(end - begin).count();
-    return valueOutputGem;
-}
-
-
-//auto ChemicalEngineArray::elapsedTime() const -> double
-//{
-//    return pimpl->elapsed_time;
-//}
+// ----------------------------------------------
 
 // Aquatic systems only (assuming aqueous phase is the first one and H2O-solvent
 // is the last species in it)
@@ -1132,135 +1151,137 @@ auto ChemicalEngineArray::equilibrate(double T, double P, VectorConstRef b) -> i
 //     return 0.0;
 // }
 
-/*
 auto operator<<(std::ostream& out, const ChemicalEngineArray& state) -> std::ostream&
 {
-    const double T = state.temperature(0);
-    const double P = state.pressure(0);
-    VectorConstRef n = state.speciesAmounts(0);
-    const Vector activity_coeffs = state.lnActivityCoefficients().array().exp();
-    const Vector activities = state.lnActivities().array() * 0.4343; // .exp();
-    const Vector chemical_potentials = state.chemicalPotentials().array() / 1000.;
-    const Vector concentrations = state.lnConcentrations().array().exp();
-//    const Vector molalities = state.speciesMolalities().array();
-    const Vector molfractions = state.moleFractions().array();
-//    const Vector satindices = state.phaseSatIndices().array();
-
-    const Index num_phases = state.numPhases();
-    const Index bar_size = std::max(Index(9), num_phases + 2) * 25;
-    const std::string bar1(bar_size, '=');
-    const std::string bar2(bar_size, '-');
-
-    out << bar1 << std::endl;
-    out << std::left << std::setw(25) << "Temperature[K]";
-    out << std::left << std::setw(25) << "Temperature[C]";
-    out << std::left << std::setw(25) << "Pressure[MPa]";
-    out << std::endl << bar2 << std::endl;
-
-    out << std::left << std::setw(25) << T;
-    out << std::left << std::setw(25) << T - 273.15;
-    out << std::left << std::setw(25) << P * 1e-6;
-    out << std::endl;
-
-    // Set output in scientific notation
     auto flags = out.flags();
-    out << std::setprecision(6);
 
-    // Output the table of the element-related state
-    out << bar1 << std::endl;
-    out << std::left << std::setw(25) << "Element";
-    out << std::left << std::setw(25) << "Amount[mol]";
-    for(Index i = 0; i < state.numPhases(); ++i)
-        out << std::left << std::setw(25) << state.phaseName(i) + "[mol]";
-    out << std::endl;
-    out << bar2 << std::endl;
-    for(Index i = 0; i < state.numElements(); ++i)
+    for(size_t ii=0; ii<state.nNodes(); ii++)
     {
-        out << std::left << std::setw(25) << state.elementName(i);
-        out << std::left << std::setw(25) << state.elementAmounts(0)[i];
+        const double T = state.temperature(ii);
+        const double P = state.pressure(ii);
+        VectorConstRef n = state.speciesAmounts(ii);
+        const Vector activity_coeffs = state.lnActivityCoefficients(ii).array().exp();
+        const Vector activities = state.lnActivities(ii).array() * 0.4343; // .exp();
+        const Vector chemical_potentials = state.chemicalPotentials(ii).array() / 1000.;
+        const Vector concentrations = state.lnConcentrations(ii).array().exp();
+        //    const Vector molalities = state.speciesMolalities().array();
+        const Vector molfractions = state.moleFractions(ii).array();
+        //    const Vector satindices = state.phaseSatIndices().array();
+
+        const Index num_phases = state.numPhases();
+        const Index bar_size = std::max(Index(9), num_phases + 2) * 25;
+        const std::string bar1(bar_size, '=');
+        const std::string bar2(bar_size, '-');
+
+        out << bar1 << std::endl;
+        out << std::left << std::setw(25) << "Temperature[K]";
+        out << std::left << std::setw(25) << "Temperature[C]";
+        out << std::left << std::setw(25) << "Pressure[MPa]";
+        out << std::endl << bar2 << std::endl;
+
+        out << std::left << std::setw(25) << T;
+        out << std::left << std::setw(25) << T - 273.15;
+        out << std::left << std::setw(25) << P * 1e-6;
+        out << std::endl;
+
+        // Set output in scientific notation
+        out << std::setprecision(6);
+
+        // Output the table of the element-related state
+        out << bar1 << std::endl;
+        out << std::left << std::setw(25) << "Element";
+        out << std::left << std::setw(25) << "Amount[mol]";
+        for(Index i = 0; i < state.numPhases(); ++i)
+            out << std::left << std::setw(25) << state.phaseName(i) + "[mol]";
+        out << std::endl;
+        out << bar2 << std::endl;
+        for(Index i = 0; i < state.numElements(); ++i)
+        {
+            out << std::left << std::setw(25) << state.elementName(i);
+            out << std::left << std::setw(25) << state.elementAmounts(ii)[i];
+            for(Index j = 0; j < state.numPhases(); ++j)
+                out << std::left << std::setw(25) << state.elementAmountsInPhase(ii, j)[i];
+            out << std::endl;
+        }
+        out << bar2 << std::endl;
+        out << std::left << std::setw(25) << "PhaseAmount[mol]";
+        out << std::left << std::setw(25) << 0.0;
         for(Index j = 0; j < state.numPhases(); ++j)
-            out << std::left << std::setw(25) << state.elementAmountsInPhase(0, j)[i];
+            out << std::left << std::setw(25) << state.phaseAmounts(ii)[j];
         out << std::endl;
-    }
-    out << bar2 << std::endl;
-    out << std::left << std::setw(25) << "PhaseAmount[mol]";
-    out << std::left << std::setw(25) << 0.0;
-    for(Index j = 0; j < state.numPhases(); ++j)
-        out << std::left << std::setw(25) << state.phaseAmounts(0)[j];
-    out << std::endl;   
-    out << std::left << std::setw(25) << "PhaseMass[kg]";
-    out << std::left << std::setw(25) << 0.0;
-    for(Index j = 0; j < state.numPhases(); ++j)
-        out << std::left << std::setw(25) << state.phaseMasses(0)[j];
-    out << std::endl;        
-    out << std::left << std::setw(25) << "PhaseVolume[m^3]";
-    out << std::left << std::setw(25) << 0.0;
-    for(Index j = 0; j < state.numPhases(); ++j)
-        out << std::left << std::setw(25) << state.phaseVolumes(0)[j];
-    out << std::endl;  
-    out << std::left << std::setw(25) << "PhaseDensity[kg/m^3]";
-    out << std::left << std::setw(25) << 0.0;
-    for(Index j = 0; j < state.numPhases(); ++j)
-        out << std::left << std::setw(25) << state.phaseDensities(0)[j];
-    out << std::endl;    
-    out << std::left << std::setw(25) << "PhaseSatIndex[lg]";
-    out << std::left << std::setw(25) << 0.0;
-    for(Index j = 0; j < state.numPhases(); ++j)
-//        out << std::left << std::setw(25) << satindices[j];    
-        out << std::left << std::setw(25) << state.phaseSatIndices(0)[j];
-    out << std::endl;
-    out << std::endl;            
-
-    // Output the table of the species-related state
-    out << bar1 << std::endl;
-    out << std::left << std::setw(25) << "Species";
-    out << std::left << std::setw(25) << "Amount[mol]";
-    out << std::left << std::setw(25) << "Concentration[-]";
-    out << std::left << std::setw(25) << "ActivityCoeff[-]";
- //   out << std::left << std::setw(25) << "Molality[mol/kgw]";
-    out << std::left << std::setw(25) << "MoleFraction[-]";
-    out << std::left << std::setw(25) << "ChemPotential[kJ/mol]";
-    out << std::left << std::setw(25) << "Activity[lg]";
-    out << std::endl;
-    out << bar2 << std::endl;
-    for(Index i = 0; i < state.numSpecies(); ++i)
-    {
-        out << std::left << std::setw(25) << state.speciesName(i);
-        out << std::left << std::setw(25) << n[i];
-        out << std::left << std::setw(25) << concentrations[i];
-        out << std::left << std::setw(25) << activity_coeffs[i];
- //       out << std::left << std::setw(25) << molalities[i];
-        out << std::left << std::setw(25) << molfractions[i];
-        out << std::left << std::setw(25) << chemical_potentials[i];
-        out << std::left << std::setw(25) << activities[i];
+        out << std::left << std::setw(25) << "PhaseMass[kg]";
+        out << std::left << std::setw(25) << 0.0;
+        for(Index j = 0; j < state.numPhases(); ++j)
+            out << std::left << std::setw(25) << state.phaseMasses(ii)[j];
         out << std::endl;
+        out << std::left << std::setw(25) << "PhaseVolume[m^3]";
+        out << std::left << std::setw(25) << 0.0;
+        for(Index j = 0; j < state.numPhases(); ++j)
+            out << std::left << std::setw(25) << state.phaseVolumes(ii)[j];
+        out << std::endl;
+        out << std::left << std::setw(25) << "PhaseDensity[kg/m^3]";
+        out << std::left << std::setw(25) << 0.0;
+        for(Index j = 0; j < state.numPhases(); ++j)
+            out << std::left << std::setw(25) << state.phaseDensities(ii)[j];
+        out << std::endl;
+        out << std::left << std::setw(25) << "PhaseSatIndex[lg]";
+        out << std::left << std::setw(25) << 0.0;
+        for(Index j = 0; j < state.numPhases(); ++j)
+            //        out << std::left << std::setw(25) << satindices[j];
+            out << std::left << std::setw(25) << state.phaseSatIndices(ii)[j];
+        out << std::endl;
+        out << std::endl;
+
+        // Output the table of the species-related state
+        out << bar1 << std::endl;
+        out << std::left << std::setw(25) << "Species";
+        out << std::left << std::setw(25) << "Amount[mol]";
+        out << std::left << std::setw(25) << "Concentration[-]";
+        out << std::left << std::setw(25) << "ActivityCoeff[-]";
+        //   out << std::left << std::setw(25) << "Molality[mol/kgw]";
+        out << std::left << std::setw(25) << "MoleFraction[-]";
+        out << std::left << std::setw(25) << "ChemPotential[kJ/mol]";
+        out << std::left << std::setw(25) << "Activity[lg]";
+        out << std::endl;
+        out << bar2 << std::endl;
+        for(Index i = 0; i < state.numSpecies(); ++i)
+        {
+            out << std::left << std::setw(25) << state.speciesName(i);
+            out << std::left << std::setw(25) << n[i];
+            out << std::left << std::setw(25) << concentrations[i];
+            out << std::left << std::setw(25) << activity_coeffs[i];
+            //       out << std::left << std::setw(25) << molalities[i];
+            out << std::left << std::setw(25) << molfractions[i];
+            out << std::left << std::setw(25) << chemical_potentials[i];
+            out << std::left << std::setw(25) << activities[i];
+            out << std::endl;
+        }
+
+        // Output the table of the aqueous phase related state
+        out << bar1 << std::endl;
+        out << std::left << std::setw(25) << "Mass[kg]";
+        out << std::left << std::setw(25) << "Volume[m^3]";
+        out << std::left << std::setw(25) << "G[norm]";
+        out << std::left << std::setw(25) << "H[kJ]";
+        out << std::left << std::setw(25) << "IonicStrength[molal]";
+        out << std::left << std::setw(25) << "pH";
+        out << std::left << std::setw(25) << "pE";
+        out << std::left << std::setw(25) << "Eh[V]";
+        out << std::endl << bar2 << std::endl;
+        out << std::left << std::setw(25) << state.systemMass(ii);
+        out << std::left << std::setw(25) << state.systemVolume(ii);
+        out << std::left << std::setw(25) << state.systemGibbsEnergy(ii);
+        out << std::left << std::setw(25) << state.systemEnthalpy(ii)/1000.0;
+        out << std::left << std::setw(25) << state.ionicStrength(ii);
+        out << std::left << std::setw(25) << state.pH(ii);
+        out << std::left << std::setw(25) << state.pe(ii);
+        out << std::left << std::setw(25) << state.Eh(ii);
+        out << std::endl << bar1 << std::endl;
     }
-
-    // Output the table of the aqueous phase related state
-    out << bar1 << std::endl;
-    out << std::left << std::setw(25) << "Mass[kg]";
-    out << std::left << std::setw(25) << "Volume[m^3]";
-    out << std::left << std::setw(25) << "G[norm]";
-    out << std::left << std::setw(25) << "H[kJ]";
-    out << std::left << std::setw(25) << "IonicStrength[molal]";
-    out << std::left << std::setw(25) << "pH";
-    out << std::left << std::setw(25) << "pE";
-    out << std::left << std::setw(25) << "Eh[V]";
-    out << std::endl << bar2 << std::endl;
-    out << std::left << std::setw(25) << state.systemMass(0);
-    out << std::left << std::setw(25) << state.systemVolume(0);
-    out << std::left << std::setw(25) << state.systemGibbsEnergy(0);
-    out << std::left << std::setw(25) << state.systemEnthalpy()/1000.0;
-    out << std::left << std::setw(25) << state.ionicStrength(0);
-    out << std::left << std::setw(25) << state.pH(0);
-    out << std::left << std::setw(25) << state.pe(0);
-    out << std::left << std::setw(25) << state.Eh(0);
-    out << std::endl << bar1 << std::endl;
-
     // Recover the previous state of `out`
     out.flags(flags);
 
     return out;
 }
-*/
+
 } // namespace xGEM2MT

@@ -33,6 +33,10 @@ struct ChemicalEngineArrayOptions
 {
     /// The flag that indicates if smart start initial approximation is used
     bool warmstart = true;
+    char useSIA='*';      ///<   Use smart initial approximation in GEM IPM (+); SIA internal (*); AIA (-)
+    long int step=0;    ///<   extern actual time iterator
+    double cdv=1e-9;       ///<   cutoff for IC amount differences in the node between time steps (mol, 1e-9)
+    double cez=1e-12;       ///<   cutoff for minimal amounts of IC in node bulk compositions (mol, 1e-12)
 };
 
 /// A wrapper class for ChemicalEngineArray code
@@ -40,8 +44,6 @@ class ChemicalEngineArray
 {
 
 public:
-
-// new --------------------
 
     /// Construct a ChemicalEngineArray object for the 1D arrangement of nodes
     ChemicalEngineArray(long int n_nodes);
@@ -62,6 +64,9 @@ public:
     /// Set cold start automatic initial approximation (slower convergence, more accurate)
     auto setColdStart() -> void;
 
+    /// Get total number of nodes in the node array
+    auto nNodes() const -> long int;
+
     /// Initialize the ChemicalEngineArray object from a GEM-Selektor project file.
     /// @param filename The name of the file containing the definition of the chemical system
     auto initialize(std::string ipm_filename, std::string dbr_filename, long int* nodeTypes) -> void;
@@ -76,11 +81,57 @@ public:
     auto initializeFromJsonStrings(std::string dch_json, std::string ipm_json,
                                    std::vector<std::string> dbr_json, long int* nodeTypes) -> void;
 
+    /// Recalculate the equilibrium state with preset P,T,B and other inputs for node ndx
+    /// If @param warmstart is true then GEMS3K uses contents of node as initial
+    ///   guess, otherwise (false) it gets the simplex LP initial guess.
+    /// Returns the return code of GEMS3K GEM_run call
+    auto reequilibrate(long int  ndx, bool warmstart) -> long int;
+
+    /// Calls GEM IPM calculation for for all nodes of TNodeArray
+    /// in a loop with an optional openmp parallelization
+    /// If @param warmstart is true then GEMS3K uses contents of node as initial
+    ///   guess, otherwise (false) it gets the simplex LP initial guess.
+    auto reequilibrate(bool warmstart) -> void;
+
+    /// Recalculate the equilibrium state with preset P,T,B and other inputs for node ndx
+    /// Here we do a GEM calculation in box ndx
+    /// Here we compare this node for current time and for previous time
+    /// to test need to recalculate equilibrium in this node because its vector b has changed
+    /// Returns true if GEM Run finished with OK_GEM_AIA or OK_GEM_SIA
+    auto equilibrate(long int  ndx) -> bool;
+
+    /// Recalculate the equilibrium state with preset P,T,B and other inputs for all nodes
+    /// Here we compare this node for current time and for previous time
+    /// to test need to recalculate equilibrium in this node because its vector b has changed
+    /// Returns true if all GEM Run finished with OK_GEM_AIA or OK_GEM_SIA
+    auto equilibrate() -> bool;
+
+    /// Dump MULTI, DATACH and DATABR files structure.
+    /// @param filepath - IPM work structure file path&name
+    /// @param put_all -  if true print array of nodes for previous time point
+    ///                           and for current time point
+    auto dumpGEMS3K( const std::string& filepath, bool put_all = false ) const -> void;
+
+    /// Copies array of nodes for current time point to the same place in the
+    /// array of nodes for previous time point.
+    auto nextTimePoint(bool always) -> void;
+
     /// Reads another DBR file (with input system composition, T,P etc.) to a node with absolute index ndx.
     /// The DBR file must be compatible with the currently loaded IPM and DCH files
     /// (see description of initialize() function call).
     /// @param Null-terminated (C) string containing a full path to the input DBR disk file.
     auto readDbrFromFile(long int ndx, std::string filename) -> void;
+
+    /// Reads another DBR object (with input system composition, T,P etc.) from JSON string
+    /// to a node with absolute index ndx. The DBR file must be compatible with the currently
+    /// loaded IPM and DCH objects (see description of initialize() function call).
+    /// @param Null-terminated (C) string containing a full path to the input DBR disk file.
+    auto readDbrFromJsonString(long int  ndx, std::string dbr_json) -> void;
+
+    /// Returns a DBR object (normally after some changes via API and GEM calculation) as JSON string
+    /// from a node with absolute index ndx
+    /// In case of error raises an exception or returns empty string.
+    auto writeDbrToJsonString(long int  ndx) -> const std::string;
 
     /// Writes a DBR file (normally after some changes via API and GEM calculation) from a node
     /// with absolute index ndx.
@@ -274,7 +325,7 @@ public:
     /// Return the densities of the phases (in units of kg/m3).
     auto phaseDensities(long int ndx) const -> Vector;
 
-     /// Return the density of the phase @param iphase (in units of kg/m3).
+    /// Return the density of the phase @param iphase (in units of kg/m3).
     auto phaseDensity(long int ndx, Index iphase) const -> double;
 
     /// Return the masses of the phases (in units of kg).
@@ -365,46 +416,15 @@ public:
     auto phaseSpecificEntropy(long int ndx, Index iphase) const -> double;
 
     /// Return the total enthalpy of the system.
-   auto systemEnthalpy(long int ndx) const -> double;
+    auto systemEnthalpy(long int ndx) const -> double;
 
-   /// Return the total entropy of the system.
-   auto systemEntropy(long int ndx) const -> double;
+    /// Return the total entropy of the system.
+    auto systemEntropy(long int ndx) const -> double;
 
-   /// Return the total heat capacity Cp of the system.
-   auto systemHeatCapacityConstP(long int ndx) const -> double;
+    /// Return the total heat capacity Cp of the system.
+    auto systemHeatCapacityConstP(long int ndx) const -> double;
 
-// old -----------------------------
-
-    /// Reallocates chemical engine vectors and matrix upon node initialization from files or json
-    /// Used only inside of initialize() or initializeFromJsonStrings()
-    auto reallocateEngineArrays() -> void;
-
-    /// Reads another DBR object (with input system composition, T,P etc.) from JSON string
-    /// to a node with absolute index ndx. The DBR file must be compatible with the currently
-    /// loaded IPM and DCH objects (see description of initialize() function call).
-    /// @param Null-terminated (C) string containing a full path to the input DBR disk file.
-    auto readDbrFromJsonString(long int  ndx, std::string dbr_json) -> void;
-
-    /// Returns a DBR object (normally after some changes via API and GEM calculation) as JSON string
-    /// from a node with absolute index ndx
-    /// In case of error raises an exception or returns empty string.
-    auto writeDbrToJsonString(long int  ndx) -> const std::string;
-
-    /// recalculate the equilibrium state with preset P,T,B and other inputs
-    /// If @param warmstart is true then GEMS3K uses contents of node as initial 
-    ///   guess, otherwise (false) it gets the simplex LP initial guess.
-    /// Returns the return code of GEMS3K GEM_run call
-    auto reequilibrate(bool warmstart) -> int;
-
-    /// Calculate the equilibrium state of the chemical system.
-    /// @param T The temperature for the equilibrium calculation (in units of K)
-    /// @param P The pressure for the equilibrium calculation (in units of Pa)
-    /// @param b The amounts of the elements (in units of mol)
-    /// Returns the return code of GEMS3K GEM_run call
-    auto equilibrate(double T, double P, VectorConstRef b) -> int;
-
-    /// Return the wall time of the equilibrium calculation (in units of s)
-    //auto elapsedTime() const -> double;
+    //---------------------------------------------------------------
 
     /// TDB Return the molalities of the species. Aquatic systems only (assuming
     /// the aqueous phase is the first one and H2O-solvent is the last species in it)
@@ -443,6 +463,10 @@ private:
     std::unique_ptr<Impl> pimpl;
 
     void setCorrectionbIC(long ndx);
+    /// Reallocates chemical engine vectors and matrix upon node initialization from files or json
+    /// Used only inside of initialize() or initializeFromJsonStrings()
+    auto reallocateEngineArrays() -> void;
+
 };
 
 /// Output the state of the ChemicalEngineArray object.
