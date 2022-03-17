@@ -43,32 +43,48 @@ int getJsonFile( const string path, string& str )
 
 int main(int argc, char **argv)
 {
-
-    // Testing= with input from JSON strings
+    // Testing= with input from IPM files
     ChemicalEngineArray engine(5);
-    int f1, f2, f3;
-    std::string dch_json = "";
-    std::string ipm_json = "";
-    std::string dbr_json = "";
+    std::vector<long int> nodeTypes={1,0,0,0,0};
 
-
-    f1 = getJsonFile( "resources/CemGEMS-formatted/CemHyds-dch.json", dch_json );
-    f2 = getJsonFile( "resources/CemGEMS-formatted/CemHyds-ipm.json", ipm_json );
-    f3 = getJsonFile( "resources/CemGEMS-formatted/CemHyds-dbr-0-0000.json", dbr_json );
-    
-    if( f1 == 0 && f2 == 0 && f3 == 0 )
+    try
     {
-        engine.initializeFromJsonStrings(dch_json, ipm_json, {dbr_json}, nullptr );
+        int ret;
+        std::string dch_json = "";
+        std::string ipm_json = "";
+        std::string dbr_json = "";
+        std::vector<std::string> dbr_jsons;
+
+
+        ret = getJsonFile( "gem2mt-data/CalcColumn-dch.json", dch_json );
+        ret += getJsonFile( "gem2mt-data/CalcColumn-ipm.json", ipm_json );
+        ret += getJsonFile( "gem2mt-data/CalcColumn-dbr-0-0000.json", dbr_json );
+        dbr_jsons.push_back(dbr_json);
+        ret += getJsonFile( "gem2mt-data/CalcColumn-dbr-0-0001.json", dbr_json );
+        dbr_jsons.push_back(dbr_json);
+        if( ret )
+            return -1;
+
+        engine.initializeFromJsonStrings(dch_json, ipm_json, dbr_jsons, nodeTypes.data());
 
         Vector bj = engine.elementAmounts(0);
+        std::cout << "Vector bj[0]: " << bj.transpose() << std::endl;
 
-        std::cout << "Vector bj: " << bj.transpose() << std::endl;
+        bj = engine.elementAmounts(1);
+        std::cout << "Vector bj[1]: " << bj.transpose() << std::endl;
 
+        //engine.reequilibrate(0, false);
+        engine.reequilibrate(false);
+        engine.nextTimePoint(true); // copy results to pNodT0()
+
+        //engine.dumpGEMS3K("CalcColumn-dump-dat.lst");
         std::cout << engine << std::endl;
 
-        // engine.equilibrate(  );
-
         return 0;
+    }
+    catch (std::runtime_error& xcpt)
+    {
+        std::cout << xcpt.what() << std::endl;
     }
     return 1;
 }

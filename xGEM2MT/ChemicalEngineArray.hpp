@@ -32,7 +32,7 @@ namespace xGEM2MT {
 struct ChemicalEngineArrayOptions
 {
     /// The flag that indicates if smart start initial approximation is used
-    bool warmstart = true;
+    bool warmstart = false;
     char useSIA='*';      ///<   Use smart initial approximation in GEM IPM (+); SIA internal (*); AIA (-)
     long int step=0;    ///<   extern actual time iterator
     double cdv=1e-9;       ///<   cutoff for IC amount differences in the node between time steps (mol, 1e-9)

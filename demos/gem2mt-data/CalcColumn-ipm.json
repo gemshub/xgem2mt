@@ -1,0 +1,31 @@
+[
+{
+  "_key" : "CalcColumn-ipm",
+  "set" : "CalcColumn",
+  "ipm" : {
+    "ID_key": "CalDolCol2G  CalcColumn  0009 0       1       0.998   000",
+    "pa_DHB": 1e-14,
+    "pa_DK": 1e-06,
+    "pa_IIM": 7000,
+    "pa_PRD": -5,
+    "pa_PLLG": 10000,
+    "sMod": [
+        "DNNSNNNN", "INNINNNN"
+    ],
+    "LsMod": [
+        2, 0, 4, 
+        0, 0, 0
+    ],
+    "PMc": [
+        0, 0, 1, 1, 0, 0, 0, 0
+    ],
+    "LsMdc": [
+        0, 0, 0, 
+        0, 0, 0
+    ],
+    "B": [
+        0.000331, 0.000331, 2e-07, 110.683696417673, 1e-07, 55.3428612088366, 0
+    ]
+  }
+}
+]

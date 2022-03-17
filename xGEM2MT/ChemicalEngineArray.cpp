@@ -69,10 +69,6 @@ ChemicalEngineArray::~ChemicalEngineArray()
 
 auto ChemicalEngineArray::initialize(std::string ipm_filename, std::string dbr_filename, long int* nodeTypes) -> void
 {
-    // Initialize the GEMS input files mode
-    GEMS3KGenerator generator_data(ipm_filename.c_str());
-    pimpl->io_mode =   generator_data.files_mode();
-
     // Allocate memory for the GEMS `node` member
     pimpl->node_array = std::unique_ptr<TNodeArray>(new TNodeArray(pimpl->n_nodes) );
 
@@ -94,6 +90,9 @@ auto ChemicalEngineArray::initialize(std::string ipm_filename, std::string dbr_f
                                  "Could not initialize the ChemicalEngineArray object.\n"
                                  "Make sure the provided file exists relative to the working directory.");
 
+    // Initialize the GEMS input files mode
+    GEMS3KGenerator generator_data(ipm_filename.c_str());
+    pimpl->io_mode =   generator_data.files_mode();
     reallocateEngineArrays();
 }
 
@@ -132,7 +131,13 @@ long ChemicalEngineArray::reequilibrate(long ndx, bool warmstart)
 void ChemicalEngineArray::reequilibrate(bool warmstart)
 {
     long int  Mode = pimpl->options.warmstart ? NEED_GEM_SIA : NEED_GEM_AIA;
-    pimpl->node_array->RunGEM( Mode, pimpl->node_array->nNodes(), pimpl->node_array->pNodT1(), nullptr, nullptr );
+    vector<long int> nodeFlags, retCodes;
+    for( size_t ii=0; ii<pimpl->node_array->nNodes(); ++ii)
+    {
+        nodeFlags.push_back(1);
+        retCodes.push_back(0);
+    }
+    pimpl->node_array->RunGEM( Mode, pimpl->node_array->nNodes(), pimpl->node_array->pNodT1(), nodeFlags.data(), retCodes.data() );
 }
 
 bool ChemicalEngineArray::equilibrate(long ndx)
@@ -152,7 +157,7 @@ bool ChemicalEngineArray::equilibrate()
                                  pimpl->options.step,
                                  pimpl->options.cdv,
                                  pimpl->options.cez);
-    return pimpl->node_array->CalcIPM_List( mode_param, 0, pimpl->node_array->nNodes(), nullptr );
+    return pimpl->node_array->CalcIPM_List( mode_param, 0, pimpl->node_array->nNodes()-1, nullptr );
 }
 
 void ChemicalEngineArray::dumpGEMS3K(const std::string &filepath, bool put_all) const
