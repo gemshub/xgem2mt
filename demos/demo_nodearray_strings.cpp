@@ -56,11 +56,11 @@ int main(int argc, char **argv)
         std::vector<std::string> dbr_jsons;
 
 
-        ret = getJsonFile( "gem2mt-data/CalcColumn-dch.json", dch_json );
-        ret += getJsonFile( "gem2mt-data/CalcColumn-ipm.json", ipm_json );
-        ret += getJsonFile( "gem2mt-data/CalcColumn-dbr-0-0000.json", dbr_json );
+        ret = getJsonFile( "nodearray-data/CalcColumn-dch.json", dch_json );
+        ret += getJsonFile( "nodearray-data/CalcColumn-ipm.json", ipm_json );
+        ret += getJsonFile( "nodearray-data/CalcColumn-dbr-0-0000.json", dbr_json );
         dbr_jsons.push_back(dbr_json);
-        ret += getJsonFile( "gem2mt-data/CalcColumn-dbr-0-0001.json", dbr_json );
+        ret += getJsonFile( "nodearray-data/CalcColumn-dbr-0-0001.json", dbr_json );
         dbr_jsons.push_back(dbr_json);
         if( ret )
             return -1;

@@ -31,8 +31,8 @@ int main(int argc, char **argv)
     // Testing= with input from IPM files
     ChemicalEngineArray engine(5);
     std::vector<long int> nodeTypes={1,0,0,0,0};
-    std::string gems_init_lst = "gem2mt-data/CalcColumn-dat.lst";
-    std::string gems_init_dbr_lst = "gem2mt-data/CalcColumn-dbr.lst";
+    std::string gems_init_lst = "nodearray-data/CalcColumn-dat.lst";
+    std::string gems_init_dbr_lst = "nodearray-data/CalcColumn-dbr.lst";
 
     try
     {

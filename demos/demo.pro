@@ -8,31 +8,39 @@ CONFIG += debug
 CONFIG += console
 CONFIG += c++17
 
-GEM2MT_CPP = ..
-GEM2MT_H   = $$GEM2MT_CPP
-DEPENDPATH += $$GEM2MT_H
-INCLUDEPATH += $$GEM2MT_H
+XGEM2MT_CPP = ..
+XGEM2MT_H   = $$XGEM2MT_CPP
+DEPENDPATH += $$XGEM2MT_H
+INCLUDEPATH += $$XGEM2MT_H
 
 DEFINES += IPMGEMPLUGIN
 DEFINES += NODEARRAYLEVEL
-DEFINES += NOPARTICLEARRAY
+#DEFINES += NOPARTICLEARRAY
 #DEFINES += OVERFLOW_EXCEPT  #compile with nan inf exceptions
 
 GEMS3K_CPP = ../../standalone/GEMS3K
 GEMS3K_H   = $$GEMS3K_CPP
 DEPENDPATH += $$GEMS3K_H
 INCLUDEPATH += $$GEMS3K_H
+GEM2MT_CPP = ../../standalone/nodearray-gem
+GEM2MT_H   = $$GEM2MT_CPP
+DEPENDPATH += $$GEM2MT_H
+INCLUDEPATH += $$GEM2MT_H
+
 include($$GEMS3K_CPP/gems3k.pri)
+include($$GEM2MT_CPP/gem2mt.pri)
 
 OBJECTS_DIR = obj
 
-#LIBS += -lGEMS3K-static
+#LIBS += -lGEMS3K-static -lGEM2MT-static
 
-HEADERS	 += $$GEM2MT_H/xGEM2MT/ChemicalEngineArray.hpp \
-            $$GEM2MT_H/xGEM2MT/Eigen.hpp \
-            $$GEM2MT_H/xGEM2MT/Index.hpp
+HEADERS	 += $$XGEM2MT_H/xGEM2MT/ChemicalEngineArray.hpp \
+            $$XGEM2MT_H/xGEM2MT/MassTransport.hpp \
+            $$XGEM2MT_H/xGEM2MT/Eigen.hpp \
+            $$XGEM2MT_H/xGEM2MT/Index.hpp
 
-
-SOURCES	+=  $$GEM2MT_CPP/xGEM2MT/ChemicalEngineArray.cpp \
+SOURCES	+=  $$XGEM2MT_CPP/xGEM2MT/ChemicalEngineArray.cpp \
+            $$XGEM2MT_CPP/xGEM2MT/MassTransport.cpp \
+            demo_gem2mt.cpp
             #demo_nodearray_files.cpp
-            demo_nodearray_strings.cpp
+            #demo_nodearray_strings.cpp

@@ -1,0 +1,15 @@
+[
+{
+  "_key" : "CalcColumn-dbr-0-0000",
+  "set" : "CalcColumn",
+  "dbr" : {
+    "NodeStatusFMT": 1,
+    "NodeStatusCH": 1,
+    "TK": 298.15,
+    "P": 100000,
+    "bIC": [
+        1e-07, 1e-07, 0.02, 110.683696417673, 0.01, 55.3418685088366, 0
+    ]
+  }
+}
+]
