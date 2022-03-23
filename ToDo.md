@@ -14,12 +14,12 @@
 
 1. GEMS-198 Create Python API of xGEM2MT using pybind11 header
 
-2. Research an add to TGEM2MT code into GEMS3K and to MassTransport class functions for accsees to internal nodes and values. How user can set up and monitoring of mass transport process. Need suggestions with Dan and Dmitrii.
+2. Research and add to TGEM2MT code into GEMS3K and to MassTransport class functions for accsees to internal nodes and values. How user can set up and monitoring of mass transport process. Need suggestions with Dan and Dmitrii.
 
 3. Implement test ?
 
 ### Problems&questions
 
-1.  Into environment.devenv.yml we ask ```- gems3k=4.1.1```, but need installation of gems3k with GEM2MT implementation '''cmake .. -DBUILD_GEM2MT=ON```
+1.  Into environment.devenv.yml we ask ```- gems3k=4.1.1```, but need installation of gems3k with GEM2MT implementation ```cmake .. -DBUILD_GEM2MT=ON```
 Need suggestion about using install with nodearray-gem. 
 
