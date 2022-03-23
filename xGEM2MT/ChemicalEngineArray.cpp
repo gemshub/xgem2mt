@@ -23,9 +23,6 @@
 #include <memory>
 
 // GEMS3K includes
-//#define IPMGEMPLUGIN
-//#define NOPARTICLEARRAY
-//#define NODEARRAYLEVEL
 #include <GEMS3K/nodearray.h>
 #include <GEMS3K/gems3k_impex.h>
 
