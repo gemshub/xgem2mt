@@ -23,9 +23,9 @@
 #include <memory>
 
 // GEMS3K includes
-#define IPMGEMPLUGIN
-#define NOPARTICLEARRAY
-#define NODEARRAYLEVEL
+//#define IPMGEMPLUGIN
+//#define NOPARTICLEARRAY
+//#define NODEARRAYLEVEL
 #include <GEMS3K/nodearray.h>
 #include <GEMS3K/gems3k_impex.h>
 
@@ -132,7 +132,7 @@ void ChemicalEngineArray::reequilibrate(bool warmstart)
 {
     long int  Mode = pimpl->options.warmstart ? NEED_GEM_SIA : NEED_GEM_AIA;
     vector<long int> nodeFlags, retCodes;
-    for( size_t ii=0; ii<pimpl->node_array->nNodes(); ++ii)
+    for( long int ii=0; ii<pimpl->node_array->nNodes(); ++ii)
     {
         nodeFlags.push_back(1);
         retCodes.push_back(0);
@@ -1160,7 +1160,7 @@ auto operator<<(std::ostream& out, const ChemicalEngineArray& state) -> std::ost
 {
     auto flags = out.flags();
 
-    for(size_t ii=0; ii<state.nNodes(); ii++)
+    for(long int ii=0; ii<state.nNodes(); ii++)
     {
         const double T = state.temperature(ii);
         const double P = state.pressure(ii);

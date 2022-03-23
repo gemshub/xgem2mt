@@ -18,21 +18,21 @@ DEFINES += NODEARRAYLEVEL
 #DEFINES += NOPARTICLEARRAY
 #DEFINES += OVERFLOW_EXCEPT  #compile with nan inf exceptions
 
-GEMS3K_CPP = ../../standalone/GEMS3K
-GEMS3K_H   = $$GEMS3K_CPP
-DEPENDPATH += $$GEMS3K_H
-INCLUDEPATH += $$GEMS3K_H
-GEM2MT_CPP = ../../standalone/nodearray-gem
-GEM2MT_H   = $$GEM2MT_CPP
-DEPENDPATH += $$GEM2MT_H
-INCLUDEPATH += $$GEM2MT_H
+#GEMS3K_CPP = ../../standalone/GEMS3K
+#GEMS3K_H   = $$GEMS3K_CPP
+#DEPENDPATH += $$GEMS3K_H
+#INCLUDEPATH += $$GEMS3K_H
+#GEM2MT_CPP = ../../standalone/nodearray-gem
+#GEM2MT_H   = $$GEM2MT_CPP
+#DEPENDPATH += $$GEM2MT_H
+#INCLUDEPATH += $$GEM2MT_H
 
-include($$GEMS3K_CPP/gems3k.pri)
-include($$GEM2MT_CPP/gem2mt.pri)
+#include($$GEMS3K_CPP/gems3k.pri)
+#include($$GEM2MT_CPP/gem2mt.pri)
 
 OBJECTS_DIR = obj
 
-#LIBS += -lGEMS3K-static -lGEM2MT-static
+LIBS += -lGEMS3K-static -lGEM2MT-static
 
 HEADERS	 += $$XGEM2MT_H/xGEM2MT/ChemicalEngineArray.hpp \
             $$XGEM2MT_H/xGEM2MT/MassTransport.hpp \

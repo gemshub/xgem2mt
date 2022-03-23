@@ -95,6 +95,9 @@ if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
     )
 endif()
 
+add_definitions(-DIPMGEMPLUGIN)
+add_definitions(-DNODEARRAYLEVEL)
+
 # Find Eigen library and include its directory
 #find_package(Eigen3 3.3.7 REQUIRED)
 #message(STATUS "Found Eigen3 v${Eigen3_VERSION}: ${Eigen3_INCLUDE_DIRS}")

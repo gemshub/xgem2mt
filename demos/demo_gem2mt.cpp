@@ -34,7 +34,7 @@ int main(int argc, char **argv)
         mttask.initializeGEM2MT(gem2mt_init);
         mttask.initializeNodes(gems_init_lst, gems_init_dbr_lst);
 
-        mttask.runGEM2MT();
+        //mttask.runGEM2MT();
 
         std::cout << "Readed: " << mttask;
         return 0;
