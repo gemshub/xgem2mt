@@ -1,0 +1,13 @@
+from distutils.core import setup
+
+setup(name='xgem2mt',
+      version='${PROJECT_VERSION}',
+      description='The next-generation of C++ and Python API for GEM2MT.',
+      author='G.D. Miron',
+      author_email='dan.miron@psi.ch',
+      url='www.thermomod.org',
+      license='GPLv3',
+      package_dir={'xgem2mt': ''},
+      packages=['xgem2mt'],
+      package_data={'xgem2mt': ['@XGEM2MT_PYTHON_MODULE_FILENAME@', '*.pdb']}
+) 
