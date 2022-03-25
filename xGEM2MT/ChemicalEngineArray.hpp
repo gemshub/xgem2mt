@@ -37,6 +37,8 @@ struct ChemicalEngineArrayOptions
     long int step=0;    ///<   extern actual time iterator
     double cdv=1e-9;       ///<   cutoff for IC amount differences in the node between time steps (mol, 1e-9)
     double cez=1e-12;       ///<   cutoff for minimal amounts of IC in node bulk compositions (mol, 1e-12)
+
+    std::string to_json_string(bool dense = false) const {return "";}; //TBD
 };
 
 /// A wrapper class for ChemicalEngineArray code
@@ -288,7 +290,7 @@ public:
     auto elementAmountsInSpecies(long int ndx, VectorXiConstRef ispecies) const -> Vector;
 
     /// Return the amounts of the species (in units of mol)
-    auto speciesAmounts(long int ndx) const -> VectorConstRef;
+    auto speciesAmounts(long int ndx) const -> Vector;
 
     /// Return the amount of the species with index @param ispecies (in units of mol)
     auto speciesAmount(long int ndx, Index ispecies) const -> double;
@@ -297,9 +299,9 @@ public:
     auto speciesAmount(long int ndx, std::string name) const -> double;
 
     /// Return the upper limits for the species dul (in units of mol)
-    auto speciesUpperLimits(long int ndx) const -> VectorConstRef;
+    auto speciesUpperLimits(long int ndx) const -> Vector;
     /// Return the lower limits for the species dll (in units of mol)
-    auto speciesLowerLimits(long int ndx) const -> VectorConstRef;
+    auto speciesLowerLimits(long int ndx) const -> Vector;
 
     /// Return the mass of the system (in units of kg).
     auto systemMass(long int ndx) const -> double;

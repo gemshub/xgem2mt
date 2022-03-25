@@ -529,7 +529,7 @@ auto ChemicalEngineArray::speciesAmount(long int ndx, std::string name) const ->
     return pimpl->node_array->pNodT1()[ndx]->xDC[indexSpecies(name)];
 }
 
-auto ChemicalEngineArray::speciesAmounts(long int ndx) const -> VectorConstRef
+auto ChemicalEngineArray::speciesAmounts(long int ndx) const -> Vector
 {
     return Vector::Map(pimpl->node_array->pNodT1()[ndx]->xDC, numSpecies());
 }
@@ -575,11 +575,11 @@ auto ChemicalEngineArray::setSpeciesAmount(long int ndx, Index ispecies, double 
     setCorrectionbIC(ndx);
 }
 
-auto ChemicalEngineArray::speciesUpperLimits(long int ndx) const -> VectorConstRef
+auto ChemicalEngineArray::speciesUpperLimits(long int ndx) const -> Vector
 {
     return Vector::Map(pimpl->node_array->pNodT1()[ndx]->dul, numSpecies());
 }
-auto ChemicalEngineArray::speciesLowerLimits(long int ndx) const -> VectorConstRef
+auto ChemicalEngineArray::speciesLowerLimits(long int ndx) const -> Vector
 {
     return Vector::Map(pimpl->node_array->pNodT1()[ndx]->dll, numSpecies());
 }
