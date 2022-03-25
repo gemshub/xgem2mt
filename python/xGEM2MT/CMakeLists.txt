@@ -19,7 +19,7 @@ add_custom_target(xgem2mt ALL
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 # Set dependencies of xGEM2MT target
-add_dependencies(xgem2mtPyxGEM2MT)
+add_dependencies(xgem2mt PyxGEM2MT)
 
 # Set the path where the python package is installed to CMAKE_INSTALL_PREFIX if not given
 if(NOT DEFINED XGEM2MT_PYTHON_INSTALL_PREFIX)

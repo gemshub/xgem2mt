@@ -10,9 +10,11 @@
 
 4. demo_gem2mt.cpp is instructions how work with MassTransport class.
 
+5. GEMS-198 Create Python API of xGEM2MT using pybind11 header
+
 ### To do
 
-1. GEMS-198 Create Python API of xGEM2MT using pybind11 header
+1. GEMS-198 Make demo for Python API of xGEM2MT and test API
 
 2. Research and add to TGEM2MT code into GEMS3K and to MassTransport class functions for accsees to internal nodes and values. How user can set up and monitoring of mass transport process. Need suggestions with Dan and Dmitrii.
 

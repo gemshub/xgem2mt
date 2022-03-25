@@ -16,8 +16,10 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 #include "pyChemicalEngineArray.hpp"
+#include "pyMassTransport.hpp"
 
-PYBIND11_MODULE(PyChemicalEngineArray, m)
+PYBIND11_MODULE(PyGEM2MT, m)
 {
+    exportChemicalEngineArray(m);
     exportChemicalEngineArray(m);
 }

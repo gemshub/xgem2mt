@@ -58,7 +58,7 @@ public:
 
     /// Dump the MassTransport object to file.
     /// @param filepath - IPM work structure file path&name
-    auto dumpGEM2MT() const -> std::string;
+    auto dump() const -> std::string;
 
     /// Dump the MassTransport object to file.
     /// @param filepath - IPM work structure file path&name

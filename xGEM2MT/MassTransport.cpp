@@ -101,7 +101,7 @@ void MassTransport::runGEM2MT()
     }
 }
 
-string MassTransport::dumpGEM2MT() const
+string MassTransport::dump() const
 {
     std::stringstream ss;
     io_formats::SimdJsonWrite out_format( ss, "", true );
@@ -113,7 +113,7 @@ auto operator<<(std::ostream& out, const MassTransport& state) -> std::ostream&
 {
     auto flags = out.flags();
 
-    out << state.dumpGEM2MT() << std::endl;
+    out << state.dump() << std::endl;
 
     // Recover the previous state of `out`
     out.flags(flags);

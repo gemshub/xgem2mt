@@ -29,7 +29,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 # Define which components of Reaktoro to build
 option(XGEM2MT_BUILD_ALL    "Build everything." OFF)
-option(XGEM2MT_BUILD_PYTHON "Build the python bindings." OFF)
+option(XGEM2MT_BUILD_PYTHON "Build the python bindings." ON)
 option(XGEM2MT_BUILD_DEMOS  "Build demos." ON)
 option(XGEM2MT_BUILD_DOCS   "Build documentation." OFF)
 option(XGEM2MT_BUILD_TESTS  "Build tests." OFF)
@@ -104,9 +104,9 @@ add_definitions(-DNODEARRAYLEVEL)
 
 # Find the Python interpreter
 if(XGEM2MT_BUILD_PYTHON)
-    if(NOT PYBIND11_PYTHON_VERSION)
-        set(PYBIND11_PYTHON_VERSION 2.7)
-    endif()
+    #if(NOT PYBIND11_PYTHON_VERSION)
+    #    set(PYBIND11_PYTHON_VERSION 2.7)
+    #endif()
     
     #find_package(pybind11 2.0.0 REQUIRED)
     find_package(pybind11 2.2.0 REQUIRED)
