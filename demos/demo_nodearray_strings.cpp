@@ -65,7 +65,7 @@ int main(int argc, char **argv)
         if( ret )
             return -1;
 
-        engine.initializeFromJsonStrings(dch_json, ipm_json, dbr_jsons, nodeTypes.data());
+        engine.initializeFromJsonStrings(dch_json, ipm_json, dbr_jsons, nodeTypes);
 
         Vector bj = engine.elementAmounts(0);
         std::cout << "Vector bj[0]: " << bj.transpose() << std::endl;

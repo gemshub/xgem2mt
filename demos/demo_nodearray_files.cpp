@@ -36,7 +36,7 @@ int main(int argc, char **argv)
 
     try
     {
-       engine.initialize(gems_init_lst, gems_init_dbr_lst, nodeTypes.data() );
+       engine.initialize(gems_init_lst, gems_init_dbr_lst, nodeTypes );
 
         Vector bj = engine.elementAmounts(0);
         std::cout << "Vector bj[0]: " << bj.transpose() << std::endl;

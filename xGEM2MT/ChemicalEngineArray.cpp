@@ -64,7 +64,7 @@ ChemicalEngineArray::ChemicalEngineArray(long int nodes)
 ChemicalEngineArray::~ChemicalEngineArray()
 {}
 
-auto ChemicalEngineArray::initialize(std::string ipm_filename, std::string dbr_filename, long int* nodeTypes) -> void
+auto ChemicalEngineArray::initialize(std::string ipm_filename, std::string dbr_filename, std::vector<long int> nodeTypes) -> void
 {
     // Allocate memory for the GEMS `node` member
     pimpl->node_array = std::unique_ptr<TNodeArray>(new TNodeArray(pimpl->n_nodes) );
@@ -72,7 +72,7 @@ auto ChemicalEngineArray::initialize(std::string ipm_filename, std::string dbr_f
     // Initialize the GEMS `nodes` member
     long int res = pimpl->node_array->GEM_init(ipm_filename.c_str(),
                                                dbr_filename.empty() ? nullptr : dbr_filename.c_str(),
-                                               nodeTypes,
+                                               nodeTypes.empty() ? nullptr : nodeTypes.data(),
                                                false );
 
     // Check if there was a system error during node initialization
@@ -94,14 +94,14 @@ auto ChemicalEngineArray::initialize(std::string ipm_filename, std::string dbr_f
 }
 
 auto ChemicalEngineArray::initializeFromJsonStrings( std::string dch_json, std::string ipm_json,
-                                                     std::vector<std::string> dbr_json, long int* nodeTypes) -> void
+                                                     std::vector<std::string> dbr_json, std::vector<long int> nodeTypes) -> void
 {
     pimpl->io_mode = GEMS3KGenerator::f_json;
     // Allocate memory for the GEMS `node` member
     pimpl->node_array = std::unique_ptr<TNodeArray>(new TNodeArray(pimpl->n_nodes) );
 
     // Initialize the GEMS `node` member
-    long int res = pimpl->node_array->GEM_init( dch_json, ipm_json, dbr_json, nodeTypes );
+    long int res = pimpl->node_array->GEM_init( dch_json, ipm_json, dbr_json, nodeTypes.empty() ? nullptr : nodeTypes.data() );
 
     // Check if there was a system error during node initialization
     if(res == -1)

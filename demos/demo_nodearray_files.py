@@ -17,6 +17,26 @@
 
 from xgem2mt import *
 
+def main():
+    try:
+        engine = ChemicalEngineArray(5)
+        nodeTypes=[1,0,0,0,0]
+        gems_init_lst = "nodearray-data/CalcColumn-dat.lst"
+        gems_init_dbr_lst = "nodearray-data/CalcColumn-dbr.lst"
 
+        engine.initialize(gems_init_lst, gems_init_dbr_lst, nodeTypes )
+        bj = engine.elementAmounts(0)
+        print(bj)
+        bj = engine.elementAmounts(1);
+        print(bj)
 
-print("Done")
+        engine.equilibrate();
+        #engine.equilibrate(0);
+        engine.nextTimePoint(True);
+        engine.dumpGEMS3K("CalcColumn-dump-dat.lst");
+    except RuntimeError as ex:
+        print(ex)
+
+if __name__ == "__main__":
+    main()
+

@@ -71,7 +71,7 @@ public:
 
     /// Initialize the ChemicalEngineArray object from a GEM-Selektor project file.
     /// @param filename The name of the file containing the definition of the chemical system
-    auto initialize(std::string ipm_filename, std::string dbr_filename, long int* nodeTypes) -> void;
+    auto initialize(std::string ipm_filename, std::string dbr_filename, std::vector<long int> nodeTypes = {}) -> void;
 
     /// Initialize the ChemicalEngineArray object from JSON strings for dch, ipm and dbr exported from GEM-Selektor \ .
     /// Normally to be used after ChemicalEngineArray();
@@ -81,7 +81,7 @@ public:
     /// @param nodeTypes The initial node contents from DATABR files will be distributed among
     ///                   nodes in array according to the distribution index list nodeTypes
     auto initializeFromJsonStrings(std::string dch_json, std::string ipm_json,
-                                   std::vector<std::string> dbr_json, long int* nodeTypes) -> void;
+                                   std::vector<std::string> dbr_json, std::vector<long int> nodeTypes = {}) -> void;
 
     /// Recalculate the equilibrium state with preset P,T,B and other inputs for node ndx
     /// If @param warmstart is true then GEMS3K uses contents of node as initial
