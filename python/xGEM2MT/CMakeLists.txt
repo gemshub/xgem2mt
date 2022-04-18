@@ -1,4 +1,4 @@
-# Copy the xGEMS directory to the binary directory
+# Copy the xGEM2MT directory to the binary directory
 file(COPY . DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
 # Define a variable with the name of the compiled python module file as defined by pybind11 (which is used in the file setup.py.in)

@@ -18,8 +18,8 @@
 #include "pyChemicalEngineArray.hpp"
 #include "pyMassTransport.hpp"
 
-PYBIND11_MODULE(PyGEM2MT, m)
+PYBIND11_MODULE(PyxGEM2MT, m)
 {
     exportChemicalEngineArray(m);
-    exportChemicalEngineArray(m);
+    exportMassTransport(m);
 }

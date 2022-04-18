@@ -1,14 +1,18 @@
 # Set cmake version requirement
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.9)
 
 # Set the name of the project
 project(xGEM2MT VERSION 1.0.0 LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
 
 # Set the cmake module path of the project
-set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules")
 
 # Include this module to enable testing with CTest and dashboard submissions to CDash
 include(CTest)
+
+# Use ccache to speed up repeated compilations
+include(CCache)
 
 # Include the cmake variables with values for installation directories
 include(GNUInstallDirs)
@@ -64,18 +68,15 @@ if(NOT CMAKE_BUILD_TYPE)
     set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
-add_compile_options(-std=c++17)
 
 # Set the list of compiler flags for GNU compiler
 if(${CMAKE_CXX_COMPILER_ID} MATCHES "GNU")
-#   add_compile_options(-std=c++11 -Wall -Wno-misleading-indentation -Wno-ignored-attributes -Wno-pedantic -Wno-variadic-macros -Wno-deprecated)
     add_compile_options(-Wall -Wno-misleading-indentation -Wno-ignored-attributes -Wno-pedantic -Wno-variadic-macros -Wno-deprecated)
 endif()
 
 # Set the list of compiler flags for Clang compiler
 if(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
    add_compile_options(-Wall -Wno-ignored-attributes -Wno-pedantic -Wno-variadic-macros -Wno-deprecated)
-#  add_compile_options(-std=c++11 -Wall -Wno-ignored-attributes -Wno-pedantic -Wno-variadic-macros -Wno-deprecated)
 endif()
 
 # Set the list of compiler flags for Intel compiler
@@ -98,27 +99,6 @@ endif()
 add_definitions(-DIPMGEMPLUGIN)
 add_definitions(-DNODEARRAYLEVEL)
 
-# Find Eigen library and include its directory
-#find_package(Eigen3 3.3.7 REQUIRED)
-#message(STATUS "Found Eigen3 v${Eigen3_VERSION}: ${Eigen3_INCLUDE_DIRS}")
-
-# Find the Python interpreter
-if(XGEM2MT_BUILD_PYTHON)
-    #if(NOT PYBIND11_PYTHON_VERSION)
-    #    set(PYBIND11_PYTHON_VERSION 2.7)
-    #endif()
-    
-    #find_package(pybind11 2.0.0 REQUIRED)
-    find_package(pybind11 2.2.0 REQUIRED)
-    message(STATUS "Found pybind11 v${pybind11_VERSION}: ${pybind11_INCLUDE_DIRS}")
-    
-    if(NOT pybind11_FOUND)
-        set(XGEM2MT_BUILD_PYTHON OFF)
-        message(WARNING "pybind11 has not been found. "
-            "Cannot build python bindings for XGEM2MT.")
-    endif()
-endif()
-
 # Set the project directory names
 set(XGEM2MT_SOURCE_DIR ${CMAKE_SOURCE_DIR}/xGEM2MT)
 set(XGEM2MT_DEMOS_DIR  ${CMAKE_SOURCE_DIR}/demos)
@@ -129,16 +109,8 @@ set(XGEM2MT_TESTS_DIR  ${CMAKE_SOURCE_DIR}/tests)
 include_directories(${CMAKE_SOURCE_DIR})
 #include_directories(${EIGEN3_INCLUDE_DIR})
 
-
-# Set the local directory where the third-party libraries are installed
-set(THIRDPARTY_INSTALL_PREFIX ${CMAKE_BINARY_DIR}/thirdparty/install)
-
-# Set the include directories for third-party libraries
-include_directories(${THIRDPARTY_INSTALL_PREFIX}/include)
-
-# Set the link directories for third-party libraries
-link_directories(${THIRDPARTY_INSTALL_PREFIX}/lib)
-
+# Find all dependencies
+include(xGEM2MTFindDeps)
 
 # Build the C++ library and the Python bindings
 add_subdirectory(xGEM2MT)
@@ -146,22 +118,16 @@ add_subdirectory(xGEM2MT)
 # Build the demos
 if(XGEM2MT_BUILD_DEMOS)
     add_subdirectory(demos)
-else()
-    add_subdirectory(demos EXCLUDE_FROM_ALL)
 endif()
 
 # Build the docs
 if(XGEM2MT_BUILD_DOCS)
     add_subdirectory(docs)
-else()
-    #add_subdirectory(docs EXCLUDE_FROM_ALL)
 endif()
 
 # Build the tests
 if(XGEM2MT_BUILD_TESTS)
     add_subdirectory(tests)
-else()
-    #add_subdirectory(tests EXCLUDE_FROM_ALL)
 endif()
 
 # Build python wraper
@@ -169,13 +135,15 @@ if(XGEM2MT_BUILD_PYTHON)
     add_subdirectory(python)
 endif()
 
+# Install the cmake config files that permit users to use find_package(ChemicalFun)
+include(xGEM2MTInstallCMakeConfigFiles)
 
 # Add target "demos" for manual building of demos, as `make demos`, if XGEM2MT_BUILD_DEMOS is OFF
-add_custom_target(demos
-    COMMAND ${CMAKE_MAKE_PROGRAM}
-    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/demos")
+#add_custom_target(demos
+#    COMMAND ${CMAKE_MAKE_PROGRAM}
+#    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/demos")
 
 # Add target "tests" for manual building of tests, as `make tests`, if XGEM2MT_BUILD_TESTS is OFF
-add_custom_target(tests
-    COMMAND ${CMAKE_MAKE_PROGRAM}
-    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/tests")
+#add_custom_target(tests
+#    COMMAND ${CMAKE_MAKE_PROGRAM}
+#    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/tests")
