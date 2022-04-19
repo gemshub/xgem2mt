@@ -23,7 +23,6 @@ using namespace xGEM2MT;
 
 int main(int argc, char **argv)
 {
-    // Testing= with input from IPM files
     MassTransport mttask;
     std::string gem2mt_init = "gem2mt-data/CalcColumnAD.json";
     std::string gems_init_lst = "gem2mt-data/CalcColumn-dat.lst";

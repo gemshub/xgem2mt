@@ -1,5 +1,6 @@
 
 ## xGEM2MT 
+Linux, OSX, Windows
 
 This is a numerical solver of chemical equilibria for thermodynamic modelling, extended (relative to GEMS3K code) with new C++ and Python APIs (compatible with [Reaktoro framework](http://reaktoro.org)), and supposed to replace GEMS3K in next-generation software.  
 
@@ -14,6 +15,101 @@ This is a numerical solver of chemical equilibria for thermodynamic modelling, e
 * GEMS3K is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 * GEMS3K is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
 * You should have received a copy of the GNU Lesser General Public License along with GEMS3K code. If not, see http://www.gnu.org/licenses/. 
+
+### Simple C++ API example
+
+* Using the ChemicalEngineArray class API
+
+```cpp
+#include <xGEM2MT/ChemicalEngineArray.hpp>
+using namespace xGEM2MT;
+
+
+int main(int argc, char **argv)
+{
+    ChemicalEngineArray engine(5);
+    std::vector<long int> nodeTypes={1,0,0,0,0};
+    std::string gems_init_lst = "nodearray-data/CalcColumn-dat.lst";
+    std::string gems_init_dbr_lst = "nodearray-data/CalcColumn-dbr.lst";
+
+    try
+    {
+        engine.initialize(gems_init_lst, gems_init_dbr_lst, nodeTypes );
+
+        Vector bj = engine.elementAmounts(0);
+        std::cout << "Vector bj[0]: " << bj.transpose() << std::endl;
+        bj = engine.elementAmounts(1);
+        std::cout << "Vector bj[1]: " << bj.transpose() << std::endl;
+
+        engine.equilibrate();
+        engine.nextTimePoint(true); // copy results to pNodT0()
+
+        engine.dumpGEMS3K("CalcColumn-dump-dat.lst");
+
+        return 0;
+    }
+    catch (std::runtime_error& xcpt)
+    {
+        std::cout << xcpt.what() << std::endl;
+    }
+    return 1;
+}
+```
+
+* Using  the Mass transport  API 
+
+```cpp
+#include <xGEM2MT/MassTransport.hpp>
+using namespace xGEM2MT;
+
+int main(int argc, char **argv)
+{
+    MassTransport mttask;
+    std::string gem2mt_init = "gem2mt-data/CalcColumnAD.json";
+    std::string gems_init_lst = "gem2mt-data/CalcColumn-dat.lst";
+    std::string gems_init_dbr_lst = "gem2mt-data/CalcColumn-dbr.lst";
+
+    try
+    {
+        mttask.initializeGEM2MT(gem2mt_init);
+        mttask.initializeNodes(gems_init_lst, gems_init_dbr_lst);
+        mttask.runGEM2MT();
+        return 0;
+    }
+    catch (std::runtime_error& xcpt)
+    {
+        std::cout << xcpt.what() << std::endl;
+    }
+    return 1;
+}
+```
+
+### Simple Python API example
+
+* Using a json database file
+
+```python3
+from xgem2mt import *
+
+def main():
+    try:
+        engine = ChemicalEngineArray(5)
+        nodeTypes = [1,0,0,0,0]
+        gems_init_lst = "nodearray-data/CalcColumn-dat.lst"
+        gems_init_dbr_lst = "nodearray-data/CalcColumn-dbr.lst"
+
+        engine.initialize(gems_init_lst, gems_init_dbr_lst, nodeTypes )
+        bj = engine.elementAmounts(0)
+        print(bj)
+
+        engine.equilibrate();
+        engine.nextTimePoint(True)
+        print(engine)
+    except RuntimeError as ex:
+        print(ex)
+```
+
+For more information on APIs and more examples, take a look at the /demo directory.
 
 ### How to download xGEM2MT source code
 
@@ -87,31 +183,10 @@ cd ~/git/xGEM2MT/build/bin
 ./demo_gem2mt
 ```
 
-### TBD
+* To execute the python demo:
 
-* To execute the python demo: first, make sure the xGEMS Python module can be found by Python. 
-* This can be done by setting the `PYTHONPATH` environment variable to the path where the xGEMS module is located:
-~~~
-export PYTHONPATH=/home/username/pathto-xGEMS/build/lib
-~~~
+```sh
+cd ~/git/xGEM2MT/demo
+python3 demo_gem2mt.py
+```
 
-(use your username instead of "username" and actual path to xGEMS e.g. git/xGEMS instead of "pathto-xGEMS").
-
-* If you get compiler messages that Python.h cannot be found, then a better way may be not to set PYTHONPATH, but to make sure that the Python development installation in the system is visible to all compilers. To check this, first locate your Python installation. Currently (in 2020), the most widespread is Python3.6 with headers normally found in "/usr/include/python3.6/" or "/usr/include/python3.6m/". The access to headers can be made generic by making soft links to include files in this folder:   
-~~~
-sudo ln -sv /usr/include/python3.6m/* /usr/include/
-~~~ 
-
-* Then run the demo - if built with python 2.7:
-~~~
- cd ~git/xGEMS/demos/
- python demo1.py
-~~~
-
-* If built with python 3.6: in demo1.py, change the last line from "print chemicalengine" to "print(chemicalengine)", save and execute:
-~~~
- cd ~git/xGEMS/demos/
- python3 demo1.py
-~~~
-
-There are yet things to do.

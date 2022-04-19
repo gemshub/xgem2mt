@@ -14,13 +14,13 @@
 
 6. GEMS-198 Make demo for Python API of xGEM2MT and test API
 
+7. GEMS-198 Added C++ and Python examples and other changes to the readme file.
+
 ### To do
 
-1. Readme for Pythoon
+1. Research and add to TGEM2MT code into GEMS3K and to MassTransport class functions for accsees to internal nodes and values. How user can set up and monitoring of mass transport process. Need suggestions with Dan and Dmitrii.
 
-2. Research and add to TGEM2MT code into GEMS3K and to MassTransport class functions for accsees to internal nodes and values. How user can set up and monitoring of mass transport process. Need suggestions with Dan and Dmitrii.
-
-3. Implement test ?
+2. Implement test ?
 
 ### Problems&questions
 
