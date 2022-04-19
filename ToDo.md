@@ -12,9 +12,11 @@
 
 5. GEMS-198 Create Python API of xGEM2MT using pybind11 header
 
+6. GEMS-198 Make demo for Python API of xGEM2MT and test API
+
 ### To do
 
-1. GEMS-198 Make demo for Python API of xGEM2MT and test API
+1. Readme for Pythoon
 
 2. Research and add to TGEM2MT code into GEMS3K and to MassTransport class functions for accsees to internal nodes and values. How user can set up and monitoring of mass transport process. Need suggestions with Dan and Dmitrii.
 

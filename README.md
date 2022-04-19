@@ -21,7 +21,7 @@ This is a numerical solver of chemical equilibria for thermodynamic modelling, e
 * Change into ~/git/xGEM2MT and clone this repository from https://bitbucket.org/gems4/xgem2mt.git using a preinstalled free git client, e.g. SourceTree. 
 * Alternatively on Mac OS X or linux, open a terminal and type in the command line:
 
-```
+```sh
 cd ~/git/xGEM2MT
 git clone https://bitbucket.org/gems4/xgem2mt.git .
 ```
@@ -33,7 +33,7 @@ For compiling xGEM2MT python bindings you need a recent version of pybind11 inst
 
 * For eigen3 download [v3.3.9](https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.gz) unpack the archive and install it as follows:
 
-```
+```sh
 cd /eigen-3.3.9
 mkdir build
 cd build
@@ -43,22 +43,14 @@ make install
 
 * For pybind11. In case your distribution does not provide pybind11 development packages, or the version is too old, you can install it as follows:
 
+```sh
+cd ~/git/xGEM2MT/python
+./install-dependencies.sh
 ```
-mkdir -p ~/code
-cd ~/code
-git clone https://github.com/pybind/pybind11.git
-cd pybind11
-mkdir build
-cd build
-cmake .. -DPYBIND11_TEST=OFF -DCMAKE_INSTALL_PREFIX=/your/local/codes/directory
-make install
-```
-
-CMake uses `find_package` to search for pybind11 `pybind11Config.cmake` configuration file. Installing pybind11 using `pip install` or other ways might not provide the required configuration file and will result in errors.
 
 * To install GEMS3K with the implementation of the TNodeArray and TGEM2MT classes execute script:
 
-```
+```sh
 cd ~/git/xGEM2MT
 ./install-dependencies.sh
 ```
@@ -67,7 +59,7 @@ cd ~/git/xGEM2MT
 
 `-DCMAKE_PREFIX_PATH=/your/local/codes/directory` is necessary if pybind11 is not installed in the default include path `/usr/include/` or `/usr/lib/cmake/`, provided that `/your/local/codes/directory/pybind11/pybind11Config.cmake` cmake config file is found at this path.
 
-```
+```sh
 cd ~/git/xGEM2MT
 mkdir build
 cd build
@@ -76,22 +68,21 @@ make
 ```
 
 * For building xGEM2MT for use from C++ codes only (i.e. no python in the system), replace the above cmake command with
-```
+
+```sh
 cmake .. -DXGEMS_BUILD_PYTHON=OFF
 ```
 
-* For pointing to a specific python version use `-DPYTHON_EXECUTABLE=/usr/bin/python3.6` or `-DPYTHON_EXECUTABLE=$(which python)` to get the default python path.
-
-* For compiling in the debug mode, add -DCMAKE_BUILD_TYPE=Debug as cmake parameter.
-
 * To install xGEM2MT into /usr/local as a library with /includes:
-```
+
+```sh
 cd ~/git/xGEM2MT/build
 sudo make install 
 ```
 
 * To execute the c++ demo:
-```
+
+```sh
 cd ~/git/xGEM2MT/build/bin
 ./demo_gem2mt
 ```
