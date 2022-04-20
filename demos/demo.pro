@@ -42,5 +42,6 @@ HEADERS	 += $$XGEM2MT_H/xGEM2MT/ChemicalEngineArray.hpp \
 SOURCES	+=  $$XGEM2MT_CPP/xGEM2MT/ChemicalEngineArray.cpp \
             $$XGEM2MT_CPP/xGEM2MT/MassTransport.cpp \
             #demo_gem2mt.cpp
+            #demo_gem2mt_string.cpp
             demo_nodearray_files.cpp
             #demo_nodearray_strings.cpp

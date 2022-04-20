@@ -41,7 +41,7 @@ struct ChemicalEngineArray::Impl
     long int n_nodes;
 
     /// The TNodeArray instance from ChemicalEngineArray
-    std::unique_ptr<TNodeArray> node_array;
+    std::shared_ptr<TNodeArray> node_array;
 
     /// Write IPM, DCH and DBR files (in binary, txt or json mode)
     GEMS3KGenerator::IOModes io_mode = GEMS3KGenerator::f_key_value;
