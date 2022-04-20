@@ -86,7 +86,6 @@ int main(int argc, char **argv)
 
 ### Simple Python API example
 
-* Using a json database file
 
 ```python3
 from xgem2mt import *
@@ -109,7 +108,7 @@ def main():
         print(ex)
 ```
 
-For more information on APIs and more examples, take a look at the /demo directory.
+For more information on APIs and more examples, take a look at the `/demo` directory.
 
 ### How to download xGEM2MT source code
 
