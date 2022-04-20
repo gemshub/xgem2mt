@@ -53,14 +53,14 @@ int main(int argc, char **argv)
     try
     {
         getJsonFile( "gem2mt-data/CalcColumnAD.json", gem2mt_json );
-        getJsonFile( "nodearray-data/CalcColumn-dch.json", dch_json );
-        getJsonFile( "nodearray-data/CalcColumn-ipm.json", ipm_json );
-        getJsonFile( "nodearray-data/CalcColumn-dbr-0-0000.json", dbr_json );
+        getJsonFile( "gem2mt-data/CalcColumn-dch.json", dch_json );
+        getJsonFile( "gem2mt-data/CalcColumn-ipm.json", ipm_json );
+        getJsonFile( "gem2mt-data/CalcColumn-dbr-0-0000.json", dbr_json );
         dbr_jsons.push_back(dbr_json);
-        getJsonFile( "nodearray-data/CalcColumn-dbr-0-0001.json", dbr_json );
+        getJsonFile( "gem2mt-data/CalcColumn-dbr-0-0001.json", dbr_json );
         dbr_jsons.push_back(dbr_json);
         mttask.initializeGEM2MTString(gem2mt_json);
-        mttask.initializeNodeFromJsonStrings(dch_json, ipm_json, dbr_jsons);
+        mttask.initializeNodesFromJsonStrings(dch_json, ipm_json, dbr_jsons);
 
         mttask.runGEM2MT();
         std::cout << "Readed: " << mttask;

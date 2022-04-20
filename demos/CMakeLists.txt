@@ -4,6 +4,7 @@ file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/nodearray-data" DESTINATION "${CMAKE_RUNT
 
 set(DEMO_FILES
         demo_gem2mt
+        demo_gem2mt_string
         demo_nodearray_files
         demo_nodearray_strings  )
 

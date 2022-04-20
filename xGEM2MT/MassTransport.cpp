@@ -101,7 +101,7 @@ void MassTransport::initializeNodes(std::string ipm_filename, std::string dbr_fi
     }
 }
 
-void MassTransport::initializeNodeFromJsonStrings(std::string dch_json, std::string ipm_json,
+void MassTransport::initializeNodesFromJsonStrings(std::string dch_json, std::string ipm_json,
                                                   std::vector<std::string> dbr_json)
 {
     try{

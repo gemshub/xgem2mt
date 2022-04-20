@@ -61,7 +61,7 @@ public:
     /// @param dch_json The json string containing the definition of the chemical system
     /// @param ipm_json The json string containing the parameters and settings for GEMS3K IPM-3 algorithm
     /// @param dbr_json The vector of json string containing the input node composition of the chemical system
-    auto initializeNodeFromJsonStrings(std::string dch_json, std::string ipm_json, std::vector<std::string> dbr_json) -> void;
+    auto initializeNodesFromJsonStrings(std::string dch_json, std::string ipm_json, std::vector<std::string> dbr_json) -> void;
 
     /// Call the mass-transport finite-difference coupled routine
     auto runGEM2MT() -> void;
