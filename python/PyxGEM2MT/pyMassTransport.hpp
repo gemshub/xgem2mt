@@ -20,12 +20,10 @@
 #include <pybind11/eigen.h>
 #include <pybind11/stl.h>
 namespace py = pybind11;
-//PYBIND11_DECLARE_HOLDER_TYPE(T, SmartPtr<T>);
 
 // xGEM2MT includes
 #include <xGEM2MT/MassTransport.hpp>
 using namespace xGEM2MT;
-
 
 void exportMassTransport(py::module& m)
 {
@@ -41,5 +39,4 @@ void exportMassTransport(py::module& m)
             .def("dumpGEM2MT", &MassTransport::dumpGEM2MT)
             .def("__repr__", [](const MassTransport& self) { std::stringstream ss; ss << self; return ss.str(); })
             ;
-
 }

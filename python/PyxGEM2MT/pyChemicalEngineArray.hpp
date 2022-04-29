@@ -40,7 +40,6 @@ void exportChemicalEngineArray(py::module& m)
             ;
 
     py::class_<ChemicalEngineArray, std::shared_ptr<ChemicalEngineArray>>(m, "ChemicalEngineArray")
-    //py::class_<ChemicalEngineArray>(m, "ChemicalEngineArray")
             .def(py::init<long int>())
             .def("setOptions", &ChemicalEngineArray::setOptions)
             .def("setWarmStart", &ChemicalEngineArray::setWarmStart)
