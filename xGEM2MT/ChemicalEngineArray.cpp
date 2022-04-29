@@ -16,6 +16,7 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 #include "ChemicalEngineArray.hpp"
+#include "MassTransport_p.h"
 
 // C++ includes
 #include <chrono>
@@ -61,13 +62,21 @@ ChemicalEngineArray::ChemicalEngineArray(long int nodes)
     : pimpl(new Impl(nodes))
 {}
 
+ChemicalEngineArray::ChemicalEngineArray(const MassTransport& mt_class)
+    : pimpl(new Impl(mt_class.pimpl->gem2mt_task->nodeArray()->nNodes()))
+{
+    pimpl->io_mode = GEMS3KGenerator::f_json;
+    pimpl->node_array = mt_class.pimpl->gem2mt_task->nodeArray();
+    reallocateEngineArrays();
+}
+
 ChemicalEngineArray::~ChemicalEngineArray()
 {}
 
 auto ChemicalEngineArray::initialize(std::string ipm_filename, std::string dbr_filename, std::vector<long int> nodeTypes) -> void
 {
     // Allocate memory for the GEMS `node` member
-    pimpl->node_array = std::unique_ptr<TNodeArray>(new TNodeArray(pimpl->n_nodes) );
+    pimpl->node_array = TNodeArray::create(pimpl->n_nodes);
 
     // Initialize the GEMS `nodes` member
     long int res = pimpl->node_array->GEM_init(ipm_filename.c_str(),
@@ -98,7 +107,7 @@ auto ChemicalEngineArray::initializeFromJsonStrings( std::string dch_json, std::
 {
     pimpl->io_mode = GEMS3KGenerator::f_json;
     // Allocate memory for the GEMS `node` member
-    pimpl->node_array = std::unique_ptr<TNodeArray>(new TNodeArray(pimpl->n_nodes) );
+    pimpl->node_array = TNodeArray::create(pimpl->n_nodes);
 
     // Initialize the GEMS `node` member
     long int res = pimpl->node_array->GEM_init( dch_json, ipm_json, dbr_json, nodeTypes.empty() ? nullptr : nodeTypes.data() );

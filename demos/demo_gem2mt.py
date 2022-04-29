@@ -27,8 +27,19 @@ def main():
         mttask.initializeGEM2MT(gem2mt_init)
         mttask.initializeNodes(gems_init_lst, gems_init_dbr_lst)
 
+        engine = mttask.getChemicalEngineArray()
+        bj = engine.elementAmounts(0)
+        print(bj)
+        bj = engine.elementAmounts(4);
+        print(bj)
+
         mttask.runGEM2MT()
-        print(mttask)
+
+        #print(mttask)
+        bj = engine.elementAmounts(0)
+        print(bj)
+        bj = engine.elementAmounts(4);
+        print(bj)
 
     except RuntimeError as ex:
         print(ex)

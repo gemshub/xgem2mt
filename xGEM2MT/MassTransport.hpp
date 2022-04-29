@@ -51,7 +51,7 @@ public:
 
     /// Initialize the MassTransport object from a GEM-Selektor generated json string.
     /// @param filename The name of the file containing the definition of the gem2mt task
-    auto initializeGEM2MTString(std::string gem2mt_json) -> void;
+    auto initializeGEM2MTFromJsonString(std::string gem2mt_json) -> void;
 
     /// Initialize internal nodes from a GEM-Selektor project files.
     /// @param filename The name of the file containing the definition of the chemical system
@@ -66,6 +66,8 @@ public:
     /// Call the mass-transport finite-difference coupled routine
     auto runGEM2MT() -> void;
 
+    auto getChemicalEngineArray() -> std::shared_ptr<ChemicalEngineArray>;
+
     /// Dump the MassTransport object to file.
     /// @param filepath - IPM work structure file path&name
     auto dump() const -> std::string;
@@ -78,9 +80,11 @@ private:
     struct Impl;
     std::unique_ptr<Impl> pimpl;
 
+    friend class ChemicalEngineArray;
 };
 
 /// Output the state of the MassTransport object.
 auto operator<<(std::ostream& out, const MassTransport& engine) -> std::ostream&;
+
 
 } // namespace xGEM2MT

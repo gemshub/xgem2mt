@@ -39,7 +39,8 @@ void exportChemicalEngineArray(py::module& m)
     { std::stringstream ss; ss << self.to_json_string(); return ss.str(); })
             ;
 
-    py::class_<ChemicalEngineArray>(m, "ChemicalEngineArray")
+    py::class_<ChemicalEngineArray, std::shared_ptr<ChemicalEngineArray>>(m, "ChemicalEngineArray")
+    //py::class_<ChemicalEngineArray>(m, "ChemicalEngineArray")
             .def(py::init<long int>())
             .def("setOptions", &ChemicalEngineArray::setOptions)
             .def("setWarmStart", &ChemicalEngineArray::setWarmStart)

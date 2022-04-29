@@ -28,6 +28,8 @@
 
 namespace xGEM2MT {
 
+class MassTransport;
+
 /// A type that describes the options for ChemicalEngineArray
 struct ChemicalEngineArrayOptions
 {
@@ -42,7 +44,7 @@ struct ChemicalEngineArrayOptions
 };
 
 /// A wrapper class for ChemicalEngineArray code
-class ChemicalEngineArray
+class ChemicalEngineArray : public std::enable_shared_from_this<ChemicalEngineArray>
 {
 
 public:
@@ -458,6 +460,11 @@ public:
 
     /// TBD Return the specific isochoric heat capacities of the phases (in units of J/(kg*K)).
     // auto phaseSpecificHeatCapacityConstV(Index iphase) const -> double;
+
+    ChemicalEngineArray(const MassTransport& mt_class);
+    std::shared_ptr<ChemicalEngineArray> getptr() {
+        return shared_from_this();
+    }
 
 private:
     struct Impl;

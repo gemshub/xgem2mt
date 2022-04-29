@@ -16,32 +16,14 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 #include "MassTransport.hpp"
+#include "MassTransport_p.h"
 
-// C++ includes
-#include <chrono>
-#include <iomanip>
-#include <memory>
 
 // GEMS3K includes
-#include <GEMS3K/gems3k_impex.h>
+//#include <GEMS3K/gems3k_impex.h>
 #include <GEMS3K/io_simdjson.h>
-#include <nodearray-gem/m_gem2mt.h>
 
 namespace xGEM2MT {
-
-struct MassTransport::Impl
-{
-    /// Construct a default Impl instance
-    Impl()
-    {}
-
-    /// The TNodeArray instance from ChemicalEngineArray
-    std::unique_ptr<TGEM2MT> gem2mt_task;
-
-    /// Write IPM, DCH and DBR files (in binary, txt or json mode)
-    GEMS3KGenerator::IOModes io_mode = GEMS3KGenerator::f_json;
-
-};
 
 MassTransport::MassTransport()
     : pimpl(new Impl())
@@ -64,7 +46,7 @@ void MassTransport::initializeGEM2MT(std::string gem2mt_filename)
                                  "Make sure the provided file exists relative to the working directory.");
 }
 
-void MassTransport::initializeGEM2MTString(std::string gem2mt_json)
+void MassTransport::initializeGEM2MTFromJsonString(std::string gem2mt_json)
 {
     pimpl->gem2mt_task = std::unique_ptr<TGEM2MT>(new TGEM2MT(0));
 
@@ -99,6 +81,7 @@ void MassTransport::initializeNodes(std::string ipm_filename, std::string dbr_fi
         throw std::runtime_error("\n*** ERROR ***\n"
                                  "Could not initialize the MassTransport TNodeArray data.\n"+err.mess);
     }
+    pimpl->chem_array = std::shared_ptr<ChemicalEngineArray>(new ChemicalEngineArray(*this));
 }
 
 void MassTransport::initializeNodesFromJsonStrings(std::string dch_json, std::string ipm_json,
@@ -119,6 +102,7 @@ void MassTransport::initializeNodesFromJsonStrings(std::string dch_json, std::st
         throw std::runtime_error("\n*** ERROR ***\n"
                                  "Could not initialize the MassTransport TNodeArray object from JSON strings.\n"+err.mess);
     }
+    pimpl->chem_array = std::shared_ptr<ChemicalEngineArray>(new ChemicalEngineArray(*this));
 }
 
 void MassTransport::runGEM2MT()
@@ -131,6 +115,11 @@ void MassTransport::runGEM2MT()
         throw std::runtime_error("\n*** ERROR ***\n"
                                  "Error run the MassTransport .\n"+err.mess);
     }
+}
+
+std::shared_ptr<ChemicalEngineArray> MassTransport::getChemicalEngineArray()
+{
+     return pimpl->chem_array;
 }
 
 string MassTransport::dump() const

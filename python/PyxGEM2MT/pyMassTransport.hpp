@@ -20,21 +20,23 @@
 #include <pybind11/eigen.h>
 #include <pybind11/stl.h>
 namespace py = pybind11;
+//PYBIND11_DECLARE_HOLDER_TYPE(T, SmartPtr<T>);
 
 // xGEM2MT includes
 #include <xGEM2MT/MassTransport.hpp>
 using namespace xGEM2MT;
 
+
 void exportMassTransport(py::module& m)
 {
-
-    py::class_<MassTransport>(m, "MassTransport")
+    py::class_<MassTransport, std::shared_ptr<MassTransport>>(m, "MassTransport")
             .def(py::init())
             .def("initializeGEM2MT", &MassTransport::initializeGEM2MT)
-            .def("initializeGEM2MTString", &MassTransport::initializeGEM2MTString)
+            .def("initializeGEM2MTFromJsonString", &MassTransport::initializeGEM2MTFromJsonString)
             .def("initializeNodes", &MassTransport::initializeNodes)
             .def("initializeNodesFromJsonStrings", &MassTransport::initializeNodesFromJsonStrings)
             .def("runGEM2MT", &MassTransport::runGEM2MT)
+            .def("getChemicalEngineArray", &MassTransport::getChemicalEngineArray)
             .def("dump", &MassTransport::dump)
             .def("dumpGEM2MT", &MassTransport::dumpGEM2MT)
             .def("__repr__", [](const MassTransport& self) { std::stringstream ss; ss << self; return ss.str(); })

@@ -59,7 +59,7 @@ int main(int argc, char **argv)
         dbr_jsons.push_back(dbr_json);
         getJsonFile( "gem2mt-data/CalcColumn-dbr-0-0001.json", dbr_json );
         dbr_jsons.push_back(dbr_json);
-        mttask.initializeGEM2MTString(gem2mt_json);
+        mttask.initializeGEM2MTFromJsonString(gem2mt_json);
         mttask.initializeNodesFromJsonStrings(dch_json, ipm_json, dbr_jsons);
 
         mttask.runGEM2MT();

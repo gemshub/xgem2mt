@@ -28,7 +28,7 @@ def main():
         dbr_json0 = Path("gem2mt-data/CalcColumn-dbr-0-0001.json").read_text().replace('\n', ' ')
         dbr_jsons = [dbr_json1, dbr_json0]
 
-        mttask.initializeGEM2MTString(gem2mt_json)
+        mttask.initializeGEM2MTFromJsonString(gem2mt_json)
         mttask.initializeNodesFromJsonStrings(dch_json, ipm_json, dbr_jsons)
 
         mttask.runGEM2MT()

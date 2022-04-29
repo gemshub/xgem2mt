@@ -33,6 +33,10 @@ int main(int argc, char **argv)
         mttask.initializeGEM2MT(gem2mt_init);
         mttask.initializeNodes(gems_init_lst, gems_init_dbr_lst);
 
+        auto engine = mttask.getChemicalEngineArray();
+        std::cout << "Vector bj[0]: " << engine->elementAmounts(0).transpose() << std::endl;
+        std::cout << "Vector bj[4]: " << engine->elementAmounts(4).transpose() << std::endl;
+
         mttask.runGEM2MT();
 
         std::cout << "Readed: " << mttask;

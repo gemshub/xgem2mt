@@ -37,11 +37,12 @@ LIBS += -lGEMS3K-static -lGEM2MT-static
 HEADERS	 += $$XGEM2MT_H/xGEM2MT/ChemicalEngineArray.hpp \
             $$XGEM2MT_H/xGEM2MT/MassTransport.hpp \
             $$XGEM2MT_H/xGEM2MT/Eigen.hpp \
-            $$XGEM2MT_H/xGEM2MT/Index.hpp
+            $$XGEM2MT_H/xGEM2MT/Index.hpp \
+            $$XGEM2MT_H/xGEM2MT/MassTransport_p.h
 
 SOURCES	+=  $$XGEM2MT_CPP/xGEM2MT/ChemicalEngineArray.cpp \
             $$XGEM2MT_CPP/xGEM2MT/MassTransport.cpp \
-            #demo_gem2mt.cpp
+            demo_gem2mt.cpp
             #demo_gem2mt_string.cpp
-            demo_nodearray_files.cpp
+            #demo_nodearray_files.cpp
             #demo_nodearray_strings.cpp

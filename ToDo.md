@@ -16,9 +16,12 @@
 
 7. GEMS-198 Added C++ and Python examples and other changes to the readme file.
 
+8. GEMS-198 Added to TGEM2MT code into GEMS3K and to MassTransport class functions for access to internal nodes (ChemicalEngineArray).
+
 ### To do
 
-1. Research and add to TGEM2MT code into GEMS3K and to MassTransport class functions for accsees to internal nodes and values. How user can set up and monitoring of mass transport process. Need suggestions with Dan and Dmitrii.
+1. Research and add to TGEM2MT code into GEMS3K and to MassTransport class functions for accsees to internal values. 
+How user can set up and monitoring of mass transport process. Need suggestions with Dan and Dmitrii.
 
 2. Implement test ?
 
