@@ -43,6 +43,8 @@ int getJsonFile( const string path, string& str )
 
 int main(int argc, char **argv)
 {
+    xGEM2MT::update_loggers( false, "xGEM2MT.log", 1);
+
     MassTransport mttask;
     std::string gem2mt_json;
     std::string dch_json;

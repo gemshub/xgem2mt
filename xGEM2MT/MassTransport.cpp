@@ -122,7 +122,7 @@ std::shared_ptr<ChemicalEngineArray> MassTransport::getChemicalEngineArray()
      return pimpl->chem_array;
 }
 
-string MassTransport::dump() const
+std::string MassTransport::dump() const
 {
     std::stringstream ss;
     io_formats::SimdJsonWrite out_format( ss, "", true );

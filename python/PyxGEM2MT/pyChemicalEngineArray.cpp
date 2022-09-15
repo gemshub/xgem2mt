@@ -20,6 +20,7 @@
 
 PYBIND11_MODULE(PyxGEM2MT, m)
 {
+    xGEM2MT::update_loggers(false, "xGEM2MT.log", 1);
     exportChemicalEngineArray(m);
     exportMassTransport(m);
 }

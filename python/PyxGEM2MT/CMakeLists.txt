@@ -11,4 +11,4 @@ include_directories("/usr/local/include/eigen3")
 pybind11_add_module(PyxGEM2MT ${SOURCE_FILES} NO_EXTRAS) # NO_EXTRAS used to decrease linking time, but causes larger module file size
 
 # Link PyxGEM2MT against xGEM2MT and other library
-target_link_libraries(PyxGEM2MT LINK_PRIVATE xGEM2MT::xGEM2MT GEMS3K-static GEM2MT-static)
+target_link_libraries(PyxGEM2MT LINK_PRIVATE xGEM2MT::xGEM2MT GEMS3K-static GEM2MT-static ThermoFun ChemicalFun)

@@ -29,6 +29,11 @@
 
 namespace xGEM2MT {
 
+void update_loggers( bool use_cout, const std::string& logfile_name, size_t log_level)
+{
+    gems3k_update_loggers(use_cout, logfile_name, log_level);
+}
+
 struct ChemicalEngineArray::Impl
 {
     /// Construct a default Impl instance
@@ -130,14 +135,14 @@ auto ChemicalEngineArray::initializeFromJsonStrings( std::string dch_json, std::
 long ChemicalEngineArray::reequilibrate(long ndx, bool warmstart)
 {
     long int  Mode = pimpl->options.warmstart ? NEED_GEM_SIA : NEED_GEM_AIA;
-    TNode workNode(pimpl->node_array->getCalcNode());
-    return pimpl->node_array->RunGEM( workNode, ndx, Mode, pimpl->node_array->pNodT1() );
+    TNode workNode(*pimpl->node_array->getCalcNode());
+    return pimpl->node_array->RunGEM( &workNode, ndx, Mode, pimpl->node_array->pNodT1() );
 }
 
 void ChemicalEngineArray::reequilibrate(bool warmstart)
 {
     long int  Mode = pimpl->options.warmstart ? NEED_GEM_SIA : NEED_GEM_AIA;
-    vector<long int> nodeFlags, retCodes;
+    std::vector<long int> nodeFlags, retCodes;
     for( long int ii=0; ii<pimpl->node_array->nNodes(); ++ii)
     {
         nodeFlags.push_back(1);
@@ -468,44 +473,44 @@ auto ChemicalEngineArray::speciesCharge(Index ispecies) const -> double
 auto ChemicalEngineArray::setStandardMolarGibbsEnergy(std::string name, double TK, double P, double value) -> void
 {
     auto ispecies = indexSpecies(name);
-    auto idc = pimpl->node_array->getCalcNode().DC_xDB_to_xCH(ispecies);
+    auto idc = pimpl->node_array->getCalcNode()->DC_xDB_to_xCH(ispecies);
     pimpl->node_array->Set_DC_G0(idc, P, TK,  value);
 }
 
 // Uses curent node TK and P
 auto ChemicalEngineArray::standardMolarGibbsEnergy(double TK, double P, Index ispecies) const -> double
 {
-    auto idc = pimpl->node_array->getCalcNode().DC_xDB_to_xCH(ispecies);
-    auto stMolarG = pimpl->node_array->getCalcNode().DC_G0(idc, P, TK,  false);
+    auto idc = pimpl->node_array->getCalcNode()->DC_xDB_to_xCH(ispecies);
+    auto stMolarG = pimpl->node_array->getCalcNode()->DC_G0(idc, P, TK,  false);
     return stMolarG;
 }
 
 
 auto ChemicalEngineArray::standardMolarEnthalpy(double TK, double P, Index ispecies) const -> double
 {
-    auto idc = pimpl->node_array->getCalcNode().DC_xDB_to_xCH(ispecies);
-    auto stMolarH = pimpl->node_array->getCalcNode().DC_H0(idc, P, TK);
+    auto idc = pimpl->node_array->getCalcNode()->DC_xDB_to_xCH(ispecies);
+    auto stMolarH = pimpl->node_array->getCalcNode()->DC_H0(idc, P, TK);
     return stMolarH;
 }
 
 auto ChemicalEngineArray::standardMolarVolume(double TK, double P, Index ispecies) const -> double
 {
-    auto idc = pimpl->node_array->getCalcNode().DC_xDB_to_xCH(ispecies);
-    auto stMolarV = pimpl->node_array->getCalcNode().DC_V0(idc, P, TK);
+    auto idc = pimpl->node_array->getCalcNode()->DC_xDB_to_xCH(ispecies);
+    auto stMolarV = pimpl->node_array->getCalcNode()->DC_V0(idc, P, TK);
     return stMolarV;
 }
 
 auto ChemicalEngineArray::standardMolarEntropy(double TK, double P, Index ispecies) const -> double
 {
-    auto idc = pimpl->node_array->getCalcNode().DC_xDB_to_xCH(ispecies);
-    auto stMolarS = pimpl->node_array->getCalcNode().DC_S0(idc, P, TK);
+    auto idc = pimpl->node_array->getCalcNode()->DC_xDB_to_xCH(ispecies);
+    auto stMolarS = pimpl->node_array->getCalcNode()->DC_S0(idc, P, TK);
     return stMolarS;
 }
 
 auto ChemicalEngineArray::standardMolarHeatCapacityConstP(double TK, double P, Index ispecies) const -> double
 {
-    auto idc = pimpl->node_array->getCalcNode().DC_xDB_to_xCH( ispecies );
-    auto stMolarCp = pimpl->node_array->getCalcNode().DC_Cp0(idc, P, TK);
+    auto idc = pimpl->node_array->getCalcNode()->DC_xDB_to_xCH( ispecies );
+    auto stMolarCp = pimpl->node_array->getCalcNode()->DC_Cp0(idc, P, TK);
     return stMolarCp;
 }
 
@@ -513,7 +518,7 @@ auto ChemicalEngineArray::setPT(long int ndx, double P, double T) const -> bool
 {
     // Check if P, T are feasible
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
-    if(pimpl->node_array->getCalcNode().check_TP( T, P )==false)
+    if(pimpl->node_array->getCalcNode()->check_TP( T, P )==false)
         return true;
     // Set temperature and pressure
     pimpl->node_array->pNodT1()[ndx]->TK = T;
@@ -732,9 +737,9 @@ auto ChemicalEngineArray::phaseDensities(long int ndx) const -> Vector
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     for(Index i = 0; i < P; ++i)
     {
-        if( pimpl->node_array->getCalcNode().Ph_Volume(i) != 0.0)
-            phDensities[i] = pimpl->node_array->getCalcNode().Ph_Mass(i)
-                    /  pimpl->node_array->getCalcNode().Ph_Volume(i);
+        if( pimpl->node_array->getCalcNode()->Ph_Volume(i) != 0.0)
+            phDensities[i] = pimpl->node_array->getCalcNode()->Ph_Mass(i)
+                    /  pimpl->node_array->getCalcNode()->Ph_Volume(i);
         else
             phDensities[i] = 0.0;
     }
@@ -747,7 +752,7 @@ auto ChemicalEngineArray::phaseMasses(long int ndx) const -> Vector
     Vector phMasses(P);
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     for(Index i = 0; i < P; ++i)
-        phMasses[i] = pimpl->node_array->getCalcNode().Ph_Mass(i);
+        phMasses[i] = pimpl->node_array->getCalcNode()->Ph_Mass(i);
     return phMasses;
 }
 
@@ -757,7 +762,7 @@ auto ChemicalEngineArray::phaseAmounts(long int ndx) const -> Vector
     Vector phAmounts(P);
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     for(Index i = 0; i < P; ++i)
-        phAmounts[i] = pimpl->node_array->getCalcNode().Ph_Moles(i);
+        phAmounts[i] = pimpl->node_array->getCalcNode()->Ph_Moles(i);
     return phAmounts;
 }
 
@@ -767,7 +772,7 @@ auto ChemicalEngineArray::phaseVolumes(long int ndx) const -> Vector
     Vector phVolumes(P);
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     for(Index i = 0; i < P; ++i)
-        phVolumes[i] = pimpl->node_array->getCalcNode().Ph_Volume(i);
+        phVolumes[i] = pimpl->node_array->getCalcNode()->Ph_Volume(i);
     return phVolumes;
 }
 
@@ -777,7 +782,7 @@ auto ChemicalEngineArray::phaseEnthalpies(long int ndx) const -> Vector
     Vector phEnthalpies(P);
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     for(Index i = 0; i < P; ++i)
-        phEnthalpies[i] = pimpl->node_array->getCalcNode().Ph_Enthalpy(i);
+        phEnthalpies[i] = pimpl->node_array->getCalcNode()->Ph_Enthalpy(i);
     return phEnthalpies;
 }
 
@@ -787,7 +792,7 @@ auto ChemicalEngineArray::phaseEntropies(long int ndx) const -> Vector
     Vector phEntropies(P);
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     for(Index i = 0; i < P; ++i)
-        phEntropies[i] = pimpl->node_array->getCalcNode().Ph_Entropy(i);
+        phEntropies[i] = pimpl->node_array->getCalcNode()->Ph_Entropy(i);
     return phEntropies;
 }
 
@@ -797,53 +802,53 @@ auto ChemicalEngineArray::phaseHeatCapacitiesConstP(long int ndx) const -> Vecto
     Vector phHeatCapacitiesConstP(P);
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     for(Index i = 0; i < P; ++i)
-        phHeatCapacitiesConstP[i] = pimpl->node_array->getCalcNode().Ph_HeatCapacityCp(i);
+        phHeatCapacitiesConstP[i] = pimpl->node_array->getCalcNode()->Ph_HeatCapacityCp(i);
     return phHeatCapacitiesConstP;
 }
 
 auto ChemicalEngineArray::phaseDensity(long int ndx, Index iphase) const -> double
 {
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
-    if(pimpl->node_array->getCalcNode().Ph_Volume(iphase) > 1e-15)
-        return pimpl->node_array->getCalcNode().Ph_Mass(iphase)
-                /pimpl->node_array->getCalcNode().Ph_Volume(iphase);
+    if(pimpl->node_array->getCalcNode()->Ph_Volume(iphase) > 1e-15)
+        return pimpl->node_array->getCalcNode()->Ph_Mass(iphase)
+                /pimpl->node_array->getCalcNode()->Ph_Volume(iphase);
     else return 0.0;
 }
 
 auto ChemicalEngineArray::phaseMass(long int ndx, Index iphase) const -> double
 {
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
-    return pimpl->node_array->getCalcNode().Ph_Mass(iphase);
+    return pimpl->node_array->getCalcNode()->Ph_Mass(iphase);
 }
 
 auto ChemicalEngineArray::phaseAmount(long int ndx, Index iphase) const -> double
 {
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
-    return pimpl->node_array->getCalcNode().Ph_Moles(iphase);
+    return pimpl->node_array->getCalcNode()->Ph_Moles(iphase);
 }
 
 auto ChemicalEngineArray::phaseVolume(long int ndx, Index iphase) const -> double
 {
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
-    return pimpl->node_array->getCalcNode().Ph_Volume(iphase);
+    return pimpl->node_array->getCalcNode()->Ph_Volume(iphase);
 }
 
 auto ChemicalEngineArray::phaseEnthalpy(long int ndx, Index iphase) const -> double
 {
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
-    return pimpl->node_array->getCalcNode().Ph_Enthalpy(iphase);
+    return pimpl->node_array->getCalcNode()->Ph_Enthalpy(iphase);
 }
 
 auto ChemicalEngineArray::phaseEntropy(long int ndx, Index iphase) const -> double
 {
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
-    return pimpl->node_array->getCalcNode().Ph_Entropy(iphase);
+    return pimpl->node_array->getCalcNode()->Ph_Entropy(iphase);
 }
 
 auto ChemicalEngineArray::phaseHeatCapacityConstP(long int ndx, Index iphase) const -> double
 {
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
-    return pimpl->node_array->getCalcNode().Ph_HeatCapacityCp(iphase);
+    return pimpl->node_array->getCalcNode()->Ph_HeatCapacityCp(iphase);
 }
 
 auto ChemicalEngineArray::phaseSatIndices(long int ndx) const -> Vector
@@ -852,23 +857,23 @@ auto ChemicalEngineArray::phaseSatIndices(long int ndx) const -> Vector
     Vector phSatIndices(P);
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     for(Index i = 0; i < P; ++i)
-        phSatIndices[i] = pimpl->node_array->getCalcNode().Ph_SatInd(i);
+        phSatIndices[i] = pimpl->node_array->getCalcNode()->Ph_SatInd(i);
     return phSatIndices;
 }
 
 auto ChemicalEngineArray::phaseSatIndex(long int ndx, Index iphase) const -> double
 {
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
-    return pimpl->node_array->getCalcNode().Ph_SatInd(iphase);
+    return pimpl->node_array->getCalcNode()->Ph_SatInd(iphase);
 }
 
 auto ChemicalEngineArray::phaseMolarGibbsEnergy(long int ndx, Index iphase) const -> double
 {
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     double phMolarGibbsEnergy = 0.0;
-    if( pimpl->node_array->getCalcNode().Ph_Mole(iphase) > 1e-15 )
-        phMolarGibbsEnergy = pimpl->node_array->getCalcNode().Ph_GibbsEnergy(iphase)
-                /pimpl->node_array->getCalcNode().Ph_Mole(iphase);
+    if( pimpl->node_array->getCalcNode()->Ph_Mole(iphase) > 1e-15 )
+        phMolarGibbsEnergy = pimpl->node_array->getCalcNode()->Ph_GibbsEnergy(iphase)
+                /pimpl->node_array->getCalcNode()->Ph_Mole(iphase);
     return phMolarGibbsEnergy;
 }
 
@@ -876,9 +881,9 @@ auto ChemicalEngineArray::phaseMolarEnthalpy(long int ndx, Index iphase) const -
 {
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     double phMolarEnthalpy = 0.0;
-    if( pimpl->node_array->getCalcNode().Ph_Mole(iphase) > 1e-15 )
-        phMolarEnthalpy = pimpl->node_array->getCalcNode().Ph_Enthalpy(iphase)
-                /pimpl->node_array->getCalcNode().Ph_Mole(iphase);
+    if( pimpl->node_array->getCalcNode()->Ph_Mole(iphase) > 1e-15 )
+        phMolarEnthalpy = pimpl->node_array->getCalcNode()->Ph_Enthalpy(iphase)
+                /pimpl->node_array->getCalcNode()->Ph_Mole(iphase);
     return phMolarEnthalpy;
 }
 
@@ -886,9 +891,9 @@ auto ChemicalEngineArray::phaseMolarVolume(long int ndx, Index iphase) const -> 
 {
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     double phMolarVolume = 0.0;
-    if( pimpl->node_array->getCalcNode().Ph_Mole(iphase) > 1e-15 )
-        phMolarVolume = pimpl->node_array->getCalcNode().Ph_Volume(iphase)
-                /pimpl->node_array->getCalcNode().Ph_Mole(iphase);
+    if( pimpl->node_array->getCalcNode()->Ph_Mole(iphase) > 1e-15 )
+        phMolarVolume = pimpl->node_array->getCalcNode()->Ph_Volume(iphase)
+                /pimpl->node_array->getCalcNode()->Ph_Mole(iphase);
     return phMolarVolume;
 }
 
@@ -896,9 +901,9 @@ auto ChemicalEngineArray::phaseMolarEntropy(long int ndx, Index iphase) const ->
 {
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     double phMolarEntropy = 0.0;
-    if( pimpl->node_array->getCalcNode().Ph_Mole(iphase) > 1e-15 )
-        phMolarEntropy = pimpl->node_array->getCalcNode().Ph_Entropy(iphase)
-                /pimpl->node_array->getCalcNode().Ph_Mole(iphase);
+    if( pimpl->node_array->getCalcNode()->Ph_Mole(iphase) > 1e-15 )
+        phMolarEntropy = pimpl->node_array->getCalcNode()->Ph_Entropy(iphase)
+                /pimpl->node_array->getCalcNode()->Ph_Mole(iphase);
     return phMolarEntropy;
 }
 
@@ -906,14 +911,14 @@ auto ChemicalEngineArray::moleFractions(long int ndx) const -> Vector
 {
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     const Index N = numSpecies();
-    Vector amountSp = Vector::Map(pimpl->node_array->getCalcNode().pCNode()->xDC, N);
+    Vector amountSp = Vector::Map(pimpl->node_array->getCalcNode()->pCNode()->xDC, N);
     Vector molFractions(N);
 
     Index counter = 0;
     for(Index k = 0; k < numPhases(); ++k)
     {
         Index numSpInPh = numSpeciesInPhase(k);
-        double amountPh = pimpl->node_array->getCalcNode().Ph_Moles(k);
+        double amountPh = pimpl->node_array->getCalcNode()->Ph_Moles(k);
         if(numSpInPh == 1 )
         {
             if(amountPh > 0.0)
@@ -941,7 +946,7 @@ auto ChemicalEngineArray::lnActivityCoefficients(long int ndx) const -> Vector
     const Index N = numSpecies();
     Vector ln_activity_coefficients(N);
     for(Index i = 0; i < N; ++i)
-        ln_activity_coefficients[i] = std::log(pimpl->node_array->getCalcNode().Get_gDC(i));
+        ln_activity_coefficients[i] = std::log(pimpl->node_array->getCalcNode()->Get_gDC(i));
     return ln_activity_coefficients;
 }
 
@@ -951,7 +956,7 @@ auto ChemicalEngineArray::lnActivities(long int ndx) const -> Vector
     const Index N = numSpecies();
     Vector ln_activities(N);
     for(Index i = 0; i < N; ++i)
-        ln_activities[i] = std::log(pimpl->node_array->getCalcNode().Get_aDC(i, true));
+        ln_activities[i] = std::log(pimpl->node_array->getCalcNode()->Get_aDC(i, true));
     return ln_activities;
 }
 
@@ -961,7 +966,7 @@ auto ChemicalEngineArray::lnConcentrations(long int ndx) const -> Vector
     const Index N = numSpecies();
     Vector ln_concentrations(N);
     for(Index i = 0; i < N; ++i)
-        ln_concentrations[i] = std::log(pimpl->node_array->getCalcNode().Get_cDC(i));
+        ln_concentrations[i] = std::log(pimpl->node_array->getCalcNode()->Get_cDC(i));
     return ln_concentrations;
 }
 
@@ -971,7 +976,7 @@ auto ChemicalEngineArray::chemicalPotentials(long int ndx) const -> Vector
     const Index N = numSpecies();
     Vector chemPotentials(N);
     for(Index i = 0; i < numSpecies(); ++i)
-        chemPotentials[i] = pimpl->node_array->getCalcNode().Get_muDC(i, false);
+        chemPotentials[i] = pimpl->node_array->getCalcNode()->Get_muDC(i, false);
     return chemPotentials;
 }
 
@@ -980,9 +985,9 @@ auto ChemicalEngineArray::phaseMolarHeatCapacityConstP(long int ndx, Index iphas
 {
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     double phMolarCp = 0.0;
-    if( pimpl->node_array->getCalcNode().Ph_Mole(iphase) > 1e-15 )
-        phMolarCp = pimpl->node_array->getCalcNode().Ph_HeatCapacityCp(iphase)
-                /pimpl->node_array->getCalcNode().Ph_Mole(iphase);
+    if( pimpl->node_array->getCalcNode()->Ph_Mole(iphase) > 1e-15 )
+        phMolarCp = pimpl->node_array->getCalcNode()->Ph_HeatCapacityCp(iphase)
+                /pimpl->node_array->getCalcNode()->Ph_Mole(iphase);
     return phMolarCp;
 }
 
@@ -990,9 +995,9 @@ auto ChemicalEngineArray::phaseSpecificHeatCapacityConstP(long int ndx, Index ip
 {
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     double phSpecCp = 0.0;
-    if( pimpl->node_array->getCalcNode().Ph_Mass(iphase) > 1e-15 )
-        phSpecCp = pimpl->node_array->getCalcNode().Ph_HeatCapacityCp(iphase)
-                /pimpl->node_array->getCalcNode().Ph_Mass(iphase);
+    if( pimpl->node_array->getCalcNode()->Ph_Mass(iphase) > 1e-15 )
+        phSpecCp = pimpl->node_array->getCalcNode()->Ph_HeatCapacityCp(iphase)
+                /pimpl->node_array->getCalcNode()->Ph_Mass(iphase);
     return phSpecCp;
 }
 
@@ -1000,9 +1005,9 @@ auto ChemicalEngineArray::phaseSpecificGibbsEnergy(long int ndx, Index iphase) c
 {
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     double phSpecGibbsEnergy = 0.0;
-    if( pimpl->node_array->getCalcNode().Ph_Mass(iphase) > 1e-15 )
-        phSpecGibbsEnergy = pimpl->node_array->getCalcNode().Ph_GibbsEnergy(iphase)
-                /pimpl->node_array->getCalcNode().Ph_Mass(iphase);
+    if( pimpl->node_array->getCalcNode()->Ph_Mass(iphase) > 1e-15 )
+        phSpecGibbsEnergy = pimpl->node_array->getCalcNode()->Ph_GibbsEnergy(iphase)
+                /pimpl->node_array->getCalcNode()->Ph_Mass(iphase);
     return phSpecGibbsEnergy;
 }
 
@@ -1010,9 +1015,9 @@ auto ChemicalEngineArray::phaseSpecificEnthalpy(long int ndx, Index iphase) cons
 {
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     double phSpecEnthalpy = 0.0;
-    if( pimpl->node_array->getCalcNode().Ph_Mass(iphase) > 1e-15 )
-        phSpecEnthalpy = pimpl->node_array->getCalcNode().Ph_Enthalpy(iphase)
-                /pimpl->node_array->getCalcNode().Ph_Mass(iphase);
+    if( pimpl->node_array->getCalcNode()->Ph_Mass(iphase) > 1e-15 )
+        phSpecEnthalpy = pimpl->node_array->getCalcNode()->Ph_Enthalpy(iphase)
+                /pimpl->node_array->getCalcNode()->Ph_Mass(iphase);
     return phSpecEnthalpy;
 }
 
@@ -1020,9 +1025,9 @@ auto ChemicalEngineArray::phaseSpecificVolume(long int ndx, Index iphase) const 
 {
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     double phSpecVolume = 0.0;
-    if( pimpl->node_array->getCalcNode().Ph_Mass(iphase) > 1e-15 )
-        phSpecVolume = pimpl->node_array->getCalcNode().Ph_Volume(iphase)
-                /pimpl->node_array->getCalcNode().Ph_Mass(iphase);
+    if( pimpl->node_array->getCalcNode()->Ph_Mass(iphase) > 1e-15 )
+        phSpecVolume = pimpl->node_array->getCalcNode()->Ph_Volume(iphase)
+                /pimpl->node_array->getCalcNode()->Ph_Mass(iphase);
     return phSpecVolume;
 }
 
@@ -1030,9 +1035,9 @@ auto ChemicalEngineArray::phaseSpecificEntropy(long int ndx, Index iphase) const
 {
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     double phSpecEntropy = 0.0;
-    if( pimpl->node_array->getCalcNode().Ph_Mass(iphase) > 1e-15 )
-        phSpecEntropy = pimpl->node_array->getCalcNode().Ph_Entropy(iphase)
-                /pimpl->node_array->getCalcNode().Ph_Mass(iphase);
+    if( pimpl->node_array->getCalcNode()->Ph_Mass(iphase) > 1e-15 )
+        phSpecEntropy = pimpl->node_array->getCalcNode()->Ph_Entropy(iphase)
+                /pimpl->node_array->getCalcNode()->Ph_Mass(iphase);
     return phSpecEntropy;
 }
 
@@ -1043,7 +1048,7 @@ auto ChemicalEngineArray::systemEnthalpy(long int ndx) const -> double   // in J
     // enth = pimpl->node->phEnthalpies.sum(); // needs to be computed first anyway
     auto enth = 0.0;
     for(Index i = 0; i < numPhases(); ++i)
-        enth += pimpl->node_array->getCalcNode().Ph_Enthalpy(i);
+        enth += pimpl->node_array->getCalcNode()->Ph_Enthalpy(i);
     return enth;  // in J
     // enth /= pimpl->node->pCNode()->Ms; in  kg
     // return pimpl->node->pCNode()->Hs;  // Not computed in GEMS3K so far!

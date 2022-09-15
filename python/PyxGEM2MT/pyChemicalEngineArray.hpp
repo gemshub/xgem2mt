@@ -27,6 +27,7 @@ using namespace xGEM2MT;
 
 void exportChemicalEngineArray(py::module& m)
 {
+    m.def("update_loggers", &update_loggers);
     py::class_<ChemicalEngineArrayOptions>(m, "ChemicalEngineArrayOptions")
             .def(py::init<>())
             .def_readwrite("warmstart", &ChemicalEngineArrayOptions::warmstart)

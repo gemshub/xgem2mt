@@ -86,5 +86,4 @@ private:
 /// Output the state of the MassTransport object.
 auto operator<<(std::ostream& out, const MassTransport& engine) -> std::ostream&;
 
-
 } // namespace xGEM2MT

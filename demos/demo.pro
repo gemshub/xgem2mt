@@ -15,7 +15,8 @@ INCLUDEPATH += $$XGEM2MT_H
 
 DEFINES += IPMGEMPLUGIN
 DEFINES += NODEARRAYLEVEL
-#DEFINES += NOPARTICLEARRAY
+DEFINES += USE_THERMOFUN
+DEFINES += USE_THERMO_LOG
 #DEFINES += OVERFLOW_EXCEPT  #compile with nan inf exceptions
 
 #GEMS3K_CPP = ../../standalone/GEMS3K
@@ -33,6 +34,9 @@ DEFINES += NODEARRAYLEVEL
 OBJECTS_DIR = obj
 
 LIBS += -lGEMS3K-static -lGEM2MT-static
+contains(DEFINES, USE_THERMOFUN) {
+    LIBS += -lThermoFun -lChemicalFun
+} ## end USE_THERMOFUN
 
 HEADERS	 += $$XGEM2MT_H/xGEM2MT/ChemicalEngineArray.hpp \
             $$XGEM2MT_H/xGEM2MT/MassTransport.hpp \
