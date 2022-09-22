@@ -22,7 +22,7 @@ using namespace xGEM2MT;
 
 int main(int argc, char **argv)
 {
-    xGEM2MT::update_loggers( false, "xGEM2MT.log", 1);
+    xGEM2MT::update_loggers( false, "xGEM2MT.log", 2);
 
     MassTransport mttask;
     std::string gem2mt_init = "gem2mt-data/CalcColumnAD.json";
