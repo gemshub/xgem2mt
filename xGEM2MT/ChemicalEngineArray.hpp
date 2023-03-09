@@ -28,6 +28,10 @@
 
 namespace xGEM2MT {
 
+class MassTransport;
+
+void update_loggers(bool use_cout, const std::string& logfile_name, size_t log_level);
+
 /// A type that describes the options for ChemicalEngineArray
 struct ChemicalEngineArrayOptions
 {
@@ -37,10 +41,12 @@ struct ChemicalEngineArrayOptions
     long int step=0;    ///<   extern actual time iterator
     double cdv=1e-9;       ///<   cutoff for IC amount differences in the node between time steps (mol, 1e-9)
     double cez=1e-12;       ///<   cutoff for minimal amounts of IC in node bulk compositions (mol, 1e-12)
+
+    std::string to_json_string(bool dense = false) const {return "";}; //TBD
 };
 
 /// A wrapper class for ChemicalEngineArray code
-class ChemicalEngineArray
+class ChemicalEngineArray : public std::enable_shared_from_this<ChemicalEngineArray>
 {
 
 public:
@@ -69,7 +75,7 @@ public:
 
     /// Initialize the ChemicalEngineArray object from a GEM-Selektor project file.
     /// @param filename The name of the file containing the definition of the chemical system
-    auto initialize(std::string ipm_filename, std::string dbr_filename, long int* nodeTypes) -> void;
+    auto initialize(std::string ipm_filename, std::string dbr_filename, std::vector<long int> nodeTypes = {}) -> void;
 
     /// Initialize the ChemicalEngineArray object from JSON strings for dch, ipm and dbr exported from GEM-Selektor \ .
     /// Normally to be used after ChemicalEngineArray();
@@ -79,7 +85,7 @@ public:
     /// @param nodeTypes The initial node contents from DATABR files will be distributed among
     ///                   nodes in array according to the distribution index list nodeTypes
     auto initializeFromJsonStrings(std::string dch_json, std::string ipm_json,
-                                   std::vector<std::string> dbr_json, long int* nodeTypes) -> void;
+                                   std::vector<std::string> dbr_json, std::vector<long int> nodeTypes = {}) -> void;
 
     /// Recalculate the equilibrium state with preset P,T,B and other inputs for node ndx
     /// If @param warmstart is true then GEMS3K uses contents of node as initial
@@ -288,7 +294,7 @@ public:
     auto elementAmountsInSpecies(long int ndx, VectorXiConstRef ispecies) const -> Vector;
 
     /// Return the amounts of the species (in units of mol)
-    auto speciesAmounts(long int ndx) const -> VectorConstRef;
+    auto speciesAmounts(long int ndx) const -> Vector;
 
     /// Return the amount of the species with index @param ispecies (in units of mol)
     auto speciesAmount(long int ndx, Index ispecies) const -> double;
@@ -297,9 +303,9 @@ public:
     auto speciesAmount(long int ndx, std::string name) const -> double;
 
     /// Return the upper limits for the species dul (in units of mol)
-    auto speciesUpperLimits(long int ndx) const -> VectorConstRef;
+    auto speciesUpperLimits(long int ndx) const -> Vector;
     /// Return the lower limits for the species dll (in units of mol)
-    auto speciesLowerLimits(long int ndx) const -> VectorConstRef;
+    auto speciesLowerLimits(long int ndx) const -> Vector;
 
     /// Return the mass of the system (in units of kg).
     auto systemMass(long int ndx) const -> double;
@@ -456,6 +462,11 @@ public:
 
     /// TBD Return the specific isochoric heat capacities of the phases (in units of J/(kg*K)).
     // auto phaseSpecificHeatCapacityConstV(Index iphase) const -> double;
+
+    ChemicalEngineArray(const MassTransport& mt_class);
+    std::shared_ptr<ChemicalEngineArray> getptr() {
+        return shared_from_this();
+    }
 
 private:
     struct Impl;

@@ -1,5 +1,6 @@
 
 ## xGEM2MT 
+Linux, OSX, Windows
 
 This is a numerical solver of chemical equilibria for thermodynamic modelling, extended (relative to GEMS3K code) with new C++ and Python APIs (compatible with [Reaktoro framework](http://reaktoro.org)), and supposed to replace GEMS3K in next-generation software.  
 
@@ -15,112 +16,135 @@ This is a numerical solver of chemical equilibria for thermodynamic modelling, e
 * GEMS3K is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
 * You should have received a copy of the GNU Lesser General Public License along with GEMS3K code. If not, see http://www.gnu.org/licenses/. 
 
+### Simple C++ API example
+
+* Using the ChemicalEngineArray class API
+
+```cpp
+#include <xGEM2MT/ChemicalEngineArray.hpp>
+using namespace xGEM2MT;
+
+
+int main(int argc, char **argv)
+{
+    ChemicalEngineArray engine(5);
+    std::vector<long int> nodeTypes={1,0,0,0,0};
+    std::string gems_init_lst = "nodearray-data/CalcColumn-dat.lst";
+    std::string gems_init_dbr_lst = "nodearray-data/CalcColumn-dbr.lst";
+
+    try
+    {
+        engine.initialize(gems_init_lst, gems_init_dbr_lst, nodeTypes );
+
+        Vector bj = engine.elementAmounts(0);
+        std::cout << "Vector bj[0]: " << bj.transpose() << std::endl;
+        bj = engine.elementAmounts(1);
+        std::cout << "Vector bj[1]: " << bj.transpose() << std::endl;
+
+        engine.equilibrate();
+        engine.nextTimePoint(true); // copy results to pNodT0()
+
+        engine.dumpGEMS3K("CalcColumn-dump-dat.lst");
+
+        return 0;
+    }
+    catch (std::runtime_error& xcpt)
+    {
+        std::cout << xcpt.what() << std::endl;
+    }
+    return 1;
+}
+```
+
+* Using  the Mass transport  API 
+
+```cpp
+#include <xGEM2MT/MassTransport.hpp>
+using namespace xGEM2MT;
+
+int main(int argc, char **argv)
+{
+    MassTransport mttask;
+    std::string gem2mt_init = "gem2mt-data/CalcColumnAD.json";
+    std::string gems_init_lst = "gem2mt-data/CalcColumn-dat.lst";
+    std::string gems_init_dbr_lst = "gem2mt-data/CalcColumn-dbr.lst";
+
+    try
+    {
+        mttask.initializeGEM2MT(gem2mt_init);
+        mttask.initializeNodes(gems_init_lst, gems_init_dbr_lst);
+        mttask.runGEM2MT();
+        return 0;
+    }
+    catch (std::runtime_error& xcpt)
+    {
+        std::cout << xcpt.what() << std::endl;
+    }
+    return 1;
+}
+```
+
+### Simple Python API example
+
+
+```python3
+from xgem2mt import *
+
+def main():
+    try:
+        engine = ChemicalEngineArray(5)
+        nodeTypes = [1,0,0,0,0]
+        gems_init_lst = "nodearray-data/CalcColumn-dat.lst"
+        gems_init_dbr_lst = "nodearray-data/CalcColumn-dbr.lst"
+
+        engine.initialize(gems_init_lst, gems_init_dbr_lst, nodeTypes )
+        bj = engine.elementAmounts(0)
+        print(bj)
+
+        engine.equilibrate();
+        engine.nextTimePoint(True)
+        print(engine)
+    except RuntimeError as ex:
+        print(ex)
+```
+
+For more information on APIs and more examples, take a look at the `/demo` directory.
+
 ### How to download xGEM2MT source code
 
 * In your home directory, make a folder named e.g. ~/git/xGEM2MT.
 * Change into ~/git/xGEM2MT and clone this repository from https://bitbucket.org/gems4/xgem2mt.git using a preinstalled free git client, e.g. SourceTree. 
 * Alternatively on Mac OS X or linux, open a terminal and type in the command line:
 
-```
+```sh
 cd ~/git/xGEM2MT
 git clone https://bitbucket.org/gems4/xgem2mt.git .
 ```
 
 ### How to build xGEM2MT library and examples
 
-xGEM2MT uses GEMS3K and Eigen3 as external projects. These are downloaded and compiled together with xGEM2MT during the make step. 
-For compiling xGEM2MT python bindings you need a recent version of pybind11 installed (including development headers, 2.2.0 is the minimum version required) and Eigen library ([v3.3.9](https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.gz)). 
+* Install Dependencies by executing in ```~/xgem2mt$```
 
-* For eigen3 download [v3.3.9](https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.gz) unpack the archive and install it as follows:
-
+```sh
+#!bash
+sudo ./install-dependencies.sh
 ```
-cd /eigen-3.3.9
+
+* To build xGEM2MT and install it in your home directory or in the system directory (as in the example below), a typical sequence of commands can be executed in the terminal:
+
+```sh
+cd ~/xgem2mt
 mkdir build
 cd build
-cmake .. 
-make install
-```
-
-* For pybind11. In case your distribution does not provide pybind11 development packages, or the version is too old, you can install it as follows:
-
-```
-mkdir -p ~/code
-cd ~/code
-git clone https://github.com/pybind/pybind11.git
-cd pybind11
-mkdir build
-cd build
-cmake .. -DPYBIND11_TEST=OFF -DCMAKE_INSTALL_PREFIX=/your/local/codes/directory
-make install
-```
-
-CMake uses `find_package` to search for pybind11 `pybind11Config.cmake` configuration file. Installing pybind11 using `pip install` or other ways might not provide the required configuration file and will result in errors.
-
-* To install GEMS3K with the implementation of the TNodeArray and TGEM2MT classes execute script:
-
-```
-cd ~/git/xGEM2MT
-./install-dependencies.sh
-```
-
-* To compile xGEM2MT with python bindings and demos:
-
-`-DCMAKE_PREFIX_PATH=/your/local/codes/directory` is necessary if pybind11 is not installed in the default include path `/usr/include/` or `/usr/lib/cmake/`, provided that `/your/local/codes/directory/pybind11/pybind11Config.cmake` cmake config file is found at this path.
-
-```
-cd ~/git/xGEM2MT
-mkdir build
-cd build
-cmake .. -DCMAKE_PREFIX_PATH=/your/local/codes/directory
-make 
-```
-
-* For building xGEM2MT for use from C++ codes only (i.e. no python in the system), replace the above cmake command with
-```
-cmake .. -DXGEMS_BUILD_PYTHON=OFF
-```
-
-* For pointing to a specific python version use `-DPYTHON_EXECUTABLE=/usr/bin/python3.6` or `-DPYTHON_EXECUTABLE=$(which python)` to get the default python path.
-
-* For compiling in the debug mode, add -DCMAKE_BUILD_TYPE=Debug as cmake parameter.
-
-* To install xGEM2MT into /usr/local as a library with /includes:
-```
-cd ~/git/xGEM2MT/build
-sudo make install 
+cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
+make
+sudo make install
 ```
 
 * To execute the c++ demo:
-```
-cd ~/git/xGEM2MT/build/bin
+
+```sh
+cd ~/build/bin
 ./demo_gem2mt
 ```
 
-### TBD
-
-* To execute the python demo: first, make sure the xGEMS Python module can be found by Python. 
-* This can be done by setting the `PYTHONPATH` environment variable to the path where the xGEMS module is located:
-~~~
-export PYTHONPATH=/home/username/pathto-xGEMS/build/lib
-~~~
-
-(use your username instead of "username" and actual path to xGEMS e.g. git/xGEMS instead of "pathto-xGEMS").
-
-* If you get compiler messages that Python.h cannot be found, then a better way may be not to set PYTHONPATH, but to make sure that the Python development installation in the system is visible to all compilers. To check this, first locate your Python installation. Currently (in 2020), the most widespread is Python3.6 with headers normally found in "/usr/include/python3.6/" or "/usr/include/python3.6m/". The access to headers can be made generic by making soft links to include files in this folder:   
-~~~
-sudo ln -sv /usr/include/python3.6m/* /usr/include/
-~~~ 
-
-* Then run the demo - if built with python 2.7:
-~~~
- cd ~git/xGEMS/demos/
- python demo1.py
-~~~
-
-* If built with python 3.6: in demo1.py, change the last line from "print chemicalengine" to "print(chemicalengine)", save and execute:
-~~~
- cd ~git/xGEMS/demos/
- python3 demo1.py
-~~~
-
-There are yet things to do.

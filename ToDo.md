@@ -10,16 +10,18 @@
 
 4. demo_gem2mt.cpp is instructions how work with MassTransport class.
 
+5. GEMS-198 Create Python API of xGEM2MT using pybind11 header
+
+6. GEMS-198 Make demo for Python API of xGEM2MT and test API
+
+7. GEMS-198 Added C++ and Python examples and other changes to the readme file.
+
+8. GEMS-198 Added to TGEM2MT code into GEMS3K and to MassTransport class functions for access to internal nodes (ChemicalEngineArray).
+
 ### To do
 
-1. GEMS-198 Create Python API of xGEM2MT using pybind11 header
+1. Research and add to TGEM2MT code into GEMS3K and to MassTransport class functions for accsees to internal values. 
+How user can set up and monitoring of mass transport process. Need suggestions with Dan and Dmitrii.
 
-2. Research and add to TGEM2MT code into GEMS3K and to MassTransport class functions for accsees to internal nodes and values. How user can set up and monitoring of mass transport process. Need suggestions with Dan and Dmitrii.
-
-3. Implement test ?
-
-### Problems&questions
-
-1.  Into environment.devenv.yml we ask ```- gems3k=4.1.1```, but need installation of gems3k with GEM2MT implementation ```cmake .. -DBUILD_GEM2MT=ON```
-Need suggestion about using install with nodearray-gem. 
+2. Implement test ?
 

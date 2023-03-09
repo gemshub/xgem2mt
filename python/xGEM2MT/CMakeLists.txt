@@ -1,0 +1,59 @@
+# Copy the xGEM2MT directory to the binary directory
+file(COPY . DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+
+# Define a variable with the name of the compiled python module file as defined by pybind11 (which is used in the file setup.py.in)
+set(XGEM2MT_PYTHON_MODULE_FILENAME PyxGEM2MT${PYTHON_MODULE_EXTENSION})
+
+# Configure the setup.py file
+set(SETUP_PY_IN ${CMAKE_CURRENT_SOURCE_DIR}/setup.py.in)
+set(SETUP_PY ${CMAKE_CURRENT_BINARY_DIR}/setup.py)
+
+# Configure the setup.py script with the provided CMake variables
+configure_file(${SETUP_PY_IN} ${SETUP_PY})
+
+# https://www.scivision.dev/cmake-install-python-package/
+# https://pip.pypa.io/en/stable/topics/local-project-installs/#editable-installs
+# detect virtualenv and set Pip args accordingly
+if(DEFINED ENV{VIRTUAL_ENV} OR DEFINED ENV{CONDA_PREFIX})
+  set(_PIP_ARG)
+else()
+  set(_PIP_ARG "--user")
+endif()
+#message(STATUS "_PIP_ARG: ${_PIP_ARG}")
+
+# Create a custom target to build xGEM2MT python package during build stage
+add_custom_target(xgem2mt ALL
+    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:PyxGEM2MT>
+        ${CMAKE_CURRENT_BINARY_DIR}/$<TARGET_FILE_NAME:PyxGEM2MT>
+    COMMAND ${PYTHON_EXECUTABLE}  -m pip install --prefix ${CMAKE_BINARY_DIR} --ignore-installed .
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+# Set dependencies of xGEM2MT target
+add_dependencies(xgem2mt PyxGEM2MT)
+
+# Set the path where the python package is installed to CMAKE_INSTALL_PREFIX if not given
+if(NOT DEFINED XGEM2MT_PYTHON_INSTALL_PREFIX)
+    set(XGEM2MT_PYTHON_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
+endif()
+# If the path is already in Windows format (with backslashes), it can't be added directly
+# to the string below, otherwise CMake will later complain about "Invalid escape sequence".
+file(TO_CMAKE_PATH "${XGEM2MT_PYTHON_INSTALL_PREFIX}" XGEM2MT_PYTHON_INSTALL_PREFIX)
+
+# Install the xGEM2MT python package using setuptools
+install(CODE
+"
+    file(TO_NATIVE_PATH \"${XGEM2MT_PYTHON_INSTALL_PREFIX}\" XGEM2MT_PYTHON_INSTALL_PREFIX_NATIVE)
+
+    if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/../../lib/PyxGEM2MT.pdb)
+        string(REPLACE .pyd .pdb XGEM2MT_PDB_FILENAME \"${XGEM2MT_PYTHON_MODULE_FILENAME}\")
+
+        execute_process(
+            COMMAND \${CMAKE_COMMAND} -E copy ../../lib/PyxGEM2MT.pdb \${XGEM2MT_PDB_FILENAME}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    endif()
+
+    execute_process(
+        COMMAND ${PYTHON_EXECUTABLE} -m pip install --prefix \${XGEM2MT_PYTHON_INSTALL_PREFIX_NATIVE} ${CMAKE_CURRENT_BINARY_DIR}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+"
+)

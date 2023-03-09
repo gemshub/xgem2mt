@@ -1,9 +1,7 @@
 name: xgem2mt
 
-{% set python_version = os.environ.get("PY_VER", "3.7") %}
-
 dependencies:
-  - gxx_linux-64=7.3.0  # [linux]
+  - gxx_linux-64  # [linux]
   - cmake>=3.13
   - make
   - git
@@ -11,8 +9,9 @@ dependencies:
   - pybind11
   - eigen
   - pytest
-  - gems3k=4.1.1
-  - python={{ python_version }}
+  - thermofun>=0.4.3
+  - gems3k>=4.3.5
+  - python
 
 environment:
 

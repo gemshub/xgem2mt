@@ -1,0 +1,51 @@
+# Find Eigen library and include its directory
+#find_package(Eigen3 3.3.7 REQUIRED)
+#message(STATUS "Found Eigen3 v${Eigen3_VERSION}: ${Eigen3_INCLUDE_DIRS}")
+
+
+# Find pybind11 library (if needed)
+if(XGEM2MT_BUILD_PYTHON)
+    find_package(pybind11 REQUIRED)
+    if(NOT pybind11_FOUND)
+        message(WARNING "Could not find pybind11 - the Python module `xGEM2MT` will not be built.")
+        set(XGEM2MT_BUILD_PYTHON OFF)
+    else()
+        message(STATUS "Found pybind11 v${pybind11_VERSION}: ${pybind11_INCLUDE_DIRS}")
+    endif()
+endif()
+
+if(XGEM2MT_USE_THERMOFUN MATCHES ON)
+  find_package(ThermoFun REQUIRED)
+  if(NOT ThermoFun_FOUND)
+    message(FATAL_ERROR "ThermoFun library not found")
+  else()
+    message(STATUS "Found ThermoFun v${ThermoFun_VERSION}")
+  endif()
+
+  find_package(ChemicalFun REQUIRED)
+  if(NOT ChemicalFun_FOUND)
+    message(FATAL_ERROR "ChemicalFun library not found")
+  else()
+    message(STATUS "Found ChemicalFun v${ChemicalFun_VERSION}")
+  endif()
+
+endif()
+
+if(USE_SPDLOG_PRECOMPILED)
+ if(NOT TARGET spdlog::spdlog)
+    find_package(spdlog CONFIG REQUIRED)
+    if(NOT spdlog_FOUND)
+       message(FATAL_ERROR "spdlog library not found")
+    else()
+       message(STATUS "Found spdlog v${spdlog_VERSION}")
+    endif()
+  endif()
+endif()
+
+find_package(GEMS3K REQUIRED)
+if(NOT GEMS3K_FOUND)
+   message(FATAL_ERROR "GEMS3K library not found")
+else()
+   message(STATUS "Found GEMS3K v${GEMS3K_VERSION}")
+endif()
+

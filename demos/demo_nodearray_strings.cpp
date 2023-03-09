@@ -43,6 +43,8 @@ int getJsonFile( const string path, string& str )
 
 int main(int argc, char **argv)
 {
+    xGEM2MT::update_loggers( false, "xGEM2MT.log", 1);
+
     // Testing= with input from IPM files
     ChemicalEngineArray engine(5);
     std::vector<long int> nodeTypes={1,0,0,0,0};
@@ -65,7 +67,7 @@ int main(int argc, char **argv)
         if( ret )
             return -1;
 
-        engine.initializeFromJsonStrings(dch_json, ipm_json, dbr_jsons, nodeTypes.data());
+        engine.initializeFromJsonStrings(dch_json, ipm_json, dbr_jsons, nodeTypes);
 
         Vector bj = engine.elementAmounts(0);
         std::cout << "Vector bj[0]: " << bj.transpose() << std::endl;

@@ -28,6 +28,8 @@ using namespace xGEM2MT;
 
 int main(int argc, char **argv)
 {
+    xGEM2MT::update_loggers( false, "xGEM2MT.log", 1);
+
     // Testing= with input from IPM files
     ChemicalEngineArray engine(5);
     std::vector<long int> nodeTypes={1,0,0,0,0};
@@ -36,7 +38,7 @@ int main(int argc, char **argv)
 
     try
     {
-       engine.initialize(gems_init_lst, gems_init_dbr_lst, nodeTypes.data() );
+       engine.initialize(gems_init_lst, gems_init_dbr_lst, nodeTypes );
 
         Vector bj = engine.elementAmounts(0);
         std::cout << "Vector bj[0]: " << bj.transpose() << std::endl;

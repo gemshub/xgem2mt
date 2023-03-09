@@ -20,10 +20,10 @@
 #include <xGEM2MT/MassTransport.hpp>
 using namespace xGEM2MT;
 
-
 int main(int argc, char **argv)
 {
-    // Testing= with input from IPM files
+    xGEM2MT::update_loggers( false, "xGEM2MT.log", 2);
+
     MassTransport mttask;
     std::string gem2mt_init = "gem2mt-data/CalcColumnAD.json";
     std::string gems_init_lst = "gem2mt-data/CalcColumn-dat.lst";
@@ -33,6 +33,10 @@ int main(int argc, char **argv)
     {
         mttask.initializeGEM2MT(gem2mt_init);
         mttask.initializeNodes(gems_init_lst, gems_init_dbr_lst);
+
+        auto engine = mttask.getChemicalEngineArray();
+        std::cout << "Vector bj[0]: " << engine->elementAmounts(0).transpose() << std::endl;
+        std::cout << "Vector bj[4]: " << engine->elementAmounts(4).transpose() << std::endl;
 
         mttask.runGEM2MT();
 
