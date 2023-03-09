@@ -1,3 +1,3 @@
 # ./build/test/tests
-#conda activate thermofun
+#conda activate xgemmt
 #pytest -ra -vv .

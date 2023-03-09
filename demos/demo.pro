@@ -33,7 +33,7 @@ DEFINES += USE_THERMO_LOG
 
 OBJECTS_DIR = obj
 
-LIBS += -lGEMS3K-static -lGEM2MT-static
+LIBS += -lGEMS3K -lGEM2MT
 contains(DEFINES, USE_THERMOFUN) {
     LIBS += -lThermoFun -lChemicalFun
 } ## end USE_THERMOFUN
@@ -46,7 +46,7 @@ HEADERS	 += $$XGEM2MT_H/xGEM2MT/ChemicalEngineArray.hpp \
 
 SOURCES	+=  $$XGEM2MT_CPP/xGEM2MT/ChemicalEngineArray.cpp \
             $$XGEM2MT_CPP/xGEM2MT/MassTransport.cpp \
-            demo_gem2mt.cpp
+            #demo_gem2mt.cpp
             #demo_gem2mt_string.cpp
-            #demo_nodearray_files.cpp
+            demo_nodearray_files.cpp
             #demo_nodearray_strings.cpp
