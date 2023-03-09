@@ -25,8 +25,3 @@ How user can set up and monitoring of mass transport process. Need suggestions w
 
 2. Implement test ?
 
-### Problems&questions
-
-1.  Into environment.devenv.yml we ask ```- gems3k=4.1.1```, but need installation of gems3k with GEM2MT implementation ```cmake .. -DBUILD_GEM2MT=ON```
-Need suggestion about using install with nodearray-gem. 
-

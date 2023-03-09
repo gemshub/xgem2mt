@@ -32,7 +32,7 @@ namespace xGEM2MT {
 
 void update_loggers( bool use_cout, const std::string& logfile_name, size_t log_level)
 {
-    //gemsSettings().gems3k_update_loggers(use_cout, logfile_name, log_level);
+    gemsSettings().gems3k_update_loggers(use_cout, logfile_name, log_level);
 }
 
 struct ChemicalEngineArray::Impl

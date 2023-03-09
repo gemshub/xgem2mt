@@ -28,13 +28,10 @@ using namespace xGEM2MT;
 
 int main(int argc, char **argv)
 {
-    std::cout << "Point1" << std::endl;
     xGEM2MT::update_loggers( false, "xGEM2MT.log", 1);
-    std::cout << "Point2" << std::endl;
 
     // Testing= with input from IPM files
     ChemicalEngineArray engine(5);
-    std::cout << "Point3" << std::endl;
     std::vector<long int> nodeTypes={1,0,0,0,0};
     std::string gems_init_lst = "nodearray-data/CalcColumn-dat.lst";
     std::string gems_init_dbr_lst = "nodearray-data/CalcColumn-dbr.lst";

@@ -123,69 +123,28 @@ git clone https://bitbucket.org/gems4/xgem2mt.git .
 
 ### How to build xGEM2MT library and examples
 
-xGEM2MT uses GEMS3K and Eigen3 as external projects. These are downloaded and compiled together with xGEM2MT during the make step. 
-For compiling xGEM2MT python bindings you need a recent version of pybind11 installed (including development headers, 2.2.0 is the minimum version required) and Eigen library ([v3.3.9](https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.gz)). 
-
-* For eigen3 download [v3.3.9](https://gitlab.com/libeigen/eigen/-/archive/3.3.9/eigen-3.3.9.tar.gz) unpack the archive and install it as follows:
+* Install Dependencies by executing in ```~/xgem2mt$```
 
 ```sh
-cd /eigen-3.3.9
+#!bash
+sudo ./install-dependencies.sh
+```
+
+* To build xGEM2MT and install it in your home directory or in the system directory (as in the example below), a typical sequence of commands can be executed in the terminal:
+
+```sh
+cd ~/xgem2mt
 mkdir build
 cd build
-cmake .. 
-make install
-```
-
-* For pybind11. In case your distribution does not provide pybind11 development packages, or the version is too old, you can install it as follows:
-
-```sh
-cd ~/git/xGEM2MT/python
-./install-dependencies.sh
-```
-
-* To install GEMS3K with the implementation of the TNodeArray and TGEM2MT classes execute script:
-
-```sh
-cd ~/git/xGEM2MT
-./install-dependencies.sh
-```
-
-* To compile xGEM2MT with python bindings and demos:
-
-`-DCMAKE_PREFIX_PATH=/your/local/codes/directory` is necessary if pybind11 is not installed in the default include path `/usr/include/` or `/usr/lib/cmake/`, provided that `/your/local/codes/directory/pybind11/pybind11Config.cmake` cmake config file is found at this path.
-
-```sh
-cd ~/git/xGEM2MT
-mkdir build
-cd build
-cmake .. -DCMAKE_PREFIX_PATH=/your/local/codes/directory
-make 
-```
-
-* For building xGEM2MT for use from C++ codes only (i.e. no python in the system), replace the above cmake command with
-
-```sh
-cmake .. -DXGEMS_BUILD_PYTHON=OFF
-```
-
-* To install xGEM2MT into /usr/local as a library with /includes:
-
-```sh
-cd ~/git/xGEM2MT/build
-sudo make install 
+cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
+make
+sudo make install
 ```
 
 * To execute the c++ demo:
 
 ```sh
-cd ~/git/xGEM2MT/build/bin
+cd ~/build/bin
 ./demo_gem2mt
-```
-
-* To execute the python demo:
-
-```sh
-cd ~/git/xGEM2MT/demo
-python3 demo_gem2mt.py
 ```
 
