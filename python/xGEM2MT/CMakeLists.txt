@@ -25,16 +25,34 @@ endif()
 add_custom_target(xgem2mt ALL
     COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:PyxGEM2MT>
         ${CMAKE_CURRENT_BINARY_DIR}/$<TARGET_FILE_NAME:PyxGEM2MT>
-    COMMAND ${PYTHON_EXECUTABLE}  -m pip install --prefix ${CMAKE_BINARY_DIR} --ignore-installed .
+    COMMAND ${PYTHON_EXECUTABLE}  -m pip install --prefix ${CMAKE_BINARY_DIR}/demos --ignore-installed .
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
 # Set dependencies of xGEM2MT target
 add_dependencies(xgem2mt PyxGEM2MT)
 
 # Set the path where the python package is installed to CMAKE_INSTALL_PREFIX if not given
-if(NOT DEFINED XGEM2MT_PYTHON_INSTALL_PREFIX)
-    set(XGEM2MT_PYTHON_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
-endif()
+if(NOT DEFINED XGEMS_PYTHON_INSTALL_PREFIX)
+
+# Install the xGEMS python package using setuptools
+install(CODE
+"
+    if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/../../lib/PyxGEM2MT.pdb)
+        string(REPLACE .pyd .pdb XGEM2MT_PDB_FILENAME \"${XGEM2MT_PYTHON_MODULE_FILENAME}\")
+
+        execute_process(
+            COMMAND \${CMAKE_COMMAND} -E copy ../../lib/PyxGEM2MT.pdb \${XGEM2MT_PDB_FILENAME}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    endif()
+
+    execute_process(
+        COMMAND ${PYTHON_EXECUTABLE} -m pip install ${CMAKE_CURRENT_BINARY_DIR}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+"
+)
+
+else()
+
 # If the path is already in Windows format (with backslashes), it can't be added directly
 # to the string below, otherwise CMake will later complain about "Invalid escape sequence".
 file(TO_CMAKE_PATH "${XGEM2MT_PYTHON_INSTALL_PREFIX}" XGEM2MT_PYTHON_INSTALL_PREFIX)
@@ -57,3 +75,5 @@ install(CODE
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 "
 )
+
+endif()

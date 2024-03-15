@@ -19,6 +19,7 @@ from xgem2mt import *
 
 def main():
     try:
+        update_loggers(False, "", 3)
         engine = ChemicalEngineArray(5)
         nodeTypes=[1,0,0,0,0]
         gems_init_lst = "nodearray-data/CalcColumn-dat.lst"

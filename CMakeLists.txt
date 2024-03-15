@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.9)
 
 # Set the name of the project
-project(xGEM2MT VERSION 1.0.1 LANGUAGES CXX)
+project(xGEM2MT VERSION 1.0.2 LANGUAGES CXX)
 
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -28,7 +28,7 @@ include(CondaAware)
 # Set the version of the project
 set(XGEM2MT_VERSION_MAJOR "1")
 set(XGEM2MT_VERSION_MINOR "0")
-set(XGEM2MT_VERSION_MICRO "1")
+set(XGEM2MT_VERSION_MICRO "2")
 set(XGEM2MT_VERSION "${XGEM2MT_VERSION_MAJOR}.${XGEM2MT_VERSION_MINOR}.${XGEM2MT_VERSION_MICRO}")
 
 # Set the output directories of the built libraries and binaries
