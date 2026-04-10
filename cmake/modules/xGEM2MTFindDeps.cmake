@@ -1,10 +1,6 @@
-# Find Eigen library and include its directory
-#find_package(Eigen3 3.3.7 REQUIRED)
-#message(STATUS "Found Eigen3 v${Eigen3_VERSION}: ${Eigen3_INCLUDE_DIRS}")
-
-
 # Find pybind11 library (if needed)
 if(XGEM2MT_BUILD_PYTHON)
+    find_package (Python3 COMPONENTS Interpreter Development)
     find_package(pybind11 REQUIRED)
     if(NOT pybind11_FOUND)
         message(WARNING "Could not find pybind11 - the Python module `xGEM2MT` will not be built.")
@@ -12,6 +8,21 @@ if(XGEM2MT_BUILD_PYTHON)
     else()
         message(STATUS "Found pybind11 v${pybind11_VERSION}: ${pybind11_INCLUDE_DIRS}")
     endif()
+endif()
+
+# Find Eigen library and include its directory
+#find_package(Eigen3 3.3.7 REQUIRED)
+#message(STATUS "Found Eigen3 v${Eigen3_VERSION}: ${Eigen3_INCLUDE_DIRS}")
+
+if(USE_SPDLOG_PRECOMPILED MATCHES ON)
+ if(NOT TARGET spdlog::spdlog)
+    find_package(spdlog CONFIG REQUIRED)
+    if(NOT spdlog_FOUND)
+       message(FATAL_ERROR "spdlog library not found")
+    else()
+       message(STATUS "Found spdlog v${spdlog_VERSION}")
+    endif()
+  endif()
 endif()
 
 if(XGEM2MT_USE_THERMOFUN MATCHES ON)
@@ -29,17 +40,6 @@ if(XGEM2MT_USE_THERMOFUN MATCHES ON)
     message(STATUS "Found ChemicalFun v${ChemicalFun_VERSION}")
   endif()
 
-endif()
-
-if(USE_SPDLOG_PRECOMPILED)
- if(NOT TARGET spdlog::spdlog)
-    find_package(spdlog CONFIG REQUIRED)
-    if(NOT spdlog_FOUND)
-       message(FATAL_ERROR "spdlog library not found")
-    else()
-       message(STATUS "Found spdlog v${spdlog_VERSION}")
-    endif()
-  endif()
 endif()
 
 find_package(GEMS3K REQUIRED)

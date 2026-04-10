@@ -58,14 +58,14 @@ if [ "$USING_THERMOFUN_MODE" == "NO_THERMOFUN" ];
 # if no GEM2MT installed in /usr/local/lib/libGEM2MT.so (/usr/local/include/nodearray-gem)
 test -f /usr/local/lib/libGEM2MT.$EXTN || {
 
-        # Building thermofun library
+        # Building GEMS3k library
         mkdir -p ~/code && \
         cd ~/code && \
         git clone https://github.com/gemshub/GEMS3K -b $BRANCH_GEMS3K && \
         cd GEMS3K && \
         mkdir -p build && \
         cd build && \
-        cmake .. -DCMAKE_CXX_FLAGS=-fPIC -DBUILD_GEM2MT=ON -DCMAKE_BUILD_TYPE=Release && \
+        cmake .. -DCMAKE_CXX_FLAGS=-fPIC -DBUILD_GEM2MT=ON -DCMAKE_BUILD_TYPE=$BUILD_TYPE && \
         make -j $threads && \
         sudo make install
 
@@ -74,7 +74,7 @@ test -f /usr/local/lib/libGEM2MT.$EXTN || {
         rm -rf ~/code
 }
 
- else
+  else
 
 # nlohmann/json
 test -f /usr/local/include/nlohmann/json.hpp || {
@@ -188,7 +188,7 @@ test -f /usr/local/lib/libGEM2MT.$EXTN || {
         cd GEMS3K && \
         mkdir -p build && \
         cd build && \
-        cmake .. -DCMAKE_CXX_FLAGS=-fPIC -DBUILD_GEM2MT=ON -DUSE_THERMOFUN=OFF -DCMAKE_BUILD_TYPE=Release && \
+        cmake .. -DCMAKE_CXX_FLAGS=-fPIC -DBUILD_GEM2MT=ON -DUSE_THERMOFUN=OFF -DCMAKE_BUILD_TYPE=$BUILD_TYPE && \
         make -j $threads && \
         sudo make install
 

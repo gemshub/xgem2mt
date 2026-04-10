@@ -1,5 +1,5 @@
 # Set cmake version requirement
-cmake_minimum_required(VERSION 3.16..4.2)
+cmake_minimum_required(VERSION 3.16...4.2)
 
 # Set the name of the project
 project(xGEM2MT VERSION 1.0.3 LANGUAGES CXX)
@@ -56,8 +56,8 @@ endif()
 set(BUILD_TESTING XGEM2MT_BUILD_TESTS)
 
 # Define which types of libraries to build
-option(BUILD_SHARED_LIBS "Build shared libraries." ON)
-option(BUILD_STATIC_LIBS "Build static libraries." ON)
+option(XGEM2MT_BUILD_SHARED_LIBS "Build shared libraries." ON)
+option(XGEM2MT_BUILD_STATIC_LIBS "Build static libraries." ON)
 
 # Set libraries to be compiled with position independent code mode (i.e., fPIC option in GNU compilers)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -107,6 +107,7 @@ if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
         /D_CRT_SECURE_NO_WARNINGS=1
         /MP4
         /EHsc
+        /utf-8
         /D_SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING
         /DNOMINMAX
     )
