@@ -22,7 +22,7 @@ test -f ${CONDA_PREFIX}/lib/libGEM2MT.$EXTN || {
         cd GEMS3K && \
         mkdir -p build && \
         cd build && \
-        cmake .. -DCMAKE_CXX_FLAGS=-fPIC -DBUILD_GEM2MT=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${CONDA_PREFIX} && \
+        cmake .. -DCMAKE_CXX_FLAGS=-fPIC -DBUILD_GEM2MT=ON -DBUILD_SOLMOD=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=${CONDA_PREFIX} && \
         make -j4 && \
         sudo make install
 
