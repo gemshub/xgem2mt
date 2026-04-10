@@ -336,24 +336,18 @@ auto ChemicalEngineArray::numSpeciesInPhase(Index iphase) const -> Index
 auto ChemicalEngineArray::elementName(Index ielement) const -> std::string
 {
     std::string name = pimpl->node_array->pCSD()->ICNL[ielement];
-    if( name.length() > MaxICnameLength )
-        name.resize( MaxICnameLength );
     return name;
 }
 
 auto ChemicalEngineArray::speciesName(Index ispecies) const -> std::string
 {
     std::string name = pimpl->node_array->pCSD()->DCNL[ispecies];
-    if( name.length() > MaxDCnameLength )
-        name.resize( MaxDCnameLength );
     return name;
 }
 
 auto ChemicalEngineArray::phaseName(Index iphase) const -> std::string
 {
     std::string name = pimpl->node_array->pCSD()->PHNL[iphase];
-    if( name.length() > MaxPHnameLength )
-        name.resize( MaxPHnameLength );
     return name;
 }
 
