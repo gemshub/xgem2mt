@@ -61,7 +61,7 @@ test -f /usr/local/lib/libGEM2MT.$EXTN || {
         # Building GEMS3k library
         mkdir -p ~/code && \
         cd ~/code && \
-        git clone https://github.com/gemshub/GEMS3K -b $BRANCH_GEMS3K && \
+        git clone https://github.com/gemshub/GEMS3K.git -b $BRANCH_GEMS3K && \
         cd GEMS3K && \
         mkdir -p build && \
         cd build && \

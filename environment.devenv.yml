@@ -1,0 +1,23 @@
+name: xgem2mt
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - gxx_linux-64 # [linux]
+  - cmake>=3.16
+  - ninja
+  - git
+  - ccache  # [unix]
+  - python>=3.10
+  - pip
+  - setuptools
+  - wheel
+  - pytest
+  - pybind11
+  - nlohmann_json
+  - numpy
+  - eigen=3.4.0
+  - thermofun>=0.5.4
+
