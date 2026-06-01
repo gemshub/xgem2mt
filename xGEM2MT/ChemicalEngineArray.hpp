@@ -2607,7 +2607,7 @@ private:
 
     std::unique_ptr<Impl> pimpl;
 
-    void setCorrectionbIC(long ndx);
+    void setCorrectionbIC(size_t ndx);
     /**
      * @brief Reallocates internal arrays.
      *
