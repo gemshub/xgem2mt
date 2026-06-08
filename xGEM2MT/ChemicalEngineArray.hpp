@@ -84,6 +84,9 @@ struct ChemicalEngineArrayOptions
     double cdv=1e-9;
     /// Cutoff for minimal amounts of IC in node bulk compositions (mol, 1e-12)
     double cez=1e-12;
+
+    std::string to_json_string(bool dence=false) const
+    { return {};}
 };
 
 
@@ -207,18 +210,18 @@ public:
      *
      * @param ipm_filename (string) Path to the system definition file (e.g., "my-system-dat.lst").
      * @param dbr_filename (string) Path to the text file containing the list of DBR input files.
-     * @param nodeTypes (std::vector<long int>) The initial node contents from DATABR files
+     * @param node_types (std::vector<long int>) The initial node contents from DATABR files
      *                           will be distributed among nodes in array.
      *
      * @code
      * xGEMS2MT::ChemicalEngineArray engine(5);
-     * std::vector<long int> nodeTypes={1,0,0,0,0};
+     * std::vector<long int> node_types={1,0,0,0,0};
      * std::string gems_init_lst = "nodearray-data/CalcColumn-dat.lst";
      * std::string gems_init_dbr_lst = "nodearray-data/CalcColumn-dbr.lst";
-     * engine.initialize(gems_init_lst, gems_init_dbr_lst, nodeTypes);
+     * engine.initialize(gems_init_lst, gems_init_dbr_lst, node_types);
      * @endcode
      */
-    auto initialize(std::string ipm_filename, std::string dbr_filename, std::vector<long int> nodeTypes = {}) -> void;
+    auto initialize(std::string ipm_filename, std::string dbr_filename, std::vector<long int> node_types = {}) -> void;
 
     /**
      * @brief Initializes the ChemicalEngineArray using JSON strings.
@@ -232,7 +235,7 @@ public:
      * @param dch_json (string) JSON string describing the chemical system.
      * @param ipm_json (string) JSON string with parameter and algorithm settings.
      * @param dbr_json (std::vector<std::string>) JSON strings containing input nodes composition details.
-     * @param nodeTypes (std::vector<long int>) The initial node contents from DATABR files will be distributed among
+     * @param node_types (std::vector<long int>) The initial node contents from DATABR files will be distributed among
      *                   nodes in array according to the distribution index list.
      *
      * @code
@@ -244,10 +247,10 @@ public:
      * @endcode
      */
     auto initializeFromJsonStrings(std::string dch_json, std::string ipm_json,
-                                   std::vector<std::string> dbr_json, std::vector<long int> nodeTypes = {}) -> void;
+                                   std::vector<std::string> dbr_json, std::vector<long int> node_types = {}) -> void;
 
     /**
-     * @brief Dump MULTI, DATACH and DATABR files structure.
+     * @brief Dump the MULTI, DATACH and  all DATABR files.
      *
      * @param filepath (string) IPM work structure file path&name
      * @param put_all (bool) If true print array of nodes for previous time point
@@ -267,7 +270,7 @@ public:
     /**
      * @brief Reads a DBR file from disk to the node.
      *
-     * Loads system composition and parameter data from a DBR file.
+     * Loads the structure of node-dependent data (composition, T, P and other).
      *
      * @param ndx (size_t) Index of the node (system) in the list.
      * @param filename (string) Path to the input DBR file (e.g., "*-dbr.json/.dat").
@@ -282,7 +285,7 @@ public:
     /**
      * @brief Reads System DBR composition from a JSON string to the node.
      *
-     * Updates the system composition using JSON information.
+     * Loads the structure of node-dependent data (composition, T, P and other).
      *
      * @param ndx (size_t) Index of the node (system) in the list.
      * @param dbr_json (string) JSON string containing DBR composition data.
@@ -1008,7 +1011,7 @@ public:
     auto reequilibrate(size_t ndx, bool warmstart) -> long int;
 
     /**
-     * @brief Re-equilibrates the alol systems with (or without) a warm start.
+     * @brief Re-equilibrates the all systems with (or without) a warm start.
      *
      * @param warmstart (bool) If true, uses previous data as an initial guess.
      *
@@ -1021,48 +1024,29 @@ public:
     auto reequilibrate(bool warmstart) -> void;
 
     /**
-     * @brief Re-equilibrates the system with (or without) a warm start.
+     * @brief Equilibrates the system in node ndx, according options and node settings.
      *
-     * @return (int) Return code of the re-equilibration.
+     * @param ndx (size_t) Index of the node (system) in the list.
+     * @return (bool) Return true if OK after GEM calculation with LPP AIA or SIA.
      *
      * @code
      * // Example: Re-equilibrate.
-     * int status = engine.reequilibrate();
+     * auto status = engine.equilibrate(1);
      * @endcode
      *
-     * - 0: No GEM re-calculation needed
-     * - 1: Need GEM calculation with LPP (automatic) initial approximation (AIA)
-     * - 2: OK after GEM calculation with LPP AIA
-     * - 3: Bad (not fully trustful) result after GEM calculation with LPP AIA
-     * - 4: Failure (no result) in GEM calculation with LPP AIA
-     * - 5: Need GEM calculation with no-LPP (smart) IA, SIA using the previous speciation
-     * - 6: OK after GEM calculation with SIA
-     * - 7: Bad (not fully trustful) result after GEM calculation with SIA
-     * - 8: Failure (no result) in GEM calculation with SIA
-     * - 9: Terminal error in GEMS3K (e.g., memory corruption). Restart required.
      */
     auto equilibrate(size_t ndx) -> bool;
 
     /**
-     * @brief Re-equilibrates the system with (or without) a warm start.
+     * @brief Equilibrates all systems, according options and node settings.
      *
-     * @return (int) Return code of the re-equilibration.
+     * @return (bool) Return true if OK after GEM calculation with LPP AIA or SIA for all systems.
      *
      * @code
      * // Example: Re-equilibrate.
-     * int status = engine.reequilibrate();
+     * auto status = engine.equilibrate();
      * @endcode
      *
-     * - 0: No GEM re-calculation needed
-     * - 1: Need GEM calculation with LPP (automatic) initial approximation (AIA)
-     * - 2: OK after GEM calculation with LPP AIA
-     * - 3: Bad (not fully trustful) result after GEM calculation with LPP AIA
-     * - 4: Failure (no result) in GEM calculation with LPP AIA
-     * - 5: Need GEM calculation with no-LPP (smart) IA, SIA using the previous speciation
-     * - 6: OK after GEM calculation with SIA
-     * - 7: Bad (not fully trustful) result after GEM calculation with SIA
-     * - 8: Failure (no result) in GEM calculation with SIA
-     * - 9: Terminal error in GEMS3K (e.g., memory corruption). Restart required.
      */
     auto equilibrate() -> bool;
 
