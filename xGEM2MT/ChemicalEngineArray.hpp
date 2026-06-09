@@ -1088,7 +1088,7 @@ public:
      * std::cout << "Time: " << timeSec << " s" << std::endl;
      * @endcode
      */
-    auto elapsedTime() const -> double;
+    ///auto elapsedTime() const -> double;
 
     /**
      * @brief Returns the current temperature of the system for the node.
