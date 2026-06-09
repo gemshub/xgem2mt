@@ -1647,7 +1647,1163 @@ Access specified element without bounds checking.
 
 heat_capacity = engine.standardMolarHeatCapacityConstP_i(298.15, 101325, 0)
 print(heat_capacity)
+    )doc")
+
+    .def("phaseMolarGibbsEnergy", static_cast<double (ChemicalEngineArray::*)(size_t, size_t) const>(&ChemicalEngineArray::phaseMolarGibbsEnergy),
+        py::arg("ndx"), py::arg("iphase"),
+        R"doc(
+Returns the molar Gibbs energy of a specific phase by its index for the node (J/mol).
+Access specified element with bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+molar_gibbs_energy = engine.phaseMolarGibbsEnergy(1, 0)
+print(molar_gibbs_energy)
+    )doc")
+        .def("phaseMolarGibbsEnergy", static_cast<double (ChemicalEngineArray::*)(size_t, std::string) const>(&ChemicalEngineArray::phaseMolarGibbsEnergy),
+            py::arg("ndx"), py::arg("phase"),
+            R"doc(
+Returns the molar Gibbs energy of a specific phase by its index for the node (J/mol).
+
+:param int ndx: Index of the node (system) in the list.
+:param str phase: Name of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+molar_gibbs_energy = engine.phaseMolarGibbsEnergy(1, "aq_gen")
+print(molar_gibbs_energy)
+    )doc")
+        .def("phaseMolarGibbsEnergy_i", &ChemicalEngineArray::phaseMolarGibbsEnergy_i,
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the molar Gibbs energy of a specific phase by its index for the node (J/mol).
+Access specified element without bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+molar_gibbs_energy = engine.phaseMolarGibbsEnergy_i(1, 0)
+print(molar_gibbs_energy)
+    )doc")
+
+        .def("phaseMolarEnthalpy", static_cast<double (ChemicalEngineArray::*)(size_t, size_t) const>(&ChemicalEngineArray::phaseMolarEnthalpy),
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the molar enthalpy of a specific phase by its index for the node (J/mol).
+Access specified element with bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+molar_enthalpy = engine.phaseMolarEnthalpy(1, 0)
+print(molar_enthalpy)
+    )doc")
+        .def("phaseMolarEnthalpy", static_cast<double (ChemicalEngineArray::*)(size_t, std::string) const>(&ChemicalEngineArray::phaseMolarEnthalpy),
+            py::arg("ndx"), py::arg("phase"),
+            R"doc(
+Returns the molar enthalpy of a specific phase for the node (J/mol).
+
+:param int ndx: Index of the node (system) in the list.
+:param str phase: Name of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+molar_enthalpy = engine.phaseMolarEnthalpy(1, "aq_gen")
+print(molar_enthalpy)
+    )doc")
+        .def("phaseMolarEnthalpy_i", &ChemicalEngineArray::phaseMolarEnthalpy_i,
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the molar enthalpy of a specific phase by its index for the node (J/mol).
+Access specified element without bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+molar_enthalpy = engine.phaseMolarEnthalpy_i(1, 0)
+print(molar_enthalpy)
+    )doc")
+
+        .def("phaseMolarVolume", static_cast<double (ChemicalEngineArray::*)(size_t,  size_t) const>(&ChemicalEngineArray::phaseMolarVolume),
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the molar volume of a specific phase by its index for the node (m³/mol).
+Access specified element with bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+molar_volume = engine.phaseMolarVolume(1, 0)
+print(molar_volume)
+    )doc")
+        .def("phaseMolarVolume", static_cast<double (ChemicalEngineArray::*)(size_t, std::string) const>(&ChemicalEngineArray::phaseMolarVolume),
+            py::arg("ndx"), py::arg("phase"),
+            R"doc(
+Returns the molar volume of a specific phase for the node (m³/mol).
+
+:param int ndx: Index of the node (system) in the list.
+:param str phase: Name of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+molar_volume = engine.phaseMolarVolume(1, "aq_gen")
+print(molar_volume)
+    )doc")
+        .def("phaseMolarVolume_i", &ChemicalEngineArray::phaseMolarVolume_i,
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the molar volume of a specific phase by its index for the node (m³/mol).
+Access specified element without bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+molar_volume = engine.phaseMolarVolume_i(1, 0)
+print(molar_volume)
+    )doc")
+
+        .def("phaseMolarEntropy", static_cast<double (ChemicalEngineArray::*)(size_t, size_t) const>(&ChemicalEngineArray::phaseMolarEntropy),
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the molar entropy of a specific phase by its index for the node (J/K/mol).
+Access specified element with bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+molar_entropy = engine.phaseMolarEntropy(1, 0)
+print(molar_entropy)
+    )doc")
+        .def("phaseMolarEntropy", static_cast<double (ChemicalEngineArray::*)(size_t, std::string) const>(&ChemicalEngineArray::phaseMolarEntropy),
+            py::arg("ndx"), py::arg("phase"),
+            R"doc(
+Returns the molar entropy of a specific phase for the node (J/K/mol).
+
+:param int ndx: Index of the node (system) in the list.
+:param str phase: Name of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+molar_entropy = engine.phaseMolarEntropy(1, "aq_gen")
+print(molar_entropy)
+    )doc")
+        .def("phaseMolarEntropy_i", &ChemicalEngineArray::phaseMolarEntropy_i,
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the molar entropy of a specific phase by its index for the node (J/K/mol).
+Access specified element without bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+molar_entropy = engine.phaseMolarEntropy_i(1, 0)
+print(molar_entropy)
+    )doc")
+
+        .def("phaseMolarHeatCapacityConstP", static_cast<double (ChemicalEngineArray::*)(size_t, size_t) const>(&ChemicalEngineArray::phaseMolarHeatCapacityConstP),
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the molar heat capacity at constant pressure of a specific species by its index for the node (J/K/mol).
+Access specified element with bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the species.
+
+**Example:**
+
+.. code-block:: python
+
+molar_heat_capacity = engine.phaseMolarHeatCapacityConstP(1, 0)
+print(molar_heat_capacity)
+    )doc")
+        .def("phaseMolarHeatCapacityConstP", static_cast<double (ChemicalEngineArray::*)(size_t, std::string) const>(&ChemicalEngineArray::phaseMolarHeatCapacityConstP),
+            py::arg("ndx"), py::arg("phase"),
+            R"doc(
+Returns the molar heat capacity at constant pressure of a specific species for the node (J/K/mol).
+
+:param int ndx: Index of the node (system) in the list.
+:param str phase: Name of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+molar_heat_capacity = engine.phaseMolarHeatCapacityConstP(1, "aq_gen")
+print(molar_heat_capacity)
+    )doc")
+        .def("phaseMolarHeatCapacityConstP_i", &ChemicalEngineArray::phaseMolarHeatCapacityConstP_i,
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the molar heat capacity at constant pressure of a specific species by its index for the node (J/K/mol).
+Access specified element without bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the species.
+
+**Example:**
+
+.. code-block:: python
+
+molar_heat_capacity = engine.phaseMolarHeatCapacityConstP_i(1, 0)
+print(molar_heat_capacity)
+    )doc")
+
+        .def("phaseSpecificGibbsEnergy", static_cast<double (ChemicalEngineArray::*)(size_t, size_t) const>(&ChemicalEngineArray::phaseSpecificGibbsEnergy),
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the specific Gibbs energy of a specific phase by its index for the node (J/kg).
+Access specified element with bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+specific_gibbs_energy = engine.phaseSpecificGibbsEnergy(1, 0)
+print(specific_gibbs_energy)
+    )doc")
+        .def("phaseSpecificGibbsEnergy", static_cast<double (ChemicalEngineArray::*)(size_t, std::string) const>(&ChemicalEngineArray::phaseSpecificGibbsEnergy),
+            py::arg("ndx"), py::arg("phase"),
+            R"doc(
+Returns the specific Gibbs energy of a specific phase for the node (J/kg).
+
+:param int ndx: Index of the node (system) in the list.
+:param str phase: Name of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+specific_gibbs_energy = engine.phaseSpecificGibbsEnergy(1, "aq_gen")
+print(specific_gibbs_energy)
+    )doc")
+        .def("phaseSpecificGibbsEnergy_i", &ChemicalEngineArray::phaseSpecificGibbsEnergy_i,
+            R"doc(
+Returns the specific Gibbs energy of a specific phase by its index for the node (J/kg).
+Access specified element without bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int index: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+specific_gibbs_energy = engine.phaseSpecificGibbsEnergy_i(1, 0)
+print(specific_gibbs_energy)
+    )doc")
+
+        .def("phaseSpecificEnthalpy", static_cast<double (ChemicalEngineArray::*)(size_t, size_t) const>(&ChemicalEngineArray::phaseSpecificEnthalpy),
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the specific enthalpy of a specific phase by its index for the node (J/kg).
+Access specified element with bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+specific_enthalpy = engine.phaseSpecificEnthalpy(1, 0)
+print(specific_enthalpy)
+    )doc")
+        .def("phaseSpecificEnthalpy", static_cast<double (ChemicalEngineArray::*)(size_t, std::string) const>(&ChemicalEngineArray::phaseSpecificEnthalpy),
+            py::arg("ndx"), py::arg("phase"),
+            R"doc(
+Returns the specific enthalpy of a specific phase for the node (J/kg).
+
+:param int ndx: Index of the node (system) in the list.
+:param str phase: Name of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+specific_enthalpy = engine.phaseSpecificEnthalpy(1, "aq_gen")
+print(specific_enthalpy)
+    )doc")
+        .def("phaseSpecificEnthalpy_i", &ChemicalEngineArray::phaseSpecificEnthalpy_i,
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the specific enthalpy of a specific phase by its index for the node (J/kg).
+Access specified element without bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+specific_enthalpy = engine.phaseSpecificEnthalpy_i(1, 0)
+print(specific_enthalpy)
+    )doc")
+
+        .def("phaseSpecificVolume", static_cast<double (ChemicalEngineArray::*)(size_t, size_t) const>(&ChemicalEngineArray::phaseSpecificVolume),
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the specific volume of a specific phase by its index for the node (m³/kg).
+Access specified element with bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+specific_volume = engine.phaseSpecificVolume(1, 0)
+print(specific_volume)
+    )doc")
+        .def("phaseSpecificVolume", static_cast<double (ChemicalEngineArray::*)(size_t, std::string) const>(&ChemicalEngineArray::phaseSpecificVolume),
+            py::arg("ndx"), py::arg("phase"),
+            R"doc(
+Returns the specific volume of a specific phase for the node (m³/kg).
+
+:param int ndx: Index of the node (system) in the list.
+:param str phase: Name of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+specific_volume = engine.phaseSpecificVolume(1, "aq_gen")
+print(specific_volume)
+    )doc")
+        .def("phaseSpecificVolume_i", &ChemicalEngineArray::phaseSpecificVolume_i,
+            R"doc(
+Returns the specific volume of a specific phase by its index for the node (m³/kg).
+Access specified element without bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+specific_volume = engine.phaseSpecificVolume_i(1, 0)
+print(specific_volume)
+    )doc")
+
+        .def("phaseSpecificEntropy", static_cast<double (ChemicalEngineArray::*)(size_t, size_t) const>(&ChemicalEngineArray::phaseSpecificEntropy),
+            py::arg("ndx"),  py::arg("iphase"),
+            R"doc(
+Returns the specific entropy of a specific phase by its index for the node (J/K/kg).
+Access specified element with bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+specific_entropy = engine.phaseSpecificEntropy(1, 0)
+print(specific_entropy)
+    )doc")
+        .def("phaseSpecificEntropy", static_cast<double (ChemicalEngineArray::*)(size_t, std::string) const>(&ChemicalEngineArray::phaseSpecificEntropy),
+            py::arg("ndx"),  py::arg("phase"),
+            R"doc(
+Returns the specific entropy of a specific phase for the node (J/K/kg).
+
+:param int ndx: Index of the node (system) in the list.
+:param str phase: Name of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+specific_entropy = engine.phaseSpecificEntropy(1, "aq_gen")
+print(specific_entropy)
+    )doc")
+        .def("phaseSpecificEntropy_i", &ChemicalEngineArray::phaseSpecificEntropy_i,
+            py::arg("ndx"),  py::arg("iphase"),
+            R"doc(
+Returns the specific entropy of a specific phase by its index for the node (J/K/kg).
+Access specified element without bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+specific_entropy = engine.phaseSpecificEntropy_i(1, 0)
+print(specific_entropy)
+    )doc")
+
+        .def("phaseSpecificHeatCapacityConstP", static_cast<double (ChemicalEngineArray::*)(size_t, size_t) const>(&ChemicalEngineArray::phaseSpecificHeatCapacityConstP),
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the specific heat capacity at constant pressure of a specific phase by its index for the node (J/K/kg).
+Access specified element with bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+specific_heat_capacity = engine.phaseSpecificHeatCapacityConstP(1, 0)
+print(specific_heat_capacity)
+    )doc")
+        .def("phaseSpecificHeatCapacityConstP", static_cast<double (ChemicalEngineArray::*)(size_t, std::string) const>(&ChemicalEngineArray::phaseSpecificHeatCapacityConstP),
+            py::arg("ndx"), py::arg("phase"),
+            R"doc(
+Returns the specific heat capacity at constant pressure of a specific phase for the node (J/K/kg).
+
+:param int ndx: Index of the node (system) in the list.
+:param str phase: Name of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+specific_heat_capacity = engine.phaseSpecificHeatCapacityConstP(1, "aq_gen")
+print(specific_heat_capacity)
+    )doc")
+        .def("phaseSpecificHeatCapacityConstP_i", &ChemicalEngineArray::phaseSpecificHeatCapacityConstP_i,
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the specific heat capacity at constant pressure of a specific phase by its index for the node (J/K/kg).
+Access specified element without bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+specific_heat_capacity = engine.phaseSpecificHeatCapacityConstP_i(1, 0)
+print(specific_heat_capacity)
+    )doc")
+
+        .def("phaseDensities", &ChemicalEngineArray::phaseDensities,
+             R"doc(
+Returns the densities of all phases in the system for the node (kg/m³).
+
+:param int ndx: Index of the node (system) in the list.
+
+**Example:**
+
+.. code-block:: python
+
+densities = engine.phaseDensities(1)
+print(densities)
+    )doc")
+
+        .def("phaseDensity", static_cast<double (ChemicalEngineArray::*)(size_t, size_t) const>(&ChemicalEngineArray::phaseDensity),
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the density of a specific phase by its index for the node (kg/m³).
+Access specified element with bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+density = engine.phaseDensity(1, 0)
+print(density)
+    )doc")
+        .def("phaseDensity", static_cast<double (ChemicalEngineArray::*)(size_t, std::string) const>(&ChemicalEngineArray::phaseDensity),
+            py::arg("ndx"), py::arg("phase"),
+            R"doc(
+Returns the density of a specific phase for the node (kg/m³).
+
+:param int ndx: Index of the node (system) in the list.
+:param str phase: Name of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+density = engine.phaseDensity(1, "aq_gen")
+print(density)
+    )doc")
+        .def("phaseDensity_i", &ChemicalEngineArray::phaseDensity_i,
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the density of a specific phase by its index for the node (kg/m³).
+Access specified element without bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+density = engine.phaseDensity_i(1, 0)
+print(density)
+    )doc")
+
+        .def("phaseMasses", &ChemicalEngineArray::phaseMasses,
+             R"doc(
+Returns the masses of all phases in the system for the node (kg).
+
+:param int ndx: Index of the node (system) in the list.
+
+**Example:**
+
+.. code-block:: python
+
+masses = engine.phaseMasses(1)
+print(masses)
+    )doc")
+
+        .def("phaseMass", static_cast<double (ChemicalEngineArray::*)(size_t, size_t) const>(&ChemicalEngineArray::phaseMass),
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the mass of a specific phase by its index for the node (kg).
+Access specified element with bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+mass = engine.phaseMass(1, 0)
+print(mass)
+    )doc")
+        .def("phaseMass", static_cast<double (ChemicalEngineArray::*)(size_t, std::string) const>(&ChemicalEngineArray::phaseMass),
+            py::arg("ndx"), py::arg("phase"),
+            R"doc(
+Returns the mass of a specific phase for the node (kg).
+
+:param int ndx: Index of the node (system) in the list.
+:param str phase: Name of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+mass = engine.phaseMass(1, "aq_gen")
+print(mass)
+    )doc")
+        .def("phaseMass_i", &ChemicalEngineArray::phaseMass_i,
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the mass of a specific phase by its index for the node (kg).
+Access specified element without bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+mass = engine.phaseMass_i(1, 0)
+print(mass)
+    )doc")
+
+        .def("phaseAmounts", &ChemicalEngineArray::phaseAmounts,
+            R"doc(
+Returns the amounts of all phases in the system for the node (mol).
+
+:param int ndx: Index of the node (system) in the list.
+
+**Example:**
+
+.. code-block:: python
+
+amounts = engine.phaseAmounts(1)
+print(amounts)
+    )doc")
+
+        .def("phaseAmount", static_cast<double (ChemicalEngineArray::*)(size_t, size_t) const>(&ChemicalEngineArray::phaseAmount),
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the amount of a specific phase by its index for the node (mol).
+Access specified element with bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+amount = engine.phaseAmount(1, 0)
+print(amount)
+    )doc")
+        .def("phaseAmount", static_cast<double (ChemicalEngineArray::*)(size_t, std::string) const>(&ChemicalEngineArray::phaseAmount),
+            py::arg("ndx"), py::arg("phase"),
+            R"doc(
+Returns the amount of a specific phase for the node (mol).
+
+:param int ndx: Index of the node (system) in the list.
+:param str phase: Name of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+amount = engine.phaseAmount(1, "aq_gen")
+print(amount)
+    )doc")
+        .def("phaseAmount_i", &ChemicalEngineArray::phaseAmount_i,
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the amount of a specific phase by its index for the node (mol).
+Access specified element without bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+amount = engine.phaseAmount_i(1, 0)
+print(amount)
+    )doc")
+
+        .def("phaseVolumes", &ChemicalEngineArray::phaseVolumes,
+            R"doc(
+Returns the volumes of all phases in the system for the node (m³).
+
+:param int ndx: Index of the node (system) in the list.
+
+**Example:**
+
+.. code-block:: python
+
+volumes = engine.phaseVolumes(1)
+print(volumes)
+    )doc")
+
+        .def("phaseVolume", static_cast<double (ChemicalEngineArray::*)(size_t, size_t) const>(&ChemicalEngineArray::phaseVolume),
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the volume of a specific phase by its index for the node (m³).
+Access specified element with bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+volume = engine.phaseVolume(1, 0)
+print(volume)
+    )doc")
+        .def("phaseVolume", static_cast<double (ChemicalEngineArray::*)(size_t, std::string) const>(&ChemicalEngineArray::phaseVolume),
+            py::arg("ndx"), py::arg("phase"),
+            R"doc(
+Returns the volume of a specific phase for the node (m³).
+
+:param int ndx: Index of the node (system) in the list.
+:param str phase: Name of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+volume = engine.phaseVolume(1, "aq_gen")
+print(volume)
+    )doc")
+        .def("phaseVolume_i", &ChemicalEngineArray::phaseVolume_i,
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the iphase of a specific phase by its index for the node (m³).
+Access specified element without bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+volume = engine.phaseVolume_i(1, 0)
+print(volume)
+    )doc")
+
+        .def("phaseEnthalpies", &ChemicalEngineArray::phaseEnthalpies,
+            R"doc(
+Returns the enthalpies of all phases in the system for the node (J).
+
+:param int ndx: Index of the node (system) in the list.
+
+**Example:**
+
+.. code-block:: python
+
+enthalpies = engine.phaseEnthalpies(1)
+print(enthalpies)
+    )doc")
+
+        .def("phaseEnthalpy", static_cast<double (ChemicalEngineArray::*)(size_t, size_t) const>(&ChemicalEngineArray::phaseEnthalpy),
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the enthalpy of a specific phase by its index for the node (J).
+Access specified element with bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+enthalpy = engine.phaseEnthalpy(1, 0)
+print(enthalpy)
+    )doc")
+        .def("phaseEnthalpy", static_cast<double (ChemicalEngineArray::*)(size_t, std::string) const>(&ChemicalEngineArray::phaseEnthalpy),
+            py::arg("ndx"), py::arg("phase"),
+            R"doc(
+Returns the enthalpy of a specific phase for the node (J).
+
+:param int ndx: Index of the node (system) in the list.
+:param str phase: Name of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+enthalpy = engine.phaseEnthalpy(1, "aq_gen")
+print(enthalpy)
+    )doc")
+        .def("phaseEnthalpy_i", &ChemicalEngineArray::phaseEnthalpy_i,
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the enthalpy of a specific phase by its index for the node (J).
+Access specified element without bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+enthalpy = engine.phaseEnthalpy_i(1, 0)
+print(enthalpy)
+    )doc")
+
+        .def("phaseEntropies", &ChemicalEngineArray::phaseEntropies,
+            R"doc(
+Returns the entropies of all phases in the system for the node (J/K).
+
+:param int ndx: Index of the node (system) in the list.
+
+**Example:**
+
+.. code-block:: python
+
+entropies = engine.phaseEntropies(1)
+print(entropies)
+    )doc")
+
+        .def("phaseEntropy", static_cast<double (ChemicalEngineArray::*)(size_t, size_t) const>(&ChemicalEngineArray::phaseEntropy),
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the entropy of a specific phase by its index for the node (J/K).
+Access specified element with bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+entropy = engine.phaseEntropy(1, 0)
+print(entropy)
+    )doc")
+        .def("phaseEntropy", static_cast<double (ChemicalEngineArray::*)(size_t, std::string) const>(&ChemicalEngineArray::phaseEntropy),
+            py::arg("ndx"), py::arg("phase"),
+            R"doc(
+Returns the entropy of a specific phase for the node (J/K).
+
+:param int ndx: Index of the node (system) in the list.
+:param str phase: Name of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+entropy = engine.phaseEntropy(1, "aq_gen")
+print(entropy)
+    )doc")
+        .def("phaseEntropy_i", &ChemicalEngineArray::phaseEntropy_i,
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the entropy of a specific phase by its index for the node (J/K).
+Access specified element without bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+entropy = engine.phaseEntropy_i(1, 0)
+print(entropy)
+    )doc")
+
+        .def("phaseHeatCapacitiesConstP", &ChemicalEngineArray::phaseHeatCapacitiesConstP,
+            R"doc(
+Returns the isobaric heat capacities of all phases in the system for the node (J/K).
+
+:param int ndx: Index of the node (system) in the list.
+
+**Example:**
+
+.. code-block:: python
+
+heat_capacities = engine.phaseHeatCapacitiesConstP(1)
+print(heat_capacities)
+    )doc")
+
+        .def("phaseHeatCapacityConstP", static_cast<double (ChemicalEngineArray::*)(size_t, size_t) const>(&ChemicalEngineArray::phaseHeatCapacityConstP),
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the isobaric heat capacity of a specific phase by its index for the node (J/K).
+Access specified element with bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+heat_capacity = engine.phaseHeatCapacityConstP(1, 0)
+print(heat_capacity)
+    )doc")
+        .def("phaseHeatCapacityConstP", static_cast<double (ChemicalEngineArray::*)(size_t, std::string) const>(&ChemicalEngineArray::phaseHeatCapacityConstP),
+            py::arg("ndx"), py::arg("phase"),
+            R"doc(
+Returns the isobaric heat capacity of a specific phase for the node (J/K).
+
+:param int ndx: Index of the node (system) in the list.
+:param str phase: Name of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+heat_capacity = engine.phaseHeatCapacityConstP(1, "aq_gen")
+print(heat_capacity)
+    )doc")
+        .def("phaseHeatCapacityConstP_i", &ChemicalEngineArray::phaseHeatCapacityConstP_i,
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the isobaric heat capacity of a specific phase by its index for the node (J/K).
+Access specified element without bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+heat_capacity = engine.phaseHeatCapacityConstP_i(1, 0)
+print(heat_capacity)
+    )doc")
+
+        .def("phaseSatIndices", &ChemicalEngineArray::phaseSatIndices,
+            R"doc(
+Returns the saturation indices of all phases in the system for the node.
+
+:param int ndx: Index of the node (system) in the list.
+
+**Example:**
+
+.. code-block:: python
+
+sat_indices = engine.phaseSatIndices(1)
+print(sat_indices)
+    )doc")
+
+        .def("phaseSatIndex", static_cast<double (ChemicalEngineArray::*)(size_t, size_t) const>(&ChemicalEngineArray::phaseSatIndex),
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the saturation index of a specific phase by its index for the node.
+Access specified element with bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+sat_index = engine.phaseSatIndex(1, 0)
+print(sat_index)
+    )doc")
+        .def("phaseSatIndex", static_cast<double (ChemicalEngineArray::*)(size_t, std::string) const>(&ChemicalEngineArray::phaseSatIndex),
+            py::arg("ndx"), py::arg("phase"),
+            R"doc(
+Returns the saturation index of a specific phase for the node.
+
+:param int ndx: Index of the node (system) in the list.
+:param str phase: Name of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+sat_index = engine.phaseSatIndex(1, "aq_gen")
+print(sat_index)
+    )doc")
+        .def("phaseSatIndex_i", &ChemicalEngineArray::phaseSatIndex_i,
+            py::arg("ndx"), py::arg("iphase"),
+            R"doc(
+Returns the saturation index of a specific phase by its index for the node.
+Access specified element without bounds checking.
+
+:param int ndx: Index of the node (system) in the list.
+:param int iphase: Index of the phase.
+
+**Example:**
+
+.. code-block:: python
+
+sat_index = engine.phaseSatIndex_i(1, 0)
+print(sat_index)
+    )doc")
+
+    .def("systemMass", &ChemicalEngineArray::systemMass,
+         R"doc(
+Returns the total mass of the system for the node (kg).
+
+:param int ndx: Index of the node (system) in the list.
+
+**Example:**
+
+.. code-block:: python
+
+mass = engine.systemMass(1)
+print(mass)
+    )doc")
+
+        .def("systemVolume", &ChemicalEngineArray::systemVolume,
+             R"doc(
+Returns the total volume of the system for the node (m³).
+
+:param int ndx: Index of the node (system) in the list.
+
+**Example:**
+
+.. code-block:: python
+
+volume = engine.systemVolume(1)
+print(volume)
+    )doc")
+
+        .def("systemGibbsEnergy", &ChemicalEngineArray::systemGibbsEnergy,
+             R"doc(
+Returns the total Gibbs energy of the system for the node (J).
+
+:param int ndx: Index of the node (system) in the list.
+
+**Example:**
+
+.. code-block:: python
+
+gibbs_energy = engine.systemGibbsEnergy(1)
+print(gibbs_energy)
+    )doc")
+
+        .def("systemEnthalpy", &ChemicalEngineArray::systemEnthalpy,
+             R"doc(
+Returns the total enthalpy of the system for the node (J).
+
+*:param int ndx: Index of the node (system) in the list.
+
+*Example:**
+
+.. code-block:: python
+
+enthalpy = engine.systemEnthalpy(1)
+print(enthalpy)
+    )doc")
+
+        .def("systemEntropy", &ChemicalEngineArray::systemEntropy,
+             R"doc(
+Returns the total entropy of the system for the node (J/K).
+
+:param int ndx: Index of the node (system) in the list.
+
+**Example:**
+
+.. code-block:: python
+
+entropy = engine.systemEntropy(1)
+print(entropy)
+    )doc")
+
+        .def("systemHeatCapacityConstP", &ChemicalEngineArray::systemHeatCapacityConstP,
+             R"doc(
+Returns the total isobaric heat capacity of the system for the node (J/K).
+
+:param int ndx: Index of the node (system) in the list.
+
+**Example:**
+
+.. code-block:: python
+
+heat_capacity = engine.systemHeatCapacityConstP(1)
+print(heat_capacity)
+    )doc")
+
+        .def("ionicStrength", &ChemicalEngineArray::ionicStrength,
+             R"doc(
+Returns the ionic strength of the system for the node (mol/L).
+
+:param int ndx: Index of the node (system) in the list.
+
+**Example:**
+
+.. code-block:: python
+
+ionic_strength = engine.ionicStrength(1)
+print(ionic_strength)
+    )doc")
+
+        .def("pH", &ChemicalEngineArray::pH,
+             R"doc(
+Returns the pH of the system for the node (dimensionless).
+
+:param int ndx: Index of the node (system) in the list.
+
+**Example:**
+
+.. code-block:: python
+
+ph_value = engine.pH(1)
+print(ph_value)
+    )doc")
+
+        .def("pe", &ChemicalEngineArray::pe,
+             R"doc(
+Returns the pe (electron activity) of the system for the node (dimensionless).
+
+:param int ndx: Index of the node (system) in the list.
+
+**Example:**
+
+.. code-block:: python
+
+pe_value = engine.pe(1)
+print(pe_value)
+    )doc")
+
+        .def("Eh", &ChemicalEngineArray::Eh,
+             R"doc(
+Returns the redox potential (Eh) of the system for the node (V).
+
+:param int ndx: Index of the node (system) in the list.
+
+**Example:**
+
+.. code-block:: python
+
+eh_value = engine.Eh(1)
+print(eh_value)
+    )doc")
+
+        .def("aqueousPhaseName", &ChemicalEngineArray::aqueousPhaseName,
+             R"doc(
+Returns the aqueous phase name. If empty, the aqueous phase is not in system.
+
+**Example:**
+
+.. code-block:: python
+
+name = engine.aqueousPhaseName()
+print(name)
+    )doc")
+
+        .def("gasPhaseName", &ChemicalEngineArray::gasPhaseName,
+             R"doc(
+Returns the gaseous phase name. If empty, the gaseous phase is not in system.
+
+**Example:**
+
+.. code-block:: python
+
+name = engine.gasPhaseName()
+print(name)
+    )doc")
+
+        .def("__repr__", [](const ChemicalEngineArray &self)
+             {
+                 std::stringstream ss;
+                 ss << self;
+                 return ss.str();
+             },
+             R"doc(
+Returns a string representation of the ChemicalEngineArray instance.
+
+**Example:**
+
+.. code-block:: python
+
+print(engine)
     )doc");
+
+
 
 
 
