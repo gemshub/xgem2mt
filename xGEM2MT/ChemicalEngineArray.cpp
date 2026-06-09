@@ -236,6 +236,11 @@ auto ChemicalEngineArray::reallocateEngineArrays() -> void
     pimpl->molMasses.resize(N);
 }
 
+auto ChemicalEngineArray::options() const -> const ChemicalEngineArrayOptions&
+{
+    return pimpl->options;
+}
+
 auto ChemicalEngineArray::setOptions(const ChemicalEngineArrayOptions& options) -> void
 {
     pimpl->options = options;
@@ -1603,6 +1608,27 @@ auto ChemicalEngineArray::standardMolarHeatCapacityConstP(double TK, double P, s
     return 0.;
 }
 
+auto ChemicalEngineArray::aqueousPhaseName() const -> std::string
+{
+    for(Index ii = 0; ii < pimpl->node_array->pCSD()->nPS; ++ii) {
+        if( pimpl->node_array->pCSD()->ccPH[ii] == 'a' ) {
+            return phaseName_i(ii);
+        }
+    }
+    return {};
+}
+
+auto ChemicalEngineArray::gasPhaseName() const -> std::string
+{
+    for(Index ii = 0; ii < pimpl->node_array->pCSD()->nPS; ++ii) {
+        if( pimpl->node_array->pCSD()->ccPH[ii] == 'g' ||
+            pimpl->node_array->pCSD()->ccPH[ii] == 'p' ||
+            pimpl->node_array->pCSD()->ccPH[ii] == 'f') {
+            return  phaseName_i(ii);
+        }
+    }
+    return {};
+}
 
 // ----------------------------------------------
 

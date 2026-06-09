@@ -1,6 +1,6 @@
 // xGEM2MT is a C++ and Python library for thermodynamic modeling by Gibbs energy minimization
 //
-// Copyright (C) 2022 S.Dmytriieva, Dmitrii Kulik
+// Copyright (C) 2022-2026 S.Dmytriieva, Dmitrii Kulik
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -39,6 +39,7 @@ default parameter into python
     /// Write IPM, DCH and DBR files (in binary, txt or json mode)
     GEMS3KGenerator::IOModes io_mode = GEMS3KGenerator::f_key_value;
 
+4. to_json_string for ChemicalEngineArrayOptions
 
 */
 
@@ -59,7 +60,7 @@ void exportChemicalEngineArray(py::module& m)
 
   .. code-block:: python
 
-      update_loggers(True, "chemical_log.txt", 2)
+  update_loggers(True, "chemical_log.txt", 2)
   )doc");
 
 
@@ -74,37 +75,37 @@ Attributes:
     step (int): Extern actual time iterator.
     cdv (float): Cutoff for IC amount differences in the node between time steps (mol, 1e-9).
     cez (float): Cutoff for minimal amounts of IC in node bulk compositions (mol, 1e-12).
-)doc")
+    )doc")
         .def(py::init<>())
         .def_readwrite("warmstart", &ChemicalEngineArrayOptions::warmstart,
             R"doc(
 Whether to use smart start for faster convergence (may be less accurate).
 
 :type: bool
-)doc")
+    )doc")
         .def_readwrite("useSIA", &ChemicalEngineArrayOptions::useSIA,
             R"doc(
 Use smart initial approximation in GEM IPM (+); SIA internal (*); AIA (-).
 
 :type: char
-)doc")
+    )doc")
             .def_readwrite("step", &ChemicalEngineArrayOptions::step,
             R"doc(
 Extern actual time iterator.
 
 :type: int
-)doc")
+    )doc")
             .def_readwrite("cdv", &ChemicalEngineArrayOptions::cdv,
             R"doc(
 Cutoff for IC amount differences in the node between time steps (mol, 1e-9).
 
 :type: float
-)doc")
+    )doc")
             .def_readwrite("cez", &ChemicalEngineArrayOptions::cez,
             R"doc(
 Cutoff for minimal amounts of IC in node bulk compositions (mol, 1e-12).
 :type: float
-)doc")
+    )doc")
             .def("to_json_string", &ChemicalEngineArrayOptions::to_json_string, py::arg("dense")  = false)
             .def("__repr__", [](const ChemicalEngineArrayOptions& self) {
               std::stringstream ss; ss << self.to_json_string(); return ss.str();
@@ -116,7 +117,7 @@ Returns a string representation of the ChemicalEngineArrayOptions instance.
 .. code-block:: python
 
 print(engine)
-)doc");
+    )doc");
 
 
 
@@ -124,10 +125,10 @@ print(engine)
                                                                           R"doc(
 Class for equilibrium computations and thermodynamic analysis for the list of the systems.
 
- The ChemicalEngineArray performs Gibbs energy minimization to compute the equilibrium state of a chemical systems.
- Its API provides methods to load system data, update  component amounts, set options, and query resulting
- thermodynamic properties for all systems.
-)doc")
+The ChemicalEngineArray performs Gibbs energy minimization to compute the equilibrium state of a chemical systems.
+Its API provides methods to load system data, update  component amounts, set options, and query resulting
+thermodynamic properties for all systems.
+    )doc")
             .def(py::init<size_t>(),
              R"doc(
   Default constructor for the ChemicalEngineArray.
@@ -148,12 +149,12 @@ Class for equilibrium computations and thermodynamic analysis for the list of th
         gems_init_dbr_lst = "nodearray-data/CalcColumn-dbr.lst"
 
         engine.initialize(gems_init_lst, gems_init_dbr_lst, node_types)
-  )doc")
+    )doc")
         .def_property("options",
                       &ChemicalEngineArray::options,
                       &ChemicalEngineArray::setOptions,
              R"doc(
-  Gets or sets the options used by the ChemicalEngineArray.
+Gets or sets the options used by the ChemicalEngineArray.
 
 :type: ChemicalEngineArrayOptions
 
@@ -161,17 +162,17 @@ Class for equilibrium computations and thermodynamic analysis for the list of th
 
 .. code-block:: python
 
-  opts = engine.options
-  print("Warmstart:", opts.warmstart)
+opts = engine.options
+print("Warmstart:", opts.warmstart)
 
 **Example (set):**
 
 .. code-block:: python
 
-  opts = engine.options
-  opts.warmstart = False
-  engine.options = opts
-)doc")
+opts = engine.options
+opts.warmstart = False
+engine.options = opts
+    )doc")
             .def("setWarmStart", &ChemicalEngineArray::setWarmStart,
              R"doc(
 Enables warm start for the ChemicalEngineArray.
@@ -182,8 +183,8 @@ Warm start uses the previous solution as an initial guess for faster convergence
 
 .. code-block:: python
 
-  engine.setWarmStart()
-)doc")
+engine.setWarmStart()
+    )doc")
             .def("setColdStart", &ChemicalEngineArray::setColdStart,
              R"doc(
 Enables cold start for the ChemicalEngineArray.
@@ -194,8 +195,8 @@ Cold start resets the initial guess to default values for robust convergence.
 
 .. code-block:: python
 
-  engine.setColdStart()
-)doc")
+engine.setColdStart()
+    )doc")
             .def("nNodes", &ChemicalEngineArray::nNodes,
              R"doc(
 Get the total number of nodes in the node array.
@@ -206,21 +207,21 @@ Get the total number of nodes in the node array.
 
 .. code-block:: python
 
-  size = engine.nNodes()
-)doc")
+size = engine.nNodes()
+    )doc")
             .def("initialize", &ChemicalEngineArray::initialize,
              R"doc(
- Initializes the ChemicalEngineArray from a GEM-Selektor project files.
+Initializes the ChemicalEngineArray from a GEM-Selektor project files.
 
- Reads the files and configures the chemical systems defined inside it.
- :param str  ipm_filename: Path to the system definition file (e.g., "my-system-dat.lst").
- :param str  dbr_filename: Path to the text file containing the list of DBR input files.
- :param list[int]  node_types: The initial node contents from DATABR files
+Reads the files and configures the chemical systems defined inside it.
+:param str  ipm_filename: Path to the system definition file (e.g., "my-system-dat.lst").
+:param str  dbr_filename: Path to the text file containing the list of DBR input files.
+:param list[int]  node_types: The initial node contents from DATABR files
                         will be distributed among nodes in array.
 
-  **Example:**
+**Example:**
 
-  .. code-block:: python
+.. code-block:: python
 
         engine = ChemicalEngineArray(5)
         node_types=[1,0,0,0,0]
@@ -245,9 +246,9 @@ Configures the engine from three JSON strings:
 :param list[int] node_types: The initial node contents from DATABR files will be distributed among
                               nodes in array according to the distribution index list.
 
-  **Example:**
+**Example:**
 
-  .. code-block:: python
+.. code-block:: python
 
         engine = ChemicalEngineArray(5)
         node_types=[1,0,0,0,0]
@@ -259,12 +260,12 @@ Configures the engine from three JSON strings:
         dbr_jsons = [dbr_json1, dbr_json0]
 
         engine.initializeFromJsonStrings(dch_json, ipm_json, dbr_jsons, node_types)
-  )doc")
+    )doc")
             .def("reequilibrate", py::overload_cast<size_t, bool>(&ChemicalEngineArray::reequilibrate),
              R"doc(
 Re-equilibrates the system with (or without) a warm start for the node.
 
-:param int ndx: size_t of the node (system) in the list.
+:param int ndx: Index of the node (system) in the list.
 :param bool warmstart: If true, uses previous data as an initial guess.
 :return int: Return code of the re-equilibration.
 
@@ -289,12 +290,12 @@ engine.reequilibrate(1, False)
    - 8: Failure (no result) in GEM calculation with SIA
    - 9: Terminal error in GEMS3K (e.g., memory corruption). Restart required.
 
-  )doc")
+    )doc")
             .def("reequilibrate", py::overload_cast<bool>(&ChemicalEngineArray::reequilibrate),
              R"doc(
 Re-equilibrates the all system with (or without) a warm start for the node.
 
-:param bool warmstart: If true, uses previous data as an initial guess.
+:param bool warmstart: If True, uses previous data as an initial guess.
 
 **Example:**
 
@@ -306,7 +307,7 @@ engine.reequilibrate(False)
              R"doc(
 Equilibrates the system in node ndx, according options and node settings.
 
-:param int ndx: size_t of the node (system) in the list.
+:param int ndx: Index of the node (system) in the list.
 :return bool: Return True if OK after GEM calculation with LPP AIA or SIA.
 
 **Example:**
@@ -352,14 +353,14 @@ Copies array of nodes for current time point to the same place in the array of n
 .. code-block:: python
 
 engine.nextTimePoint(True)
-)doc")
+    )doc")
             .def("readDbrFromFile", &ChemicalEngineArray::readDbrFromFile,
              R"doc(
 Reads a DBR file from disk to the node.
 
 Loads the structure of node-dependent data (composition, T, P and other).
 
- :param int ndx: size_t of the node (system) in the list.
+ :param int ndx: Index of the node (system) in the list.
  :param str filename: Path to the input DBR file (e.g., "*-dbr.json/.dat").
 
 **Example:**
@@ -367,14 +368,14 @@ Loads the structure of node-dependent data (composition, T, P and other).
 .. code-block:: python
 
 engine.readDbrFromFile(0, "my-system-dbr-0-0000.json")
-)doc")
+    )doc")
             .def("readDbrFromJsonString", &ChemicalEngineArray::readDbrFromJsonString,
              R"doc(
 Reads System DBR composition from a JSON string to the node.
 
 Loads the structure of node-dependent data (composition, T, P and other).
 
- :param int ndx: size_t of the node (system) in the list.
+ :param int ndx: Index of the node (system) in the list.
  :param str dbr_json: JSON string containing DBR composition data.
 
 **Example:**
@@ -383,14 +384,14 @@ Loads the structure of node-dependent data (composition, T, P and other).
 
 dbr_json1 = Path("nodearray-data/CalcColumn-dbr-0-0000.json").read_text().replace('\n', ' ')
 engine.readDbrFromJsonString(0, dbr_json1)
-)doc")
+    )doc")
             .def("writeDbrToFile", &ChemicalEngineArray::writeDbrToFile,
              R"doc(
 Writes the current DBR for the node to a file according current io mode.
 
 Saves the state of the system (after equilibrium calculations) into a DBR file.
 
-:param int ndx: size_t of the node (system) in the list.
+:param int ndx: Index of the node (system) in the list.
 :param str filename: Path to the output DBR file (e.g., "my-system-dbr-0-0001.dat").
 
 **Example:**
@@ -398,12 +399,12 @@ Saves the state of the system (after equilibrium calculations) into a DBR file.
 .. code-block:: python
 
 engine.writeDbrToFile(1, "output.dbr")
-)doc")
+    )doc")
             .def("writeDbrToJsonString", &ChemicalEngineArray::writeDbrToJsonString,
              R"doc(
 Returns the current DBR as a JSON string.
 
-:param int ndx: size_t of the node (system) in the list.
+:param int ndx: Index of the node (system) in the list.
 :return: JSON string representing the system composition.
 :rtype: str
 
@@ -413,29 +414,29 @@ Returns the current DBR as a JSON string.
 
 json_state = engine.writeDbrToJsonString(1)
 print(json_state)
-)doc")
+    )doc")
         .def("numElements", &ChemicalEngineArray::numElements,
              R"doc(
-  Returns the number of elements in the chemical system.
+Returns the number of elements in the chemical system.
 
-  **Example:**
+**Example:**
 
-  .. code-block:: python
+.. code-block:: python
 
       num_elements = engine.numElements()
       print(num_elements)
-  )doc")
+    )doc")
         .def("numSpecies", &ChemicalEngineArray::numSpecies,
              R"doc(
-  Returns the number of species in the chemical system.
+Returns the number of species in the chemical system.
 
-  **Example:**
+**Example:**
 
-  .. code-block:: python
+.. code-block:: python
 
-      num_species = engine.numSpecies()
-      print(num_species)
-  )doc")
+    num_species = engine.numSpecies()
+    print(num_species)
+    )doc")
         .def("numPhases", &ChemicalEngineArray::numPhases,
              R"doc(
   Returns the number of phases in the chemical system.
@@ -446,7 +447,7 @@ print(json_state)
 
       num_phases = engine.numPhases()
       print(num_phases)
-  )doc")
+    )doc")
         .def("numSpeciesInPhase", static_cast<size_t (ChemicalEngineArray::*)(size_t) const>(&ChemicalEngineArray::numSpeciesInPhase),
              py::arg("iphase"),
              R"doc(
@@ -461,7 +462,7 @@ print(json_state)
 
       num_species_in_phase = engine.numSpeciesInPhase(0)
       print(num_species_in_phase)
-  )doc")
+    )doc")
         .def("numSpeciesInPhase", static_cast<size_t (ChemicalEngineArray::*)(std::string) const>(&ChemicalEngineArray::numSpeciesInPhase),
              py::arg("phase"),
              R"doc(
@@ -475,7 +476,7 @@ print(json_state)
 
       num_species_in_phase = engine.numSpeciesInPhase("aq_gen")
       print(num_species_in_phase)
-  )doc")
+    )doc")
         .def("numSpeciesInPhase_i", &ChemicalEngineArray::numSpeciesInPhase_i,
              py::arg("iphase"),
              R"doc(
@@ -490,7 +491,7 @@ print(json_state)
 
       num_species_in_phase = engine.numSpeciesInPhase_i(0)
       print(num_species_in_phase)
-  )doc")
+    )doc")
         .def("elementName", &ChemicalEngineArray::elementName, py::arg("index"),
              R"doc(
   Returns the name of an element by its index.
@@ -504,7 +505,7 @@ print(json_state)
 
       element_name = engine.elementName(0)
       print(element_name)
-  )doc")
+    )doc")
         .def("elementName_i", &ChemicalEngineArray::elementName_i, py::arg("index"),
              R"doc(
   Returns the name of an element by its index.
@@ -518,7 +519,7 @@ print(json_state)
 
       element_name = engine.elementName_i(0)
       print(element_name)
-  )doc")
+    )doc")
         .def("speciesName", &ChemicalEngineArray::speciesName, py::arg("index"),
              R"doc(
   Returns the name of a species by its index.
@@ -532,7 +533,7 @@ print(json_state)
 
       species_name = engine.speciesName(0)
       print(species_name)
-  )doc")
+    )doc")
         .def("speciesName_i", &ChemicalEngineArray::speciesName_i, py::arg("index"),
              R"doc(
   Returns the name of a species by its index.
@@ -546,7 +547,7 @@ print(json_state)
 
       species_name = engine.speciesName_i(0)
       print(species_name)
-  )doc")
+    )doc")
         .def("speciesCharge", static_cast<double (ChemicalEngineArray::*)(size_t) const>(&ChemicalEngineArray::speciesCharge), py::arg("index"),
              R"doc(
   Returns the electrical charge of a species by its index.
@@ -560,7 +561,7 @@ print(json_state)
 
       charge = engine.speciesCharge(0)
       print(charge)
-  )doc")
+    )doc")
         .def("speciesCharge", static_cast<double (ChemicalEngineArray::*)(std::string, std::optional<std::string>) const>(&ChemicalEngineArray::speciesCharge),
              py::arg("species"), py::arg("phase") = py::none(),
              R"doc(
@@ -575,7 +576,7 @@ print(json_state)
 
       charge = engine.speciesCharge("SiO2")
       print(charge)
-  )doc")
+    )doc")
         .def("speciesCharge_i", &ChemicalEngineArray::speciesCharge_i, py::arg("index"),
              R"doc(
   Returns the electrical charge of a species by its index.
@@ -589,7 +590,7 @@ print(json_state)
 
       charge = engine.speciesCharge_i(0)
       print(charge)
-  )doc")
+    )doc")
         .def("phaseName", &ChemicalEngineArray::phaseName, py::arg("index"),
              R"doc(
   Returns the name of a phase by its index.
@@ -603,7 +604,7 @@ print(json_state)
 
       phase_name = engine.phaseName(0)
       print(phase_name)
-  )doc")
+    )doc")
         .def("phaseName_i", &ChemicalEngineArray::phaseName_i, py::arg("index"),
              R"doc(
   Returns the name of a phase by its index.
@@ -617,7 +618,7 @@ print(json_state)
 
       phase_name = engine.phaseName_i(0)
       print(phase_name)
-  )doc")
+    )doc")
         .def("indexElement", &ChemicalEngineArray::indexElement, py::arg("name"),
              R"doc(
   Returns the index of an element by its name.
@@ -630,7 +631,7 @@ print(json_state)
 
       index = engine.indexElement("O")
       print(index)
-  )doc")
+    )doc")
         .def("indexSpecies", &ChemicalEngineArray::indexSpecies, py::arg("name"), py::arg("phase") = py::none(),
              R"doc(
 Returns the index of a species by its name.
@@ -644,7 +645,7 @@ Returns the index of a species by its name.
 
   index = engine.indexSpecies("H2O@")
   print(index)
-)doc")
+  )doc")
 
         .def("indexSpeciesAll", &ChemicalEngineArray::indexSpeciesAll, py::arg("name"),
              R"doc(
@@ -658,7 +659,7 @@ Returns all indices of species matching the specified name.
 
   indices = engine.indexSpeciesAll("H2O@")
   print(indices)
-)doc")
+    )doc")
         .def("indexSpeciesMap", &ChemicalEngineArray::indexSpeciesMap, py::arg("name"),
              R"doc(
 Returns dictionary of all phase name and corresponding species index.
@@ -671,7 +672,7 @@ Returns dictionary of all phase name and corresponding species index.
 
   dict = engine.indexSpeciesMap("Anorthite")
   print(dict)
-)doc")
+    )doc")
         .def("indexPhase", &ChemicalEngineArray::indexPhase, py::arg("name"),
              R"doc(
 Returns the index of a phase by its name.
@@ -684,7 +685,7 @@ Returns the index of a phase by its name.
 
   index = engine.indexPhase("aq_gen")
   print(index)
-)doc")
+    )doc")
 
         .def("indexPhaseAll", &ChemicalEngineArray::indexPhaseAll, py::arg("name"),
              R"doc(
@@ -698,7 +699,7 @@ Returns all indices of phases matching the specified name.
 
   indices = engine.indexPhaseAll("aq_gen")
   print(indices)
-)doc")
+    )doc")
 
         .def("indexPhaseWithSpecies", &ChemicalEngineArray::indexPhaseWithSpecies, py::arg("species_index"),
              R"doc(
@@ -1316,22 +1317,21 @@ Returns the mole fractions of all species in the system for the node.
 
 fractions = engine.moleFractions(1)
 print(fractions)
-    )doc",
-             py::return_value_policy::reference_internal)
-
-        .def("speciesMolalities", &ChemicalEngineArray::speciesMolalities,
-             R"doc(
-Returns the molalities of all species in the system (mol/kg) for the node.
-
-:param int ndx: Index of the node (system) in the list.
-
-**Example:**
-
-.. code-block:: python
-
-molalities = engine.speciesMolalities(1)
-print(molalities)
     )doc")
+
+//         .def("speciesMolalities", &ChemicalEngineArray::speciesMolalities,
+//              R"doc(
+// Returns the molalities of all species in the system (mol/kg) for the node.
+
+// :param int ndx: Index of the node (system) in the list.
+
+// **Example:**
+
+// .. code-block:: python
+
+// molalities = engine.speciesMolalities(1)
+// print(molalities)
+//     )doc")
 
         .def("lnActivityCoefficients", &ChemicalEngineArray::lnActivityCoefficients,
              R"doc(
@@ -2802,101 +2802,6 @@ Returns a string representation of the ChemicalEngineArray instance.
 
 print(engine)
     )doc");
-
-
-
-
-
-            // .def("numElements", &ChemicalEngineArray::numElements)
-            // .def("numSpecies", &ChemicalEngineArray::numSpecies)
-            // .def("numPhases", &ChemicalEngineArray::numPhases)
-            // .def("numSpeciesInPhase", &ChemicalEngineArray::numSpeciesInPhase)
-            // .def("elementName", &ChemicalEngineArray::elementName)
-            // .def("speciesName", &ChemicalEngineArray::speciesName)
-            // .def("speciesCharge", &ChemicalEngineArray::speciesCharge)
-            // .def("phaseName", &ChemicalEngineArray::phaseName)
-            // .def("indexElement", &ChemicalEngineArray::indexElement)
-            // .def("indexSpecies", &ChemicalEngineArray::indexSpecies)
-            // .def("indexSpeciesAll", &ChemicalEngineArray::indexSpeciesAll)
-            // .def("indexPhase", &ChemicalEngineArray::indexPhase)
-            // .def("indexPhaseAll", &ChemicalEngineArray::indexPhaseAll)
-            // .def("indexPhaseWithSpecies", &ChemicalEngineArray::indexPhaseWithSpecies)
-            // .def("indexFirstSpeciesInPhase", &ChemicalEngineArray::indexFirstSpeciesInPhase)
-            // .def("elementMolarMasses", &ChemicalEngineArray::elementMolarMasses, py::return_value_policy::reference_internal)
-            // .def("speciesMolarMasses", &ChemicalEngineArray::speciesMolarMasses, py::return_value_policy::reference_internal)
-            // .def("formulaMatrix", &ChemicalEngineArray::formulaMatrix, py::return_value_policy::reference_internal)
-            // .def("setStandardMolarGibbsEnergy", &ChemicalEngineArray::setStandardMolarGibbsEnergy)
-            // .def("standardMolarGibbsEnergy", &ChemicalEngineArray::standardMolarGibbsEnergy)
-            // .def("standardMolarEnthalpy", &ChemicalEngineArray::standardMolarEnthalpy)
-            // .def("standardMolarVolume", &ChemicalEngineArray::standardMolarVolume)
-            // .def("standardMolarEntropy", &ChemicalEngineArray::standardMolarEntropy)
-            // .def("standardMolarHeatCapacityConstP", &ChemicalEngineArray::standardMolarHeatCapacityConstP)
-            // .def("setPT", &ChemicalEngineArray::setPT)
-            // .def("setB", &ChemicalEngineArray::setB)
-            // .def("setSpeciesAmounts", &ChemicalEngineArray::setSpeciesAmounts)
-            // .def("setSpeciesAmount", py::overload_cast<long int, std::string, double>(&ChemicalEngineArray::setSpeciesAmount))
-            // .def("setSpeciesAmount", py::overload_cast<long int, size_t, double>(&ChemicalEngineArray::setSpeciesAmount))
-            // .def("setSpeciesUpperLimits", &ChemicalEngineArray::setSpeciesUpperLimits, py::return_value_policy::reference_internal)
-            // .def("setSpeciesUpperLimit", py::overload_cast<long int, std::string, double>(&ChemicalEngineArray::setSpeciesUpperLimit))
-            // .def("setSpeciesUpperLimit", py::overload_cast<long int, size_t, double>(&ChemicalEngineArray::setSpeciesUpperLimit))
-            // .def("setSpeciesLowerLimits", &ChemicalEngineArray::setSpeciesLowerLimits, py::return_value_policy::reference_internal)
-            // .def("setSpeciesLowerLimit", py::overload_cast<long int, std::string, double>(&ChemicalEngineArray::setSpeciesLowerLimit))
-            // .def("setSpeciesLowerLimit", py::overload_cast<long int, size_t, double>(&ChemicalEngineArray::setSpeciesLowerLimit))
-            // .def("converged", &ChemicalEngineArray::converged)
-            // .def("numIterations", &ChemicalEngineArray::numIterations)
-            // .def("temperature", &ChemicalEngineArray::temperature)
-            // .def("pressure", &ChemicalEngineArray::pressure)
-            // .def("elementAmounts", &ChemicalEngineArray::elementAmounts)
-            // .def("elementAmountsInPhase", &ChemicalEngineArray::elementAmountsInPhase)
-            // .def("elementAmountsInSpecies", &ChemicalEngineArray::elementAmountsInSpecies)
-            // .def("speciesAmounts", &ChemicalEngineArray::speciesAmounts)
-            // .def("speciesAmount", py::overload_cast<long int, size_t>(&ChemicalEngineArray::speciesAmount, py::const_))
-            // .def("speciesAmount", py::overload_cast<long int, std::string>(&ChemicalEngineArray::speciesAmount, py::const_))
-            // .def("speciesUpperLimits", &ChemicalEngineArray::speciesUpperLimits)
-            // .def("speciesLowerLimits", &ChemicalEngineArray::speciesLowerLimits)
-            // .def("systemMass", &ChemicalEngineArray::systemMass)
-            // .def("systemVolume", &ChemicalEngineArray::systemVolume)
-            // .def("ionicStrength", &ChemicalEngineArray::ionicStrength)
-            // .def("pH", &ChemicalEngineArray::pH)
-            // .def("pe", &ChemicalEngineArray::pe)
-            // .def("Eh", &ChemicalEngineArray::Eh)
-            // .def("systemGibbsEnergy", &ChemicalEngineArray::systemGibbsEnergy)
-            // .def("phaseDensities", &ChemicalEngineArray::phaseDensities)
-            // .def("phaseDensity", &ChemicalEngineArray::phaseDensity)
-            // .def("phaseMasses", &ChemicalEngineArray::phaseMasses)
-            // .def("phaseMass", &ChemicalEngineArray::phaseMass)
-            // .def("phaseAmounts", &ChemicalEngineArray::phaseAmounts)
-            // .def("phaseAmount", &ChemicalEngineArray::phaseAmount)
-            // .def("phaseVolumes", &ChemicalEngineArray::phaseVolumes)
-            // .def("phaseVolume", &ChemicalEngineArray::phaseVolume)
-            // .def("phaseEnthalpies", &ChemicalEngineArray::phaseEnthalpies)
-            // .def("phaseEnthalpy", &ChemicalEngineArray::phaseEnthalpy)
-            // .def("phaseEntropies", &ChemicalEngineArray::phaseEntropies)
-            // .def("phaseEntropy", &ChemicalEngineArray::phaseEntropy)
-            // .def("phaseHeatCapacitiesConstP", &ChemicalEngineArray::phaseHeatCapacitiesConstP)
-            // .def("phaseHeatCapacityConstP", &ChemicalEngineArray::phaseHeatCapacityConstP)
-            // .def("phaseSatIndices", &ChemicalEngineArray::phaseSatIndices)
-            // .def("phaseSatIndex", &ChemicalEngineArray::phaseSatIndex)
-            // .def("phaseMolarGibbsEnergy", &ChemicalEngineArray::phaseMolarGibbsEnergy)
-            // .def("phaseMolarEnthalpy", &ChemicalEngineArray::phaseMolarEnthalpy)
-            // .def("phaseMolarVolume", &ChemicalEngineArray::phaseMolarVolume)
-            // .def("phaseMolarEntropy", &ChemicalEngineArray::phaseMolarEntropy)
-            // .def("moleFractions", &ChemicalEngineArray::moleFractions)
-            // .def("lnActivityCoefficients", &ChemicalEngineArray::lnActivityCoefficients)
-            // .def("lnActivities", &ChemicalEngineArray::lnActivities)
-            // .def("lnConcentrations", &ChemicalEngineArray::lnConcentrations)
-            // .def("chemicalPotentials", &ChemicalEngineArray::chemicalPotentials)
-            // .def("phaseMolarHeatCapacityConstP", &ChemicalEngineArray::phaseMolarHeatCapacityConstP)
-            // .def("phaseSpecificHeatCapacityConstP", &ChemicalEngineArray::phaseSpecificHeatCapacityConstP)
-            // .def("phaseSpecificGibbsEnergy", &ChemicalEngineArray::phaseSpecificGibbsEnergy)
-            // .def("phaseSpecificEnthalpy", &ChemicalEngineArray::phaseSpecificEnthalpy)
-            // .def("phaseSpecificVolume", &ChemicalEngineArray::phaseSpecificVolume)
-            // .def("phaseSpecificEntropy", &ChemicalEngineArray::phaseSpecificEntropy)
-            // .def("systemEnthalpy", &ChemicalEngineArray::systemEnthalpy)
-            // .def("systemEntropy", &ChemicalEngineArray::systemEntropy)
-            // .def("systemHeatCapacityConstP", &ChemicalEngineArray::systemHeatCapacityConstP)
-            // .def("__repr__", [](const ChemicalEngineArray& self) { std::stringstream ss; ss << self; return ss.str(); })
-            // ;
 
     //   .def("speciesMolalities", &ChemicalEngineArray::speciesMolalities, py::return_value_policy::reference_internal)
     //   .def("standardMolarInternalEnergy", &ChemicalEngineArray::standardMolarInternalEnergy)

@@ -1306,7 +1306,7 @@ public:
      * auto molalities = engine.speciesMolalities(0);
      * @endcode
      */
-    auto speciesMolalities(size_t ndx) const -> VectorConstRef;
+    //auto speciesMolalities(size_t ndx) const -> VectorConstRef;
 
     /**
      * @brief Returns the mole fractions of the species for the node.
