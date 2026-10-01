@@ -18,7 +18,7 @@ test -f ${CONDA_PREFIX}/lib/libGEM2MT.$EXTN || {
         # Building GEMS3k library
         mkdir -p ~/code && \
         cd ~/code && \
-        git clone https://github.com/sdmytrievs/GEMS3K.git  && \
+        git clone https://github.com/sdmytrievs/GEMS3K.git -b change_gem2mt && \
         cd GEMS3K && \
         mkdir -p build && \
         cd build && \
