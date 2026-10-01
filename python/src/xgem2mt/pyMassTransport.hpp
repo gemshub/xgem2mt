@@ -15,6 +15,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+#include <sstream>
+
 // pybind11 includes
 #include <pybind11/pybind11.h>
 #include <pybind11/eigen.h>
@@ -28,15 +30,15 @@ using namespace xGEM2MT;
 void exportMassTransport(py::module& m)
 {
     py::class_<MassTransport, std::shared_ptr<MassTransport>>(m, "MassTransport")
-            .def(py::init())
-            .def("initializeGEM2MT", &MassTransport::initializeGEM2MT)
-            .def("initializeGEM2MTFromJsonString", &MassTransport::initializeGEM2MTFromJsonString)
-            .def("initializeNodes", &MassTransport::initializeNodes)
-            .def("initializeNodesFromJsonStrings", &MassTransport::initializeNodesFromJsonStrings)
-            .def("runGEM2MT", &MassTransport::runGEM2MT)
+            .def(py::init<char, size_t>())
+            .def("readTask", &MassTransport::readTask)
+            .def("readTaskString", &MassTransport::readTaskString)
+            .def("initNodes", &MassTransport::initNodes)
+            .def("initNodesFromStrings", &MassTransport::initNodesFromStrings)
+            .def("runMassTransport", &MassTransport::runMassTransport)
             .def("getChemicalEngineArray", &MassTransport::getChemicalEngineArray)
             .def("dump", &MassTransport::dump)
-            .def("dumpGEM2MT", &MassTransport::dumpGEM2MT)
+            .def("dumpTask", &MassTransport::dumpTask)
             .def("__repr__", [](const MassTransport& self) { std::stringstream ss; ss << self; return ss.str(); })
             ;
 }
