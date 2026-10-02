@@ -4,6 +4,7 @@ build/
 .cproject
 .directory
 .idea
+.cache
 .pydevproject
 *.pyc
 ~lock.*

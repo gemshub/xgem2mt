@@ -21,7 +21,7 @@ from pathlib import Path
 def main():
     try:
         engine = ChemicalEngineArray(5)
-        nodeTypes=[1,0,0,0,0]
+        node_types=[1,0,0,0,0]
 
         dch_json = Path("nodearray-data/CalcColumn-dch.json").read_text().replace('\n', ' ')
         ipm_json = Path("nodearray-data/CalcColumn-ipm.json").read_text().replace('\n', ' ')
@@ -29,7 +29,7 @@ def main():
         dbr_json0 = Path("nodearray-data/CalcColumn-dbr-0-0001.json").read_text().replace('\n', ' ')
         dbr_jsons = [dbr_json1, dbr_json0]
 
-        engine.initializeFromJsonStrings(dch_json, ipm_json, dbr_jsons, nodeTypes)
+        engine.initializeFromJsonStrings(dch_json, ipm_json, dbr_jsons, node_types)
         bj = engine.elementAmounts(0)
         print(bj)
         bj = engine.elementAmounts(1)

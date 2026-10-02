@@ -21,11 +21,11 @@ def main():
     try:
         update_loggers(False, "", 3)
         engine = ChemicalEngineArray(5)
-        nodeTypes=[1,0,0,0,0]
+        node_types=[1,0,0,0,0]
         gems_init_lst = "nodearray-data/CalcColumn-dat.lst"
         gems_init_dbr_lst = "nodearray-data/CalcColumn-dbr.lst"
 
-        engine.initialize(gems_init_lst, gems_init_dbr_lst, nodeTypes )
+        engine.initialize(gems_init_lst, gems_init_dbr_lst, node_types)
         bj = engine.elementAmounts(0)
         print(bj)
         bj = engine.elementAmounts(1);

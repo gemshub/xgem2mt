@@ -6,25 +6,14 @@ file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/demo_nodearray_strings.py" DESTINATION "$
 file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/demo_gem2mt_string.py" DESTINATION "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/demo_gem2mt.py" DESTINATION "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 
-set(DEMO_FILES
-        demo_gem2mt
-        demo_gem2mt_string
-        demo_nodearray_files
-        demo_nodearray_strings  )
+file(GLOB DEMO_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *.cpp)
 
-foreach (exampleName ${DEMO_FILES})
-    add_executable(${exampleName} ${exampleName}.cpp)
+foreach(DEMO_FILE ${DEMO_FILES})
+    get_filename_component(DEMO_NAME ${DEMO_FILE} NAME_WE)
+    add_executable(${DEMO_NAME} ${DEMO_FILE})
     if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
-          target_link_libraries(${exampleName}
-                PUBLIC ${PROJECT_NAME}-static
-                PUBLIC pthread )
-   elseif(${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
-          target_link_libraries( ${exampleName}
-                PUBLIC ${PROJECT_NAME}
-                PUBLIC pthread )
+      target_link_libraries(${DEMO_NAME} xGEM2MT::xGEM2MT-static)
     else()
-          target_link_libraries( ${exampleName}
-               PUBLIC ${PROJECT_NAME}
-               PUBLIC pthread )
+      target_link_libraries(${DEMO_NAME} xGEM2MT::xGEM2MT)
     endif()
 endforeach()
