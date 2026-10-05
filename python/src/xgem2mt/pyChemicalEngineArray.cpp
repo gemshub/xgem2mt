@@ -20,7 +20,9 @@
 
 PYBIND11_MODULE(PyxGEM2MT, m)
 {
+    m.doc() = "xGEMS2MT library for mass transport modeling with Gibbs energy minimization";
     xGEM2MT::update_loggers(false, "xGEM2MT.log", 3);
     exportChemicalEngineArray(m);
     exportMassTransport(m);
 }
+

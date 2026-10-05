@@ -19,6 +19,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/eigen.h>
 #include <pybind11/stl.h>
+#include <sstream>
+
 namespace py = pybind11;
 
 // xGEM2MT includes
@@ -89,26 +91,27 @@ Use smart initial approximation in GEM IPM (+); SIA internal (*); AIA (-).
 
 :type: char
     )doc")
-            .def_readwrite("step", &ChemicalEngineArrayOptions::step,
+        .def_readwrite("step", &ChemicalEngineArrayOptions::step,
             R"doc(
 Extern actual time iterator.
 
 :type: int
     )doc")
-            .def_readwrite("cdv", &ChemicalEngineArrayOptions::cdv,
+        .def_readwrite("cdv", &ChemicalEngineArrayOptions::cdv,
             R"doc(
 Cutoff for IC amount differences in the node between time steps (mol, 1e-9).
 
 :type: float
     )doc")
-            .def_readwrite("cez", &ChemicalEngineArrayOptions::cez,
+        .def_readwrite("cez", &ChemicalEngineArrayOptions::cez,
             R"doc(
 Cutoff for minimal amounts of IC in node bulk compositions (mol, 1e-12).
 :type: float
     )doc")
-            .def("to_json_string", &ChemicalEngineArrayOptions::to_json_string, py::arg("dense")  = false)
-            .def("__repr__", [](const ChemicalEngineArrayOptions& self) {
-              std::stringstream ss; ss << self.to_json_string(); return ss.str();
+        .def("to_json_string", &ChemicalEngineArrayOptions::to_json_string, py::arg("dense") = false,
+            "Converts the options structure to a JSON string representation.")
+        .def("__repr__", [](const ChemicalEngineArrayOptions& self) {
+              return self.to_json_string(false);
          }, R"doc(
 Returns a string representation of the ChemicalEngineArrayOptions instance.
 
@@ -116,7 +119,7 @@ Returns a string representation of the ChemicalEngineArrayOptions instance.
 
 .. code-block:: python
 
-print(engine)
+print(options)
     )doc");
 
 
@@ -129,7 +132,7 @@ The ChemicalEngineArray performs Gibbs energy minimization to compute the equili
 Its API provides methods to load system data, update  component amounts, set options, and query resulting
 thermodynamic properties for all systems.
     )doc")
-            .def(py::init<size_t>(),
+        .def(py::init<size_t>(),
              R"doc(
   Default constructor for the ChemicalEngineArray.
 
@@ -173,7 +176,7 @@ opts = engine.options
 opts.warmstart = False
 engine.options = opts
     )doc")
-            .def("setWarmStart", &ChemicalEngineArray::setWarmStart,
+        .def("setWarmStart", &ChemicalEngineArray::setWarmStart,
              R"doc(
 Enables warm start for the ChemicalEngineArray.
 
@@ -185,7 +188,7 @@ Warm start uses the previous solution as an initial guess for faster convergence
 
 engine.setWarmStart()
     )doc")
-            .def("setColdStart", &ChemicalEngineArray::setColdStart,
+        .def("setColdStart", &ChemicalEngineArray::setColdStart,
              R"doc(
 Enables cold start for the ChemicalEngineArray.
 
@@ -197,7 +200,7 @@ Cold start resets the initial guess to default values for robust convergence.
 
 engine.setColdStart()
     )doc")
-            .def("nNodes", &ChemicalEngineArray::nNodes,
+        .def("nNodes", &ChemicalEngineArray::nNodes,
              R"doc(
 Get the total number of nodes in the node array.
 

@@ -85,7 +85,7 @@ struct ChemicalEngineArrayOptions
     /// Cutoff for minimal amounts of IC in node bulk compositions (mol, 1e-12)
     double cez=1e-12;
 
-    std::string to_json_string(bool dence=false) const
+    std::string to_json_string(bool dense=false) const
     { return {};}
 };
 
