@@ -17,12 +17,8 @@
 
 #pragma once
 
-// C++ includes
-//#include <iostream>
 #include <memory>
 #include <string>
-
-// xGEMSMT includes
 #include <xGEM2MT/ChemicalEngineArray.hpp>
 
 namespace xGEM2MT {
@@ -724,7 +720,7 @@ public:
      * task.setFluxMGPid(0, "aq");
      * @endcode
      */
-    void setFluxMGPid(size_t node_ndx, const std::string& id);
+    void setFluxMGPid(size_t pndx, const std::string& id);
 
     /**
      * @brief Changes the initialization of the short string that identifies the flux.

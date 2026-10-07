@@ -26,14 +26,11 @@
 
 #pragma once
 
-// C++ includes
 #include <iostream>
 #include <memory>
 #include <string>
 #include <optional>
 #include <map>
-
-// xGEMSMT includes
 #include <xGEM2MT/Index.hpp>
 #include <xGEM2MT/Eigen.hpp>
 
