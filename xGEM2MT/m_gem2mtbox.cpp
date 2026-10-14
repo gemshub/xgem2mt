@@ -1,18 +1,17 @@
 //-------------------------------------------------------------------
 // $Id: m_gem2mtbox.cpp 968 2007-12-13 13:23:32Z gems $
 //
-// Implementation of TInteg/TGEM2MT classes, calculation functions
+// Implementation of TGEM2MT class, calculation functions
+// Debugging version of a finite-difference 1D advection-diffusion
+// mass transport model supplied by Dr. Frieder Enzmann (Uni Mainz)
+// coupled with GEMIPM2K module for calculation of chemical equilibria
 //
-// Rewritten from C to C++ by S.Dmytriyeva  
-// Revised in 2019, 2021 by D.Kulik
-// Copyright (C) 1995,2008,2011,2019,2021  S. Dmytriyeva, D.Kulik
+// Copyright (C) 2005-2026 S.Dmytriyeva, F.Enzmann, D.Kulik
 //
 // This file is part of a GEM-Selektor library for thermodynamic
 // modelling by Gibbs energy minimization
-// Uses: GEM-Selektor GUI GUI DBMS library, gems/lib/gemvizor.lib
 //
 // This file may be distributed under the GPL v.3 license
-
 //
 // See http://gems.web.psi.ch/ for more information
 // E-mail: gems2.support@psi.ch

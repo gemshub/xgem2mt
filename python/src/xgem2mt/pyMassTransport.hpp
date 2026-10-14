@@ -1,3 +1,6 @@
+// xGEM2MT is a C++ and Python library for thermodynamic modeling by Gibbs energy minimization
+//
+// Copyright (C) 2022-2026 S.Dmytriieva, Dmtrii Kulik, G.D. Miron
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -11,10 +14,6 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
-//
-// xGEM2MT is a C++ and Python library for thermodynamic modeling by Gibbs energy minimization
-//
-// Copyright (C) 2026 S.Dmytriieva, Dmitrii Kulik
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -842,7 +841,7 @@ void exportMassTransport(py::module& m)
                  task.setFluxID(0, "custom_flux_name")
              )doc")
 
-        .def("nPhaseGroups", &MassTransport::nPhaseGroups,
+        .def_property_readonly("nPhaseGroups", &MassTransport::nPhaseGroups,
              R"doc(
              Gets the number of mobile groups of phases.
 
@@ -970,7 +969,7 @@ void exportMassTransport(py::module& m)
                  task.setPhaseGroupQuantities(0, 2, 1.5)
              )doc")
 
-        .def("nICsourceFluxes", &MassTransport::nICsourceFluxes,
+        .def_property_readonly("nICsourceFluxes", &MassTransport::nICsourceFluxes,
              R"doc(
              Gets the number of elements (Independent Components / IC) source flux compositions.
 
@@ -1021,7 +1020,7 @@ void exportMassTransport(py::module& m)
                  task.setICsourceQuantities(0, 1, 10.5)
              )doc")
 
-        .def("nParticleTypes", &MassTransport::nParticleTypes,
+        .def_property_readonly("nParticleTypes", &MassTransport::nParticleTypes,
              R"doc(
              Gets the number of allocated particle types.
 

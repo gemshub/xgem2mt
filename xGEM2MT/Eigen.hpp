@@ -1,6 +1,11 @@
 // xGEMS2MT is a C++ and Python library for mass transport modeling with Gibbs energy minimization
 //
-// Copyright (C) 2022 S.Dmytriieva, Dmitrii Kulik
+// A simple object oriented interface to control gems in python with pythonic
+// naming convention and dictionaries as a more convenient wrapper on pyxGEMS.
+// Created by R.A.Patel (c) 2021, extended by G.D.Miron and D.A.Kulik (c) November 2021.
+// Updated/extended by D.A.Kulik (c) December 2022
+//
+// Copyright (C) 2018 Allan Leal, Dmitrii Kulik
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by

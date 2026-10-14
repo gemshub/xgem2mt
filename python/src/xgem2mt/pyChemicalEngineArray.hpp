@@ -1,6 +1,6 @@
 // xGEM2MT is a C++ and Python library for thermodynamic modeling by Gibbs energy minimization
 //
-// Copyright (C) 2022-2026 S.Dmytriieva, Dmitrii Kulik
+// Copyright (C) 2018-2026 Allan Leal, Dmtrii Kulik, G.D. Miron, S.Dmytriieva
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by

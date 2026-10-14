@@ -1,15 +1,19 @@
 //-------------------------------------------------------------------
-// $Id: main.cpp 792 2006-09-19 08:10:41Z gems $
+// $Id: m_gem2mtsep.cpp 968 2007-12-13 13:23:32Z gems $
 //
-// Debugging version of a finite-difference 1D advection-diffusion
-// mass transport model supplied by Dr. Frieder Enzmann (Uni Mainz)
-// coupled with GEMIPM2K module for calculation of chemical equilibria
+// Implementation of TGEM2MT class, standalone functions
 //
-// Direct access to the TNodeArray class for storing all data for nodes
+// Copyright (C) 2022-2026  S. Dmytriyeva, D.Kulik
 //
-// Copyright (C) 2005,2007 S.Dmytriyeva, F.Enzmann, D.Kulik
+// This file is part of a GEM-Selektor library for thermodynamic
+// modelling by Gibbs energy minimization
 //
+// This file may be distributed under the GPL v.3 license
+//
+// See http://gems.web.psi.ch/ for more information
+// E-mail: gems2.support@psi.ch
 //-------------------------------------------------------------------
+//
 
 #include <array>
 #include "m_gem2mt.h"
@@ -200,7 +204,7 @@ void TGEM2MT::default_VTK(const std::string& work_path)
         fname = fname.substr(0, pos);
     }
     if(pathVTK.empty()) {
-        pathVTK = folder+"VTK/";
+        pathVTK = folder+"/VTK/";
     }
     if(fname.empty()) {
         fname = "vtk";
@@ -936,8 +940,6 @@ void TGEM2MT::mem_new(int q)
     //mtp->yfb = (double *)aObj[ o_mtyfb].Free();
     //mtp->tt = (double *)aObj[ o_mttt].Free();
 }
-
-//=============================================================
 
 // Conversion of concentration units to moles
 double TGEM2MT::Reduce_Conc( char UNITP, double Xe, double DCmw, double Vm,

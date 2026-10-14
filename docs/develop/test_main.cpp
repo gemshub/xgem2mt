@@ -51,10 +51,10 @@ int main( int argc, char* argv[] )
 
     try{
         //return task_from_file(gem2mt_in1, ipm_lst, dbr_lst);
-        //return task_A(ipm_lst, dbr_lst);
+        return task_A(ipm_lst, dbr_lst);
         //return task_C(ipm_lst, dbr_lst);
         //return task_W(ipm_lst, dbr_lst);
-        return task_F("TestF/CalcColumn-dat.lst", "TestF/CalcColumn-dbr.lst");
+        //return task_F("TestF/CalcColumn-dat.lst", "TestF/CalcColumn-dbr.lst");
         //return task_S("TestS/CalcColumn-dat.lst", "TestS/CalcColumn-dbr.lst");
         //return task_B("TestB/CalcColumn-dat.lst", "TestB/CalcColumn-dbr.lst");
     }

@@ -2,13 +2,20 @@
 ## xGEM2MT 
 Linux, OSX, Windows
 
-This is a numerical solver of chemical equilibria for thermodynamic modelling, extended (relative to GEMS3K code) with new C++ and Python APIs (compatible with [Reaktoro framework](http://reaktoro.org)), and supposed to replace GEMS3K in next-generation software.  
+The **GEM2MT** module is a tool for automation of one-dimensional (1-D) reactive mass transport simulations coupled with GEM calculation of equilibrium states in spatially distributed nodes (boxes, volumes) over time steps. **GEM2MT** can be used to simulate the open system evolution and fluid-rock reactions occurring along a fluid flow path (e.g. vein, fracture, porous media, etc.). This type of simulation solves simple reactive mass transport problems, which requires the definition of fluxes between boxes of certain fluid/rock mass or volume ratios (or alternatively porosity and permeability) where fluid is moved sequentially or simultaneously from one box to the other.
 
+The **GEM2MT** module can simulate reactive transport in three main modes:
+
+* Sequential reactor chain and waves ('S');
+* Flow-through and box-flux sequence ('F', 'B');
+* One-dimensional reactive transport with advection/dispersion/diffusion ('A', 'C', 'W')
+
+For detailed information about how to use this project through its C++ and Python interface interface [View Documentation](https://xgems.readthedocs.io)
 
 ### Briefly about xGEM2MT
 
-* Currently uses the [GEMS3K](https://bitbucket.org/gems4/gems3k) code that implements the improved GEM IPM-3 algorithm for Gibbs energy minization in very complex non-ideal chemical systems with two-sided metastability constraints.
-* The xGEM2MT API extends the [xGEMS API](https://bitbucket.org/gems4/xgems/src/master/) to cover the TNodeArray class API of (standalone) GEM2MT as currently implemented in nodearray-gem example.
+* Currently uses the [GEMS3K](https://github.com/gemshub/GEMS3K) code that implements the improved GEM IPM-3 algorithm for Gibbs energy minization in very complex non-ideal chemical systems with two-sided metastability constraints.
+* The xGEM2MT API extends the [xGEMS API](https://github.com/gemshub/xgem2mt) to cover the TNodeArray class API of (standalone) GEM2MT as currently implemented in nodearray-gem example.
 * Written in C/C++. The xGEM2MT code can be compiled as a standalone program (see /demos); or built as a static or dynamic library for coupling with a mass transport simulator or another code.
 
 ### License
@@ -16,135 +23,187 @@ This is a numerical solver of chemical equilibria for thermodynamic modelling, e
 * GEMS3K is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
 * You should have received a copy of the GNU Lesser General Public License along with GEMS3K code. If not, see http://www.gnu.org/licenses/. 
 
-### Simple C++ API example
+### Installation and Build
 
-* Using the ChemicalEngineArray class API
+#### Installation using Conda 
 
-```cpp
-#include <xGEM2MT/ChemicalEngineArray.hpp>
-using namespace xGEM2MT;
+[![Conda-Forge](https://img.shields.io/conda/vn/conda-forge/xgems?style=for-the-badge&logo=conda-forge)](https://anaconda.org/conda-forge/xgems)
 
+xGEMS can be easily installed using [Conda](https://www.anaconda.com/docs/getting-started/miniconda/install) package manager. If you have Conda or Miniforge installed, first add the conda-forge channel by executing 
 
-int main(int argc, char **argv)
-{
-    ChemicalEngineArray engine(5);
-    std::vector<long int> nodeTypes={1,0,0,0,0};
-    std::string gems_init_lst = "nodearray-data/CalcColumn-dat.lst";
-    std::string gems_init_dbr_lst = "nodearray-data/CalcColumn-dbr.lst";
-
-    try
-    {
-        engine.initialize(gems_init_lst, gems_init_dbr_lst, nodeTypes );
-
-        Vector bj = engine.elementAmounts(0);
-        std::cout << "Vector bj[0]: " << bj.transpose() << std::endl;
-        bj = engine.elementAmounts(1);
-        std::cout << "Vector bj[1]: " << bj.transpose() << std::endl;
-
-        engine.equilibrate();
-        engine.nextTimePoint(true); // copy results to pNodT0()
-
-        engine.dumpGEMS3K("CalcColumn-dump-dat.lst");
-
-        return 0;
-    }
-    catch (std::runtime_error& xcpt)
-    {
-        std::cout << xcpt.what() << std::endl;
-    }
-    return 1;
-}
+```bash
+conda config --add channels conda-forge
 ```
 
-* Using  the Mass transport  API 
+install xGEMS by executing the following command:
 
-```cpp
-#include <xGEM2MT/MassTransport.hpp>
-using namespace xGEM2MT;
-
-int main(int argc, char **argv)
-{
-    MassTransport mttask;
-    std::string gem2mt_init = "gem2mt-data/CalcColumnAD.json";
-    std::string gems_init_lst = "gem2mt-data/CalcColumn-dat.lst";
-    std::string gems_init_dbr_lst = "gem2mt-data/CalcColumn-dbr.lst";
-
-    try
-    {
-        mttask.initializeGEM2MT(gem2mt_init);
-        mttask.initializeNodes(gems_init_lst, gems_init_dbr_lst);
-        mttask.runGEM2MT();
-        return 0;
-    }
-    catch (std::runtime_error& xcpt)
-    {
-        std::cout << xcpt.what() << std::endl;
-    }
-    return 1;
-}
+```bash
+conda install xgem2mt
 ```
 
-### Simple Python API example
+Conda can be installed from [Miniconda](https://conda.io/miniconda.html).
 
 
-```python3
-from xgem2mt import *
+#### How to build from source code
 
-def main():
-    try:
-        engine = ChemicalEngineArray(5)
-        nodeTypes = [1,0,0,0,0]
-        gems_init_lst = "nodearray-data/CalcColumn-dat.lst"
-        gems_init_dbr_lst = "nodearray-data/CalcColumn-dbr.lst"
-
-        engine.initialize(gems_init_lst, gems_init_dbr_lst, nodeTypes )
-        bj = engine.elementAmounts(0)
-        print(bj)
-
-        engine.equilibrate();
-        engine.nextTimePoint(True)
-        print(engine)
-    except RuntimeError as ex:
-        print(ex)
-```
-
-For more information on APIs and more examples, take a look at the `/demo` directory.
-
-### How to download xGEM2MT source code
-
-* In your home directory, make a folder named e.g. ~/git/xGEM2MT.
-* Change into ~/git/xGEM2MT and clone this repository from https://bitbucket.org/gems4/xgem2mt.git using a preinstalled free git client, e.g. SourceTree. 
-* Alternatively on Mac OS X or linux, open a terminal and type in the command line:
-
+* In your home directory, make a folder named e.g. ~/xgem2mt, open a terminal and type in the command line (do not forget a period) to download the actual "master" branch:
 ```sh
-cd ~/git/xGEM2MT
-git clone https://bitbucket.org/gems4/xgem2mt.git .
+git clone https://github.com/gemshub/xgem2mt . 
 ```
 
-### How to build xGEM2MT library and examples
-
-* Install Dependencies by executing in ```~/xgem2mt$```
+* Install Dependencies by executing (if not using Conda environment)
 
 ```sh
 #!bash
 sudo ./install-dependencies.sh
 ```
 
-* To build xGEM2MT and install it in your home directory or in the system directory (as in the example below), a typical sequence of commands can be executed in the terminal:
+* If using conda environment (recommended) create and activate the xgem2mt environnement by executing:
+
+```sh
+conda devenv
+conda activate xgem2mt
+```
+
+* Build xgem2mt library and examples
 
 ```sh
 cd ~/xgem2mt
 mkdir build
 cd build
-cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
+cmake .. 
 make
 sudo make install
 ```
 
-* To execute the c++ demo:
+### Code Examples
 
-```sh
-cd ~/build/bin
-./demo_gem2mt
+#### C++ API example.
+
+The main functionality offered by xgem2mt is available via class MassTransport. It's usage is demonstrated below using C++:
+
+```cpp
+
+/**
+'S'     Sequential reactors chain with waves (moving fluids or solids between reactors one-by-one)
+
+This flexible scheme consists of many "reactors" (boxes) arranged into a 1-D chain, where at each step,
+the whole fluid phase is moved (copied) from the previous into the next box. The constant composition "fresh"
+fluid enters the very first box with a prescribed fluid-rock mass ratio and reacts there. The equilibrated fluid
+is taken to the next box (at prescribed fluid-rock ratio, replacing the fluid left from the previous "wave")
+and reacts there, and so on until the last box is reacted, thus completing the so-called "wave".
+Any desired number of "waves" can be performed. At the beginning of second wave, the "fresh" fluid replaces
+the old fluid phase in the first box. After equilibration, the fluid is taken into the second box to react, and so on.
+From "wave" to "wave", the propagation of rock alteration zones can be followed by plotting amounts of phases in all boxes.
+A variant of 'S' mode allows to move all solids instead of the fluid phase from box to box, like in a dialysis bag
+(with an idea to follow the fluid evolution).
+*/
+int task_S(size_t nnodes, const std::string& ipm_lst, const std::string& dbr_lst)
+{
+    // (1) Create the  MassTransport simulator
+    xGEM2MT::MassTransport mt_task('S', nnodes);
+    mt_task.setName("Test S mode (initial 2.5 mmol/L calcite)  1 to 96 C");
+
+    // (2) Set up sizes, flags and values different from default
+    // Set physical time iterator (start,end,step)
+    mt_task.setTau(0, 30, 0.3);
+    // Set number of mobile groups of phases
+    mt_task.setNumberPhaseGroups(1);
+    // Set number of MGP fluxes defined in the megasystem
+    mt_task.setNumberMGPfluxes(nnodes);
+    // Use smart initial approximation in GEM IPM (+); SIA internal (*); AIA (-)
+    mt_task.setSIA('-');
+    // Set type flux Phase ( 0 undef, 1 - aq; 2 - gas; 3 - aq+gas, 4 - solids )
+    mt_task.setTypeFluxPhase('1');
+    // Use non stop debug output for nodes
+    mt_task.setOutput(true);
+
+    // (3) Here we read the MULTI structure, DATACH and DATABR files prepared from GEMS,
+    // allocate and set default values for gem2mt arrays
+    mt_task.initNodes(ipm_lst, dbr_lst);
+
+    // (4) Change/define some other gem2mt arrays
+    // Set units for aq phase quantities
+    mt_task.setUnitsPhaseQuantities(0, 'n');
+    for(size_t ii = 0; ii < mt_task.nMGPfluxes(); ++ii) {
+        // Set the flux definition: flux order, flux rate, MGP quantity
+        mt_task.setFluxDefinition(ii, 0., 1., 0, 0);
+    }
+
+    // (5) Here we call the mass-transport finite-difference coupled routine
+    mt_task.runMassTransport();
+
+    return 0;
+}
+
 ```
+
+
+##### Python API example
+
+The equivalent Python version is shown below:
+
+```python3
+
+from xgem2mt import *
+
+"""
+'F'     Flow-through reactors chain with fluxes (simultaneous transport then equilibration)
+
+This scheme also consists of many "reactors" (boxes) arranged into a 1-D chain connected by 1st order fluxes.
+At each (time) step, part of the fluid phase is moved from the previous into the next box simultaneously for all boxes.
+The very first box is usually defined as a constant source of "fresh" fluid, and the last box in the chain - as having
+the infinite sink for the fluid. 1st order flux means that the mass (of fluid) transported per (time) step is proportional
+to the mass of fluid phase in the outgoing box. So, the flux rate constant (typically about 0.1 to 0.3) actually tells what
+fraction of the fluid mass is transported per (time) step. The effect of this feedback is that, even if the boxes initially
+contained different masses of fluid, with time the masses of fluid would become equal. This scheme simulates the propagation
+of rock alteration zones, which can be followed by plotting amounts of phases in all boxes. The ODE integration (as in B mode)
+is not performed. Compared with S mode, the F mode produces results more similar to those of classical advection RT algorithms.
+
+"""
+
+def task_F(nnodes: int, ipm_lst: str, dbr_lst: str) -> int:
+    try:
+        # (1) Create the  MassTransport simulator
+        mt_task = MassTransport("F", nnodes)
+        mt_task.setName("Test F mode (flow-through reactors)")
+
+        # (2) Set up sizes, flags and values different from default
+        # Set physical time iterator (start,end,step)
+        mt_task.setTau(0.0, 1200.0, 1.0)
+        # Set spatial dimensions of the medium defines topology of nodes ( x y z )
+        mt_task.setSpatialDimensions(0, 0, 0)
+        # Set number of mobile groups of phases
+        mt_task.setNumberPhaseGroups(1)
+        # Set number of MGP fluxes defined in the megasystem
+        mt_task.setNumberMGPfluxes(nnodes)
+        # Use smart initial approximation in GEM IPM (+); SIA internal (*); AIA (-)
+        mt_task.setSIA("-")
+        # Set type flux Phase ( 0 undef, 1 - aq; 2 - gas; 3 - aq+gas, 4 - solids )
+        mt_task.setTypeFluxPhase("1")
+        # Use non stop debug output for nodes
+        mt_task.setOutput(True)
+
+        # (3) Here we read the MULTI structure, DATACH and DATABR files prepared from GEMS,
+        # allocate and set default values for gem2mt arrays
+        mt_task.initNodes(ipm_lst, dbr_lst)
+
+        # (4) Change/define some other gem2mt arrays
+        for ii in range(mt_task.nMGPfluxes):
+            # Set the flux defnition: flux order, flux rate, MGP quantity
+            mt_task.setFluxDefinition(ii, 1.0, 0.5, 0, 0)
+        
+        # (5) Here we call the mass-transport finite-difference coupled routine
+        mt_task.runMassTransport()
+
+        return 0
+
+    except RuntimeError as ex:
+        print(ex)
+        return 1
+
+
+```
+
+For more information on APIs and more examples, take a look at the `/demos` directory.
 

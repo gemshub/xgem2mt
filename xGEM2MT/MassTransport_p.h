@@ -1,6 +1,6 @@
 ﻿// xGEMS2MT is a C++ and Python library for mass transport modeling with Gibbs energy minimization
 //
-// Copyright (C) 2022 S.Dmytriieva, Dmitrii Kulik
+// Copyright (C) 2022-2026 S.Dmytriieva, Dmitrii Kulik
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -24,9 +24,6 @@ namespace xGEM2MT {
 
 struct MassTransport::Impl
 {
-    bool init_gem3k = false;
-    //TGEM2MT gem2mt_task;
-
     /// Construct a default Impl instance
     Impl(char mode, size_t nnodes)
     {
@@ -34,8 +31,11 @@ struct MassTransport::Impl
         gem2mt_task = std::unique_ptr<TGEM2MT>(new TGEM2MT(mode, nnodes));
     }
 
+    bool init_gem3k = false;
+
     /// The TNodeArray instance from ChemicalEngineArray
     std::unique_ptr<TGEM2MT> gem2mt_task;
+    //TGEM2MT gem2mt_task;
 
     /// The instance of ChemicalEngineArray linked to gem2mt_task internal data
     std::shared_ptr<ChemicalEngineArray> chem_array;

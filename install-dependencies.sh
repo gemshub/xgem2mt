@@ -15,7 +15,7 @@ elif [ "$(expr substr $(uname -s) 1 5)" == "Linux" ]; then
     EXTN=so
 fi
 
-threads=3
+threads=4
 git status
 USING_THERMOFUN_MODE=$1
 BRANCH_TFUN=master
@@ -30,7 +30,6 @@ BuildType=Release
 #sudo rm -f  /usr/local/lib/libChemicalFun.$EXTN
 #sudo rm -f  /usr/local/lib/libThermoFun.$EXTN
 #sudo rm -f  /usr/local/lib/libGEMS3K.$EXTN
-#sudo rm -f /usr/local/lib/libGEM2MT.$EXTN
 
 # spdlog
 # if no spdlog installed in /usr/local/include/spdlog (copy only headers)
@@ -55,8 +54,7 @@ if [ "$USING_THERMOFUN_MODE" == "NO_THERMOFUN" ];
 
 # GEMS3K library
 # if no GEMS3K installed in /usr/local/lib/libGEMS3K.so (/usr/local/include/GEMS3K)
-# if no GEM2MT installed in /usr/local/lib/libGEM2MT.so (/usr/local/include/nodearray-gem)
-test -f /usr/local/lib/libGEM2MT.$EXTN || {
+test -f /usr/local/lib/libGEMS3K.$EXTN || {
 
         # Building GEMS3k library
         mkdir -p ~/code && \
@@ -65,7 +63,7 @@ test -f /usr/local/lib/libGEM2MT.$EXTN || {
         cd GEMS3K && \
         mkdir -p build && \
         cd build && \
-        cmake .. -DCMAKE_CXX_FLAGS=-fPIC -DBUILD_GEM2MT=ON -DCMAKE_BUILD_TYPE=$BUILD_TYPE && \
+        cmake .. -DCMAKE_CXX_FLAGS=-fPIC -DCMAKE_BUILD_TYPE=$BUILD_TYPE && \
         make -j $threads && \
         sudo make install
 
@@ -178,8 +176,7 @@ test -f /usr/local/lib/libThermoFun.$EXTN || {
 
 # GEMS3K library
 # if no GEMS3K installed in /usr/local/lib/libGEMS3K.so (/usr/local/include/GEMS3K)
-# if no GEM2MT installed in /usr/local/lib/libGEM2MT.so (/usr/local/include/nodearray-gem)
-test -f /usr/local/lib/libGEM2MT.$EXTN || {
+test -f /usr/local/lib/libGEMS3K.$EXTN || {
 
         # Building thermofun library
         mkdir -p ~/code && \
@@ -188,7 +185,7 @@ test -f /usr/local/lib/libGEM2MT.$EXTN || {
         cd GEMS3K && \
         mkdir -p build && \
         cd build && \
-        cmake .. -DCMAKE_CXX_FLAGS=-fPIC -DBUILD_GEM2MT=ON -DUSE_THERMOFUN=OFF -DCMAKE_BUILD_TYPE=$BUILD_TYPE && \
+        cmake .. -DCMAKE_CXX_FLAGS=-fPIC -DCMAKE_BUILD_TYPE=$BUILD_TYPE && \
         make -j $threads && \
         sudo make install
 

@@ -10,7 +10,6 @@
 // modelling by Gibbs energy minimization
 //
 // This file may be distributed under the GPL v.3 license
-
 //
 // See http://gems.web.psi.ch/ for more information
 // E-mail: gems2.support@psi.ch

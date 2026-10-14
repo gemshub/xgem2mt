@@ -45,7 +45,7 @@ class MassTransport
 
 public:
     //
-    auto getChemicalEngineArray() -> std::shared_ptr<ChemicalEngineArray>;
+    std::shared_ptr<ChemicalEngineArray> getChemicalEngineArray();
 
     /**
      * @brief Constructs a MassTransport object.
