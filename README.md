@@ -10,8 +10,6 @@ The **xGEM2MT** module can simulate reactive transport in three main modes:
 * Flow-through and box-flux sequence ('F', 'B');
 * One-dimensional reactive transport with advection/dispersion/diffusion ('A', 'C', 'W')
 
-For detailed information about how to use this project through its C++ and Python interface interface [View Documentation](https://xgems.readthedocs.io)
-
 ### License
 * xGEM2MT is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 * xGEM2MT is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
@@ -23,13 +21,13 @@ For detailed information about how to use this project through its C++ and Pytho
 
 [![Conda-Forge](https://img.shields.io/conda/vn/conda-forge/xgems?style=for-the-badge&logo=conda-forge)](https://anaconda.org/conda-forge/xgems)
 
-xGEMS can be easily installed using [Conda](https://www.anaconda.com/docs/getting-started/miniconda/install) package manager. If you have Conda or Miniforge installed, first add the conda-forge channel by executing 
+xGEM2MT can be easily installed using [Conda](https://www.anaconda.com/docs/getting-started/miniconda/install) package manager. If you have Conda or Miniforge installed, first add the conda-forge channel by executing 
 
 ```bash
 conda config --add channels conda-forge
 ```
 
-install xGEMS by executing the following command:
+install xGEM2MT by executing the following command:
 
 ```bash
 conda install xgem2mt
@@ -40,25 +38,26 @@ Conda can be installed from [Miniconda](https://conda.io/miniconda.html).
 
 #### How to build from source code
 
-* In your home directory, make a folder named e.g. ~/xgem2mt, open a terminal and type in the command line (do not forget a period) to download the actual "master" branch:
+* In your home directory, make a folder named e.g. `~/xgem2mt`, open a terminal, and type the command line (do not forget a period) to download the actual "master" branch:
+  
 ```sh
 git clone https://github.com/gemshub/xgem2mt . 
 ```
 
-* Install Dependencies by executing (if not using Conda environment)
+* Install Dependencies by executing (if not using a Conda environment)
 
 ```sh
 sudo ./install-dependencies.sh
 ```
 
-* If using conda environment (recommended) create and activate the xgem2mt environnement by executing:
+* If using a Conda environment (recommended), create and activate the `xgem2mt` environment by executing:
 
 ```sh
 conda devenv
 conda activate xgem2mt
 ```
 
-* Build xgem2mt library and examples
+* Build the xgem2mt library and examples
 
 ```sh
 cd ~/xgem2mt
@@ -71,9 +70,11 @@ sudo make install
 
 ### Code Examples
 
+For detailed information about how to use this project through its C++ and Python interface [View Documentation](https://xgems.readthedocs.io)
+
 #### C++ API example.
 
-The main functionality offered by xgem2mt is available via class `MassTransport`. It's usage is demonstrated below using C++:
+The main functionality of xgem2mt is available through the `MassTransport` class. Its usage is demonstrated below using C++:
 
 ```cpp
 
@@ -108,7 +109,7 @@ int task_S(size_t nnodes, const std::string& ipm_lst, const std::string& dbr_lst
     mt_task.setSIA('-');
     // Set type flux Phase ( 0 undef, 1 - aq; 2 - gas; 3 - aq+gas, 4 - solids )
     mt_task.setTypeFluxPhase('1');
-    // Use non stop debug output for nodes
+    // Use non-stop debug output for nodes
     mt_task.setOutput(true);
 
     // (3) Here we read the MULTI structure, DATACH and DATABR files prepared from GEMS,
@@ -133,6 +134,7 @@ int task_S(size_t nnodes, const std::string& ipm_lst, const std::string& dbr_lst
 
 > [!NOTE]
 > You can generate GEMS system files using the print command in the GEM2MT module in the GUI, or prepare them in any other way.
+>
 > The file containing the list of system definition files must contain more than one file.
 
 ##### Python API example
@@ -177,7 +179,7 @@ def task_F(nnodes: int, ipm_lst: str, dbr_lst: str) -> int:
         mt_task.setSIA("-")
         # Set type flux Phase ( 0 undef, 1 - aq; 2 - gas; 3 - aq+gas, 4 - solids )
         mt_task.setTypeFluxPhase("1")
-        # Use non stop debug output for nodes
+        # Use non-stop debug output for nodes
         mt_task.setOutput(True)
 
         # (3) Here we read the MULTI structure, DATACH and DATABR files prepared from GEMS,
@@ -186,7 +188,7 @@ def task_F(nnodes: int, ipm_lst: str, dbr_lst: str) -> int:
 
         # (4) Change/define some other gem2mt arrays
         for ii in range(mt_task.nMGPfluxes):
-            # Set the flux defnition: flux order, flux rate, MGP quantity
+            # Set the flux definition: flux order, flux rate, MGP quantity
             mt_task.setFluxDefinition(ii, 1.0, 0.5, 0, 0)
         
         # (5) Here we call the mass-transport finite-difference coupled routine
