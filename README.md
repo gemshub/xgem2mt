@@ -2,9 +2,9 @@
 ## xGEM2MT 
 Linux, OSX, Windows
 
-The **GEM2MT** module is a tool for automation of one-dimensional (1-D) reactive mass transport simulations coupled with GEM calculation of equilibrium states in spatially distributed nodes (boxes, volumes) over time steps. **GEM2MT** can be used to simulate the open system evolution and fluid-rock reactions occurring along a fluid flow path (e.g. vein, fracture, porous media, etc.). This type of simulation solves simple reactive mass transport problems, which requires the definition of fluxes between boxes of certain fluid/rock mass or volume ratios (or alternatively porosity and permeability) where fluid is moved sequentially or simultaneously from one box to the other.
+The **xGEM2MT** module is a tool for automation of one-dimensional (1-D) reactive mass transport simulations coupled with [GEMS3K](https://github.com/gemshub/GEMS3K) calculation of equilibrium states in spatially distributed nodes (boxes, volumes) over time steps. 
 
-The **GEM2MT** module can simulate reactive transport in three main modes:
+The **xGEM2MT** module can simulate reactive transport in three main modes:
 
 * Sequential reactor chain and waves ('S');
 * Flow-through and box-flux sequence ('F', 'B');
@@ -12,16 +12,10 @@ The **GEM2MT** module can simulate reactive transport in three main modes:
 
 For detailed information about how to use this project through its C++ and Python interface interface [View Documentation](https://xgems.readthedocs.io)
 
-### Briefly about xGEM2MT
-
-* Currently uses the [GEMS3K](https://github.com/gemshub/GEMS3K) code that implements the improved GEM IPM-3 algorithm for Gibbs energy minization in very complex non-ideal chemical systems with two-sided metastability constraints.
-* The xGEM2MT API extends the [xGEMS API](https://github.com/gemshub/xgem2mt) to cover the TNodeArray class API of (standalone) GEM2MT as currently implemented in nodearray-gem example.
-* Written in C/C++. The xGEM2MT code can be compiled as a standalone program (see /demos); or built as a static or dynamic library for coupling with a mass transport simulator or another code.
-
 ### License
-* GEMS3K is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
-* GEMS3K is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
-* You should have received a copy of the GNU Lesser General Public License along with GEMS3K code. If not, see http://www.gnu.org/licenses/. 
+* xGEM2MT is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+* xGEM2MT is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
+* You should have received a copy of the GNU Lesser General Public License along with xGEM2MT code. If not, see http://www.gnu.org/licenses/. 
 
 ### Installation and Build
 
@@ -54,7 +48,6 @@ git clone https://github.com/gemshub/xgem2mt .
 * Install Dependencies by executing (if not using Conda environment)
 
 ```sh
-#!bash
 sudo ./install-dependencies.sh
 ```
 
@@ -80,7 +73,7 @@ sudo make install
 
 #### C++ API example.
 
-The main functionality offered by xgem2mt is available via class MassTransport. It's usage is demonstrated below using C++:
+The main functionality offered by xgem2mt is available via class `MassTransport`. It's usage is demonstrated below using C++:
 
 ```cpp
 
@@ -138,6 +131,9 @@ int task_S(size_t nnodes, const std::string& ipm_lst, const std::string& dbr_lst
 
 ```
 
+> [!NOTE]
+> You can generate GEMS system files using the print command in the GEM2MT module in the GUI, or prepare them in any other way.
+> The file containing the list of system definition files must contain more than one file.
 
 ##### Python API example
 

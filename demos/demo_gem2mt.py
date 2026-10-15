@@ -19,13 +19,13 @@ from xgem2mt import *
 
 def main():
     try:
-        mttask = MassTransport()
+        mttask = MassTransport("S", 11)
         gem2mt_init = "gem2mt-data/CalcColumnAD.json"
         gems_init_lst = "gem2mt-data/CalcColumn-dat.lst"
         gems_init_dbr_lst = "gem2mt-data/CalcColumn-dbr.lst"
 
-        mttask.initializeGEM2MT(gem2mt_init)
-        mttask.initializeNodes(gems_init_lst, gems_init_dbr_lst)
+        mttask.readTask(gem2mt_init)
+        mttask.initNodes(gems_init_lst, gems_init_dbr_lst)
 
         engine = mttask.getChemicalEngineArray()
         bj = engine.elementAmounts(0)
@@ -33,7 +33,7 @@ def main():
         bj = engine.elementAmounts(4);
         print(bj)
 
-        mttask.runGEM2MT()
+        mttask.runMassTransport()
 
         #print(mttask)
         bj = engine.elementAmounts(0)

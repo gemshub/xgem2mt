@@ -115,6 +115,7 @@ int TGEM2MT::ReadTask(const std::string& gem2mt_file, const std::string& vtk_dir
         }
 
         read_task_from_file = true;
+        alloc_na();
 
         pathVTK = vtk_dir;
         if(!pathVTK.empty()) {
@@ -151,6 +152,7 @@ int TGEM2MT::ReadTaskString(const std::string json_string)
         from_text_file(in_format);
 #endif
         read_task_from_file = true;
+        alloc_na();
         return 0;
     }
     catch(TError& err) {
@@ -245,9 +247,7 @@ void TGEM2MT::math_transport_defaults()
     mtp->DiCp = new long int[ mtp->nC][2];
     defaults_DiCp();
 
-    // Alloc the NodeArray
-    na = TNodeArray::create(mtp->nC);
-    TNodeArray::na = na.get();
+    alloc_na();
 
     if(mtp->PsMode == RMT_MODE_W) {
         mtp->nPTypes = 10;

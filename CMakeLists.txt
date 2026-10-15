@@ -122,6 +122,7 @@ set(XGEM2MT_TESTS_DIR  ${CMAKE_SOURCE_DIR}/tests)
 # Set the include directories
 include_directories(${CMAKE_SOURCE_DIR})
 #include_directories(${EIGEN3_INCLUDE_DIR})
+include_directories("/usr/local/include/eigen3")
 
 # Find all dependencies
 include(xGEM2MTFindDeps)

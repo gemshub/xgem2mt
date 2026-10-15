@@ -829,6 +829,12 @@ protected:
     virtual void defaults_BSF();
     virtual void defaults_Grid();
 
+    // Realloc the NodeArray
+    void alloc_na()
+    {
+        na = TNodeArray::create(mtp->nC);
+        TNodeArray::na = na.get();
+    }
     virtual void set_def(int q);
     virtual void mem_kill(int q);
     virtual void mem_new(int q);
