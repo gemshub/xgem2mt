@@ -116,7 +116,7 @@ int task_S(size_t nnodes, const std::string& ipm_lst, const std::string& dbr_lst
     // Set type flux Phase ( 0 undef, 1 - aq; 2 - gas; 3 - aq+gas, 4 - solids )
     mt_task.setTypeFluxPhase('1');
     // Use non stop debug output for nodes
-    mt_task.setOutput(true);
+    mt_task.setOutput(false);
 
     // // ?? only to compare Set initial node effective porosity (0 < eps < 1), usually 1
     // mt_task.setInitialNodeEffectivePorosity(1e-9);
@@ -126,6 +126,13 @@ int task_S(size_t nnodes, const std::string& ipm_lst, const std::string& dbr_lst
     // mt_task.setCutoffICamount(0);
     // // Set  cutoff for minimal amounts of IC in node bulk compositions (mol), usually 1e-12
     // mt_task.setCutoffMinimalAmountsIC(0);
+
+    xGEM2MT::LogFunction_f log_funct = [](xGEM2MT::ChemicalEngineArray& engine, long int step, double time) {
+        std::cout << "Log script step=" << step << " time=" << time << " size= " << engine.nNodes() << std::endl;
+        xGEM2MT::Vector bj = engine.elementAmounts(3);
+        std::cout << "Vector bj[3]: " << bj.transpose() << std::endl;
+    };
+    mt_task.setMonitoring(log_funct);
 
     // (3) Here we read the MULTI structure, DATACH and DATABR files prepared from GEMS,
     // allocate and set default values for gem2mt arrays

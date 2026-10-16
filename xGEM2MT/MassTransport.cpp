@@ -337,6 +337,16 @@ void MassTransport::setVTKfields(const std::vector<std::pair<int, int> > &vtk_fi
     pimpl->gem2mt_task->setVTKfields(vtk_fields);
 }
 
+void MassTransport::setMonitoring(LogFunction_f new_funct) {
+
+    ScriptFunction_f log_funct =  [this, new_funct](TNodeArray* node_data, long int step, double time) {
+        if(pimpl->chem_array) {
+            new_funct(*pimpl->chem_array, step, time);
+        }
+    };
+    pimpl->gem2mt_task->setScriptFunc(log_funct);
+}
+
 void MassTransport::setParticle(size_t pndx, long pmean, long pmin, long pmax, const std::array<long, 6> &pparam)
 {
     pimpl->gem2mt_task->setParticle(pndx, pmean, pmin, pmax, pparam);

@@ -836,7 +836,7 @@ void TGEM2MT::point_to_loggers()
 
 }
 
-bool TGEM2MT::accept_point(long int mtp_cp, std::string message, int prog, int total)
+bool TGEM2MT::accept_point(long int mtp_cp, std::string message, long int prog, long int total)
 {
     bool iret = false;
     auto Vmessage = message;
@@ -897,13 +897,9 @@ void TGEM2MT::CalcControlScript()
         return;
     }
 
-    // scroll through the nodes (boxes)
-    //for(long int ii=0; ii< mtp->nC; ++ii) {
-    //    mtp->jt = std::min( ii, (mtp->nC-1));
-    //    mtp->qc = ii;
-    //    mtp->qf = 0;  // index of flux should be set explicitly, explicit index of mgp taken from the flux
-    //}
-
+    if(script_func && na) {
+        script_func(na.get(), mtp->ct, mtp->cTau);
+    }
 }
 
 // Calculation of control script at RT problem initialization stage

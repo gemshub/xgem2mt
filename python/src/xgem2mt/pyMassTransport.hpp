@@ -16,6 +16,7 @@
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 #include <pybind11/pybind11.h>
+#include <pybind11/functional.h>
 #include <pybind11/stl.h>
 #include <memory>
 #include <string>
@@ -1085,6 +1086,23 @@ void exportMassTransport(py::module& m)
                  # Object ID 33 mapped to field index 0, ID 38 mapped to field index 1
                  selected_fields = [(33, 0), (38, 1)]
                  task.setVTKfields(selected_fields)
+             )doc")
+        .def("setMonitoring", [](MassTransport& self, py::object python_callback) {
+            LogFunction_f cxx_callback = [python_callback](ChemicalEngineArray& data, long int step, double time) {
+                py::object py_data = py::cast(data, py::return_value_policy::reference);
+                python_callback(py_data, step, time);
+            };
+            self.setMonitoring(cxx_callback);
+        },
+             R"doc(
+             Sets the callback function for monitoring simulations and updating nodes/boxes over time.
+
+             Registers a high-level monitoring function that will be executed at each simulation step.
+             The internal decorator automatically forwards the engine context, step index, and physical time.
+
+             Args:
+                 python_callback (callable): The monitoring callback function.
+                                    Must accept three arguments: (engine: ChemicalEngineArray, step: int, time: float)
              )doc")
 
         .def("__str__", [](const MassTransport& engine) {

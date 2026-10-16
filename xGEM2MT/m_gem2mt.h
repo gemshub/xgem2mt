@@ -18,11 +18,14 @@
 #ifndef _m_gem2mt_h_
 #define _m_gem2mt_h_
 
+#include <functional>
 #include "particlearray.h"
 
 namespace  io_formats {
 class TRWArrays;
 }
+
+using ScriptFunction_f = std::function<void(TNodeArray* data, long int step, double time)>;
 
 // internal
 enum grr_constants { // std::string len for graph
@@ -714,6 +717,13 @@ public:
     /// xFlds: Set list of selected fields and indexes to VTK format
     void setVTKfields(const std::vector<std::pair<int, int>>& vtk_fields);
 
+    /// Sets the callback function for monitoring simulations and updating nodes/boxes over time.
+    /// @param new_funct The callback function to be executed during the simulation steps.
+    void setScriptFunc(ScriptFunction_f new_funct) {
+        script_func = new_funct;
+        mtp->PvMSc = S_ON;
+    }
+
     // for separate
     void checkAlws(io_formats::TRWArrays&  prar1, io_formats::TRWArrays&  prar) const;
     template<typename TIO>
@@ -754,6 +764,8 @@ protected:
     std::shared_ptr<spdlog::logger> diff_log_file;
 
     bool read_task_from_file = false;
+    /// Callback function used for simulation monitoring and time-dependent node/box updates.
+    ScriptFunction_f script_func;
 
     void logProfilePhMol(spdlog::logger* logfile, int inode )
     {
@@ -770,7 +782,7 @@ protected:
     /// Function for sampling and plotting the properties of nodes at next time step.
     /// Output of the results if step accepted
     /// @param mtp_cp - actual time index
-    bool accept_point(long int mtp_cp, std::string message, int prog, int total);
+    bool accept_point(long int mtp_cp, std::string message, long int prog, long int total);
     void CalcStartScript();
     void CalcControlScript();
 

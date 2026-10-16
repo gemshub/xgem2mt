@@ -17,6 +17,11 @@
 
 from xgem2mt import *
 
+def python_logger(engine: ChemicalEngineArray, step: int, time: float):
+    print(f"[Python Logger] step={step} time={time} size={engine.nNodes()}.")
+    bj = engine.elementAmounts(3)
+    print(bj)
+
 """
 'F'     Flow-through reactors chain with fluxes (simultaneous transport then equilibration)
 
@@ -54,7 +59,10 @@ def task_F(nnodes: int, ipm_lst: str, dbr_lst: str) -> int:
         # Set type flux Phase ( 0 undef, 1 - aq; 2 - gas; 3 - aq+gas, 4 - solids )
         mt_task.setTypeFluxPhase("1")
         # Use non stop debug output for nodes
-        mt_task.setOutput(True)
+        mt_task.setOutput(False)
+
+        # Set external monitoring
+        mt_task.setMonitoring(python_logger)
 
         # (3) Here we read the MULTI structure, DATACH and DATABR files prepared from GEMS,
         # allocate and set default values for gem2mt arrays

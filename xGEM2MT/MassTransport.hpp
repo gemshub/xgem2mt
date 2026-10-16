@@ -19,9 +19,19 @@
 
 #include <memory>
 #include <string>
+#include <functional>
 #include <xGEM2MT/ChemicalEngineArray.hpp>
 
 namespace xGEM2MT {
+
+/**
+ * @brief Callback function for monitoring simulations and updating nodes/boxes over time.
+ *
+ * @param data Reference to the active ChemicalEngineArray instance containing simulation state.
+ * @param step The current simulation iteration/step index.
+ * @param time The current simulation time (typically in seconds or physical time units).
+ */
+using LogFunction_f = std::function<void(ChemicalEngineArray& data, long int step, double time)>;
 
 /**
  * @file MassTransport.hpp
@@ -959,6 +969,16 @@ public:
      * @endcode
      */
     void setVTKfields(const std::vector<std::pair<int, int>>& vtk_fields);
+
+    /**
+     * @brief Sets the callback function for monitoring simulations and updating nodes/boxes over time.
+     *
+     * Registers a high-level monitoring function that will be executed at each simulation step.
+     * The decorator automatically forwards the engine context, step index, and physical time.
+     *
+     * @param new_funct The monitoring callback function conforming to the LogFunction_f signature.
+     */
+    void setMonitoring(LogFunction_f new_funct);
 
 private:
     struct Impl;

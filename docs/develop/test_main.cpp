@@ -12,6 +12,7 @@
 
 #include "xGEM2MT/m_gem2mt.h"
 #include "GEMS3K/jsonconfig.h"
+#include "spdlog/sinks/basic_file_sink.h"
 
 static int task_from_file(const std::string& gem2mt_file, const std::string& ipm_lst, const std::string& dbr_lst);
 static int task_A(const std::string& ipm_lst, const std::string& dbr_lst);
@@ -50,8 +51,8 @@ int main( int argc, char* argv[] )
 
 
     try{
-        return task_from_file(gem2mt_in1, ipm_lst, dbr_lst);
-        //return task_A(ipm_lst, dbr_lst);
+        //return task_from_file(gem2mt_in1, ipm_lst, dbr_lst);
+        return task_A(ipm_lst, dbr_lst);
         //return task_C(ipm_lst, dbr_lst);
         //return task_W(ipm_lst, dbr_lst);
         //return task_F("TestF/CalcColumn-dat.lst", "TestF/CalcColumn-dbr.lst");
@@ -121,8 +122,19 @@ int task_A(const std::string& ipm_lst, const std::string& dbr_lst)
     mt_task->setSIA(S_ON);
     // Set type flux Phase ( 0 undef, 1 - aq; 2 - gas; 3 - aq+gas, 4 - solids ) (default 1)
     mt_task->setTypeFluxPhase('1');
-    // Use non stop debug output for nodes (+ -) (default +)
-    mt_task->setOutput(true);
+    // Disable non stop debug output for nodes (+ -) (default +)
+    mt_task->setOutput(false);
+
+    std::shared_ptr<spdlog::logger> log_file;
+    spdlog::drop("ic_log_file");
+    log_file = spdlog::basic_logger_mt("ic_log_file", "ICaq-log3.dat", true);
+    log_file->set_pattern("%v");
+
+    ScriptFunction_f log_funct = [&log_file](TNodeArray* data, long int step, double time) {
+        gems_logger->info("Log script step= {} time= {} {}", step, time, data->nNodes());
+        data->logProfileAqIC(log_file.get(), step, time, data->nNodes(), 10);
+    };
+    mt_task->setScriptFunc(log_funct);
 
     // Set physical time iterator (start,end,step)
     mt_task->setTau(0, 500000, 5000);
