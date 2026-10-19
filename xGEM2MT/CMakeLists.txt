@@ -30,7 +30,7 @@ endif()
 if(XGEM2MT_BUILD_STATIC_LIBS)
    add_library(xGEM2MT-static STATIC $<TARGET_OBJECTS:XGEM2MT_OBJECT>)
    add_library(xGEM2MT::xGEM2MT-static ALIAS xGEM2MT-static)
-   target_link_libraries(xGEM2MT-static PUBLIC GEMS3K::GEMS3K)
+   target_link_libraries(xGEM2MT-static PUBLIC GEMS3K::GEMS3K-static)
    install(TARGETS xGEM2MT-static
              EXPORT xGEM2MTTargets DESTINATION "lib" COMPONENT libraries)
 endif()
