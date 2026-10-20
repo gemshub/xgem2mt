@@ -64,7 +64,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Cannot currently produce a dynamic library using MSVC, only a static library
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
-    #set(XGEM2MT_BUILD_SHARED_LIBS OFF)
+    set(XGEM2MT_BUILD_SHARED_LIBS OFF)
 endif()
 
 # Used into conda only
