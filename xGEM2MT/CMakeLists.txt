@@ -12,7 +12,7 @@ if(XGEM2MT_BUILD_SHARED_LIBS)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
     add_library(xGEM2MT SHARED $<TARGET_OBJECTS:XGEM2MT_OBJECT>)
     add_library(xGEM2MT::xGEM2MT ALIAS xGEM2MT)
-    target_link_libraries(xGEM2MT PUBLIC GEMS3K::GEMS3K GEMS3K::GEM2MT)
+    target_link_libraries(xGEM2MT PUBLIC GEMS3K::GEMS3K)
     install(TARGETS xGEM2MT
             EXPORT xGEM2MTTargets DESTINATION "lib" COMPONENT libraries)
 
@@ -30,7 +30,7 @@ endif()
 if(XGEM2MT_BUILD_STATIC_LIBS)
    add_library(xGEM2MT-static STATIC $<TARGET_OBJECTS:XGEM2MT_OBJECT>)
    add_library(xGEM2MT::xGEM2MT-static ALIAS xGEM2MT-static)
-   target_link_libraries(xGEM2MT-static PUBLIC GEMS3K::GEMS3K-static GEMS3K::GEM2MT-static)
+   target_link_libraries(xGEM2MT-static PUBLIC GEMS3K::GEMS3K-static)
    install(TARGETS xGEM2MT-static
              EXPORT xGEM2MTTargets DESTINATION "lib" COMPONENT libraries)
 endif()

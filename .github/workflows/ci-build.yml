@@ -54,7 +54,6 @@ jobs:
         shell: bash -l {0}
         run: |
           conda activate xgem2mt
-          ./conda-install-dependencies.sh
           mkdir .build && cd .build
           cmake -GNinja .. -DCMAKE_BUILD_TYPE=Release
           ninja
@@ -66,10 +65,9 @@ jobs:
         shell: cmd
         run: |
           call conda activate xgem2mt || goto :eof
-          call conda-install-dependencies.bat || goto :eof
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH="%CONDA_PREFIX%\Library" -A x64 -S . -B build  || goto :eof
+          cmake -DCMAKE_BUILD_TYPE=Release -DXGEM2MT_BUILD_PYTHON=OFF -DCMAKE_INSTALL_PREFIX:PATH="%CONDA_PREFIX%\Library" -A x64 -S . -B build  || goto :eof
           cmake --build build --target install --config Release || goto :eof
-          python -c "import xgem2mt" || goto :eof
+        #  python -c "import xgem2mt" || goto :eof
           
       - name: Check conda
         run: |

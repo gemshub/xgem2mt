@@ -20,7 +20,7 @@ from pathlib import Path
 
 def main():
     try:
-        mttask = MassTransport()
+        mttask = MassTransport("S", 11)
         gem2mt_json = Path("gem2mt-data/CalcColumnAD.json").read_text().replace('\n', ' ')
         dch_json = Path("gem2mt-data/CalcColumn-dch.json").read_text().replace('\n', ' ')
         ipm_json = Path("gem2mt-data/CalcColumn-ipm.json").read_text().replace('\n', ' ')
@@ -28,10 +28,10 @@ def main():
         dbr_json0 = Path("gem2mt-data/CalcColumn-dbr-0-0001.json").read_text().replace('\n', ' ')
         dbr_jsons = [dbr_json1, dbr_json0]
 
-        mttask.initializeGEM2MTFromJsonString(gem2mt_json)
-        mttask.initializeNodesFromJsonStrings(dch_json, ipm_json, dbr_jsons)
+        mttask.readTaskString(gem2mt_json)
+        mttask.initNodesFromStrings(dch_json, ipm_json, dbr_jsons)
 
-        mttask.runGEM2MT()
+        mttask.runMassTransport()
         print(mttask)
 
     except RuntimeError as ex:

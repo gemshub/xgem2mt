@@ -1,6 +1,6 @@
 // xGEM2MT is a C++ and Python library for thermodynamic modeling by Gibbs energy minimization
 //
-// Copyright (C) 2022 S.Dmytriieva, Dmitrii Kulik
+// Copyright (C) 2018-2026 Allan Leal, Dmtrii Kulik, G.D. Miron, S.Dmytriieva
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -20,7 +20,9 @@
 
 PYBIND11_MODULE(PyxGEM2MT, m)
 {
+    m.doc() = "xGEMS2MT library for mass transport modeling with Gibbs energy minimization";
     xGEM2MT::update_loggers(false, "xGEM2MT.log", 3);
     exportChemicalEngineArray(m);
     exportMassTransport(m);
 }
+

@@ -16,6 +16,11 @@ endif()
 
 if(USE_SPDLOG_PRECOMPILED MATCHES ON)
  if(NOT TARGET spdlog::spdlog)
+     if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
+         set(SPDLOG_BUILD_STATIC OFF CACHE BOOL "" FORCE)
+         add_compile_definitions(SPDLOG_COMPILED_LIB)
+     endif()
+
     find_package(spdlog CONFIG REQUIRED)
     if(NOT spdlog_FOUND)
        message(FATAL_ERROR "spdlog library not found")

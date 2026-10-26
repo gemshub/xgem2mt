@@ -17,15 +17,21 @@
 
 #pragma once
 
-// C++ includes
-//#include <iostream>
 #include <memory>
 #include <string>
-
-// xGEMSMT includes
+#include <functional>
 #include <xGEM2MT/ChemicalEngineArray.hpp>
 
 namespace xGEM2MT {
+
+/**
+ * @brief Callback function for monitoring simulations and updating nodes/boxes over time.
+ *
+ * @param data Reference to the active ChemicalEngineArray instance containing simulation state.
+ * @param step The current simulation iteration/step index.
+ * @param time The current simulation time (typically in seconds or physical time units).
+ */
+using LogFunction_f = std::function<void(ChemicalEngineArray& data, long int step, double time)>;
 
 /**
  * @file MassTransport.hpp
@@ -49,7 +55,7 @@ class MassTransport
 
 public:
     //
-    auto getChemicalEngineArray() -> std::shared_ptr<ChemicalEngineArray>;
+    std::shared_ptr<ChemicalEngineArray> getChemicalEngineArray();
 
     /**
      * @brief Constructs a MassTransport object.
@@ -674,7 +680,7 @@ public:
      * and 1 (receiver); the second flux connects 1 and 2; the third connects 2 and 3, and so on.
      * The last cell should contain -1 to indicate that the flux acts as a sink.
      *
-     * @param node_ndx The index of the target flux/node.
+     * @param pndx     The index of the target flux/node.
      * @param source   The source (outgoing) box index in the MGP flux definition.
      * @param receive  The receiver (incoming) box index in the MGP flux definition.
      *
@@ -686,14 +692,14 @@ public:
      * task.setFluxSourceReceive(10, 10, -1);
      * @endcode
      */
-    void setFluxSourceReceive(size_t node_ndx, long int  source, long int  receive);
+    void setFluxSourceReceive(size_t pndx, long int  source, long int  receive);
 
     /**
      * @brief Changes the initialization of the flux definition.
      *
      * Configures the flux order, flux rate, and MGP quantity for a specific node (box).
      *
-     * @param node_ndx The index of the node (box).
+     * @param pndx  The index of the target flux/node.
      * @param order The MGP flux order {0, 1, 2, 3} (default: 0). Possible values:
      *              - 0: Zero-order (absolute) flux, with velocity v in mass/time units.
      *              - 1: First-order to source box mass flux, v in 1/time/kg units.
@@ -706,11 +712,10 @@ public:
      * @param val Reserved for future extensions. Currently unused (default: 0).
      *
      * @code
-     * // Example usage:
      * task.setFluxDefinition(0, 1, 0.5);
      * @endcode
      */
-    void setFluxDefinition(size_t node_ndx, double order, double rate, double quantity=0, double val=0);
+    void setFluxDefinition(size_t pndx, double order, double rate, double quantity=0, double val=0);
 
     /**
      * @brief Changes the initialization of the MGP ID to be moved in this flux.
@@ -718,15 +723,14 @@ public:
      * In 'S', 'F', and 'B' modes, this parameter defines which MGP is moved
      * by the flux (usually dubbed "aq").
      *
-     * @param node_ndx The index of the node (box).
-     * @param id       The MGP ID to be moved.
+     * @param pndx  The index of the target flux/node.
+     * @param id    The MGP ID to be moved.
      *
      * @code
-     * // Example usage:
-     * // task.setFluxMGPid(0, "aq_01");
+     * task.setFluxMGPid(0, "aq");
      * @endcode
      */
-    void setFluxMGPid(size_t node_ndx, const std::string& ids);
+    void setFluxMGPid(size_t pndx, const std::string& id);
 
     /**
      * @brief Changes the initialization of the short string that identifies the flux.
@@ -734,15 +738,14 @@ public:
      * This parameter is not used by the internal program logic. It is provided solely
      * as an option for the user to identify certain relevant fluxes more easily.
      *
-     * @param node_ndx The index of the node (box).
-     * @param id       The string ID used to identify the flux.
+     * @param pndx  The index of the target flux/node.
+     * @param id    The string ID used to identify the flux.
      *
      * @code
-     * // Example usage:
      * task.setFluxID(0, "custom_flux_name");
      * @endcode
      */
-    void setFluxID(size_t node_ndx, const std::string& id);
+    void setFluxID(size_t pndx, const std::string& id);
 
     /**
     * @brief Gets the number of mobile groups of phases.
@@ -966,6 +969,16 @@ public:
      * @endcode
      */
     void setVTKfields(const std::vector<std::pair<int, int>>& vtk_fields);
+
+    /**
+     * @brief Sets the callback function for monitoring simulations and updating nodes/boxes over time.
+     *
+     * Registers a high-level monitoring function that will be executed at each simulation step.
+     * The decorator automatically forwards the engine context, step index, and physical time.
+     *
+     * @param new_funct The monitoring callback function conforming to the LogFunction_f signature.
+     */
+    void setMonitoring(LogFunction_f new_funct);
 
 private:
     struct Impl;

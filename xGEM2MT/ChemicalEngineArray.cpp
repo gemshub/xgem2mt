@@ -19,9 +19,9 @@
 #include "MassTransport_p.h"
 
 // C++ includes
-#include <chrono>
-#include <iomanip>
-#include <memory>
+//#include <chrono>
+//#include <iomanip>
+//#include <memory>
 
 // GEMS3K includes
 #include <GEMS3K/nodearray.h>
@@ -918,7 +918,7 @@ auto ChemicalEngineArray::phaseDensity_i(size_t ndx, size_t iphase) const -> dou
     pimpl->node_array->LinkToNode(ndx, pimpl->n_nodes, pimpl->node_array->pNodT1());
     if(pimpl->node_array->getCalcNode()->Ph_Volume(iphase) > 1e-15) {
         return pimpl->node_array->getCalcNode()->Ph_Mass(iphase)
-               /pimpl->node_array->getCalcNode()->Ph_Volume(iphase);
+        /pimpl->node_array->getCalcNode()->Ph_Volume(iphase);
     }
     return 0.0;
 }
@@ -1116,7 +1116,7 @@ auto ChemicalEngineArray::phaseMolarGibbsEnergy_i(size_t ndx, size_t iphase) con
     double phMolarGibbsEnergy = 0.0;
     if( pimpl->node_array->getCalcNode()->Ph_Mole(iphase) > 1e-15 ) {
         phMolarGibbsEnergy = pimpl->node_array->getCalcNode()->Ph_GibbsEnergy(iphase)
-                             /pimpl->node_array->getCalcNode()->Ph_Mole(iphase);
+        /pimpl->node_array->getCalcNode()->Ph_Mole(iphase);
     }
     return phMolarGibbsEnergy;
 }
@@ -1143,7 +1143,7 @@ auto ChemicalEngineArray::phaseMolarEnthalpy_i(size_t ndx, size_t iphase) const 
     double phMolarEnthalpy = 0.0;
     if( pimpl->node_array->getCalcNode()->Ph_Mole(iphase) > 1e-15 )  {
         phMolarEnthalpy = pimpl->node_array->getCalcNode()->Ph_Enthalpy(iphase)
-                          /pimpl->node_array->getCalcNode()->Ph_Mole(iphase);
+        /pimpl->node_array->getCalcNode()->Ph_Mole(iphase);
     }
     return phMolarEnthalpy;      
 }
@@ -1171,7 +1171,7 @@ auto ChemicalEngineArray::phaseMolarVolume_i(size_t ndx, size_t iphase) const ->
     double phMolarVolume = 0.0;
     if(pimpl->node_array->getCalcNode()->Ph_Mole(iphase) > 1e-15) {
         phMolarVolume = pimpl->node_array->getCalcNode()->Ph_Volume(iphase)
-                        /pimpl->node_array->getCalcNode()->Ph_Mole(iphase);
+        /pimpl->node_array->getCalcNode()->Ph_Mole(iphase);
     }
     return phMolarVolume;
 }
@@ -1199,7 +1199,7 @@ auto ChemicalEngineArray::phaseMolarEntropy_i(size_t ndx, size_t iphase) const -
     double phMolarEntropy = 0.0;
     if(pimpl->node_array->getCalcNode()->Ph_Mole(iphase) > 1e-15) {
         phMolarEntropy = pimpl->node_array->getCalcNode()->Ph_Entropy(iphase)
-                         /pimpl->node_array->getCalcNode()->Ph_Mole(iphase);
+        /pimpl->node_array->getCalcNode()->Ph_Mole(iphase);
     }
     return phMolarEntropy;
 }
@@ -1300,7 +1300,7 @@ auto ChemicalEngineArray::phaseMolarHeatCapacityConstP_i(size_t ndx, size_t ipha
     double phMolarCp = 0.0;
     if(pimpl->node_array->getCalcNode()->Ph_Mole(iphase) > 1e-15) {
         phMolarCp = pimpl->node_array->getCalcNode()->Ph_HeatCapacityCp(iphase)
-                    /pimpl->node_array->getCalcNode()->Ph_Mole(iphase);
+        /pimpl->node_array->getCalcNode()->Ph_Mole(iphase);
     }
     return phMolarCp;
 }
@@ -1329,7 +1329,7 @@ auto ChemicalEngineArray::phaseSpecificHeatCapacityConstP_i(size_t ndx, size_t i
     double phSpecCp = 0.0;
     if(pimpl->node_array->getCalcNode()->Ph_Mass(iphase) > 1e-15) {
         phSpecCp = pimpl->node_array->getCalcNode()->Ph_HeatCapacityCp(iphase)
-                   /pimpl->node_array->getCalcNode()->Ph_Mass(iphase);
+        /pimpl->node_array->getCalcNode()->Ph_Mass(iphase);
     }
     return phSpecCp;
 }
@@ -1357,7 +1357,7 @@ auto ChemicalEngineArray::phaseSpecificGibbsEnergy_i(size_t ndx, size_t iphase) 
     double phSpecGibbsEnergy = 0.0;
     if(pimpl->node_array->getCalcNode()->Ph_Mass(iphase) > 1e-15) {
         phSpecGibbsEnergy = pimpl->node_array->getCalcNode()->Ph_GibbsEnergy(iphase)
-                            /pimpl->node_array->getCalcNode()->Ph_Mass(iphase);
+        /pimpl->node_array->getCalcNode()->Ph_Mass(iphase);
     }
     return phSpecGibbsEnergy;
 }
@@ -1385,7 +1385,7 @@ auto ChemicalEngineArray::phaseSpecificEnthalpy_i(size_t ndx, size_t iphase) con
     double phSpecEnthalpy = 0.0;
     if(pimpl->node_array->getCalcNode()->Ph_Mass(iphase) > 1e-15) {
         phSpecEnthalpy = pimpl->node_array->getCalcNode()->Ph_Enthalpy(iphase)
-                         /pimpl->node_array->getCalcNode()->Ph_Mass(iphase);
+        /pimpl->node_array->getCalcNode()->Ph_Mass(iphase);
     }
     return phSpecEnthalpy;
 }
@@ -1413,7 +1413,7 @@ auto ChemicalEngineArray::phaseSpecificVolume_i(size_t ndx, size_t iphase) const
     double phSpecVolume = 0.0;
     if(pimpl->node_array->getCalcNode()->Ph_Mass(iphase) > 1e-15) {
         phSpecVolume = pimpl->node_array->getCalcNode()->Ph_Volume(iphase)
-                       /pimpl->node_array->getCalcNode()->Ph_Mass(iphase);
+        /pimpl->node_array->getCalcNode()->Ph_Mass(iphase);
     }
     return phSpecVolume;
 }
@@ -1441,7 +1441,7 @@ auto ChemicalEngineArray::phaseSpecificEntropy_i(size_t ndx, size_t iphase) cons
     double phSpecEntropy = 0.0;
     if(pimpl->node_array->getCalcNode()->Ph_Mass(iphase) > 1e-15) {
         phSpecEntropy = pimpl->node_array->getCalcNode()->Ph_Entropy(iphase)
-                        /pimpl->node_array->getCalcNode()->Ph_Mass(iphase);
+        /pimpl->node_array->getCalcNode()->Ph_Mass(iphase);
     }
     return phSpecEntropy;
 }

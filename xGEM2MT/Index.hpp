@@ -1,6 +1,6 @@
 // xGEMS2MT is a C++ and Python library for mass transport modeling with Gibbs energy minimization
 //
-// Copyright (C) 2022 S.Dmytriieva, Dmitrii Kulik
+// Copyright (C) 2018 Allan Leal, Dmitrii Kulik
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by

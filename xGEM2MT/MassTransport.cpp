@@ -1,6 +1,6 @@
 ﻿// xGEMS2MT is a C++ and Python library for mass transport modeling with Gibbs energy minimization
 //
-// Copyright (C) 2022 S.Dmytriieva, Dmitrii Kulik
+// Copyright (C) 2022-2026 S.Dmytriieva, Dmitrii Kulik
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -20,7 +20,6 @@
 
 
 // GEMS3K includes
-//#include <GEMS3K/gems3k_impex.h>
 #include <GEMS3K/io_simdjson.h>
 
 namespace xGEM2MT {
@@ -336,6 +335,16 @@ void MassTransport::setNumberParticleTypes(long num)
 void MassTransport::setVTKfields(const std::vector<std::pair<int, int> > &vtk_fields)
 {
     pimpl->gem2mt_task->setVTKfields(vtk_fields);
+}
+
+void MassTransport::setMonitoring(LogFunction_f new_funct) {
+
+    ScriptFunction_f log_funct =  [this, new_funct](TNodeArray* node_data, long int step, double time) {
+        if(pimpl->chem_array) {
+            new_funct(*pimpl->chem_array, step, time);
+        }
+    };
+    pimpl->gem2mt_task->setScriptFunc(log_funct);
 }
 
 void MassTransport::setParticle(size_t pndx, long pmean, long pmin, long pmax, const std::array<long, 6> &pparam)

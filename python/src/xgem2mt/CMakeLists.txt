@@ -16,7 +16,8 @@ pybind11_add_module(PyxGEM2MT ${SOURCE_FILES} NO_EXTRAS) # NO_EXTRAS used to dec
 # Link PyxGEM2MT against xGEM2MT and GEMS3K library
 #target_link_libraries(PyxGEM2MT PUBLIC xGEM2MT::xGEM2MT)
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
-  target_link_libraries(PyxGEM2MT PUBLIC xGEM2MT::xGEM2MT-static)
+  target_link_libraries(PyxGEM2MT PUBLIC xGEM2MT::xGEM2MT-static GEMS3K::GEMS3K-static)
+  #target_link_options(${DEMO_NAME} PRIVATE "/FORCE:MULTIPLE")
 else()
   target_link_libraries(PyxGEM2MT PUBLIC xGEM2MT::xGEM2MT)
 endif()
