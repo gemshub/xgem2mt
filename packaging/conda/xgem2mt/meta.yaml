@@ -1,0 +1,55 @@
+{% set version = load_file_regex(load_file="CMakeLists.txt", regex_pattern="project\\(xGEM2MT VERSION ([0-9.]+)").group(1) %}
+
+package:
+  name: xgem2mt
+  version: {{ version }}
+
+source:
+  path: ../../..
+
+build:
+  number: 900
+  string: optima_py{{ py }}_h{{ PKG_HASH }}_{{ PKG_BUILDNUM }}
+
+requirements:
+  build:
+    - {{ compiler('cxx') }}
+    - {{ compiler('c') }}
+    - {{ stdlib('c') }}
+    - cmake
+    - ninja
+    - python  # [win or osx]
+    - pip  # [win or osx]
+    - setuptools  # [win or osx]
+    - wheel  # [win or osx]
+  host:
+    - gems3k * optima*
+    - optima * optima*  # the static GEMS3K on Windows links Optima
+    - thermofun >=0.7.1
+    - chemicalfun
+    - eigen >=3.4.0
+    - spdlog
+    - nlohmann_json
+    - pybind11
+    - python
+    - pip
+    - setuptools
+    - wheel
+    - numpy
+  run:
+    # xgem2mt links the shared GEMS3K library (static on Windows); the gems3k package of this release is required.
+    - {{ pin_compatible('gems3k', exact=True) }}
+    - thermofun >=0.7.1
+    - python
+    - numpy
+
+test:
+  imports:
+    - xgem2mt
+  commands:
+    - python -c "from xgem2mt import MassTransport, ChemicalEngineArray"
+
+about:
+  home: https://github.com/gemshub/xgem2mt
+  license: LGPL-3.0-or-later
+  summary: xGEM2MT reactive mass transport with GEMS3K (GEMS3K develop_optima branch) - TEST BUILD.
