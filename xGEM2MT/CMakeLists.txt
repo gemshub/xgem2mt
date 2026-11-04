@@ -7,6 +7,13 @@ file(GLOB CPP_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} *.cpp)
 # Compile the C++ source code into object files
 add_library(XGEM2MT_OBJECT OBJECT ${HPP_FILES} ${CPP_FILES})
 
+# Compile with the spdlog usage requirements (SPDLOG_COMPILED_LIB, SPDLOG_SHARED_LIB, ...).
+# Without them MSVC emits its own copies of the spdlog::logger functions, which then clash
+# with the ones imported from spdlog.dll when the Python module is linked (LNK2005).
+if(TARGET spdlog::spdlog)
+    target_link_libraries(XGEM2MT_OBJECT PUBLIC spdlog::spdlog)
+endif()
+
 # Check if a shared library is to be built
 if(XGEM2MT_BUILD_SHARED_LIBS)
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
