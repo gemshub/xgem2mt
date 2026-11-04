@@ -11,18 +11,23 @@ It also builds Optima and GEMS3K from their development branches.
    it is a test build, and publish. A tag that does not match the version in `CMakeLists.txt` stops the workflow.
 3. Publishing the release starts the workflow. It builds the packages for Linux (`linux-64`), macOS on
    Apple Silicon (`osx-arm64`) and Windows (`win-64`) and publishes them as a conda channel on the
-   `gh-pages` branch: https://gemshub.github.io/xgem2mt/prerelease. Each run replaces the channel.
+   `gh-pages` branch:
+   - a release goes to https://gemshub.github.io/xgem2mt/stable
+   - a pre-release goes to https://gemshub.github.io/xgem2mt/prerelease
+
+   Each run replaces the packages in its channel and leaves the other channel as it is.
 4. The workflow attaches the packages to the release and adds the install notes below your text.
 
-To update only the channel, start the workflow by hand (Actions > prerelease > Run workflow).
+To update only the prerelease channel, start the workflow by hand (Actions > prerelease > Run workflow).
 A pushed tag alone does not start the workflow.
 
 Once, after the first run: Settings > Pages > Source = branch `gh-pages`.
 
-## Install a prerelease
+## Install
 
 ```bash
-conda create -n xgem2mt -c https://gemshub.github.io/xgem2mt/prerelease -c conda-forge xgem2mt
+conda create -n xgem2mt -c https://gemshub.github.io/xgem2mt/stable -c conda-forge xgem2mt      # release
+conda create -n xgem2mt -c https://gemshub.github.io/xgem2mt/prerelease -c conda-forge xgem2mt  # test build
 ```
 
 ## Recipes
