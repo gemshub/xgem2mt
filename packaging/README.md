@@ -3,23 +3,25 @@
 The workflow `.github/workflows/prerelease.yml` builds conda packages of xgem2mt.
 It also builds Optima and GEMS3K from their development branches.
 
+## Channels
+
+| Channel | Updated by |
+|---|---|
+| https://gemshub.github.io/xgem2mt/prerelease | a push to a branch listed under `on.push.branches` in the workflow (now `master` and `prerelease_ci`), a GitHub pre-release, or a manual run (Actions > prerelease > Run workflow) |
+| https://gemshub.github.io/xgem2mt/stable | a published GitHub release |
+
+Each run builds the packages for Linux (`linux-64`), macOS on Apple Silicon (`osx-arm64`) and Windows
+(`win-64`), and replaces the packages in its channel; the other channel stays as it is.
+A push that changes only `*.md` files or `docs/` does not start a build.
+
 ## Make a release
 
 1. Set the version in `CMakeLists.txt` (`project(xGEM2MT VERSION ...)`) and merge it into `master`.
-2. On GitHub, open Releases > Draft a new release. Create a tag `v<version>` or `v<version>-<suffix>`
-   (for example `v1.0.4` or `v1.0.4-rc1`) on `master`, write the notes, tick "Set as a pre-release" if
-   it is a test build, and publish. A tag that does not match the version in `CMakeLists.txt` stops the workflow.
-3. Publishing the release starts the workflow. It builds the packages for Linux (`linux-64`), macOS on
-   Apple Silicon (`osx-arm64`) and Windows (`win-64`) and publishes them as a conda channel on the
-   `gh-pages` branch:
-   - a release goes to https://gemshub.github.io/xgem2mt/stable
-   - a pre-release goes to https://gemshub.github.io/xgem2mt/prerelease
-
-   Each run replaces the packages in its channel and leaves the other channel as it is.
-4. The workflow attaches the packages to the release and adds the install notes below your text.
-
-To update only the prerelease channel, start the workflow by hand (Actions > prerelease > Run workflow).
-A pushed tag alone does not start the workflow.
+2. On GitHub, open Releases > Draft a new release. Create a tag `v<version>` (for example `v1.0.4`) on
+   `master`, write the notes and publish. A tag that does not match the version in `CMakeLists.txt`
+   stops the workflow; for a pre-release, `v<version>-<suffix>` (for example `v1.0.4-rc1`) is accepted.
+3. The workflow updates the stable channel, attaches the packages to the release and adds the install
+   notes below your text.
 
 Once, after the first run: Settings > Pages > Source = branch `gh-pages`.
 

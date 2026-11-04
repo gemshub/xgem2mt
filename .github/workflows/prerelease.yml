@@ -1,18 +1,26 @@
-# Prerelease: builds optima + gems3k (develop_optima) + xgem2mt (this checkout) as conda packages and
-# publishes them as a conda channel on the gh-pages branch of this repo:
-#   https://gemshub.github.io/xgem2mt/stable       a published release (not marked as pre-release)
-#   https://gemshub.github.io/xgem2mt/prerelease   a published pre-release, or a manual run
-# Each run replaces its channel and leaves the other one as it is. Publishing a GitHub release (Releases > Draft a new release, tag for example
-# v1.0.4) runs it and attaches the packages to that release; the install notes are added below its text.
-# A manual run (Actions > prerelease > Run workflow) only updates the channel.
+# Builds optima + gems3k (develop_optima) + xgem2mt (this checkout) as conda packages and publishes them
+# as a conda channel on the gh-pages branch of this repo:
+#   https://gemshub.github.io/xgem2mt/prerelease   a push to a branch listed under on.push.branches below,
+#                                                  a GitHub pre-release, or a manual run
+#   https://gemshub.github.io/xgem2mt/stable       a published GitHub release (Releases > Draft a new release,
+#                                                  tag for example v1.0.4); the packages are attached to it
+#                                                  and the install notes are added below its text
+# Each run replaces its channel and leaves the other one as it is.
 # Install:
 #   conda create -n xgem2mt -c https://gemshub.github.io/xgem2mt/stable -c conda-forge xgem2mt
 # Requires: repo Settings > Pages > source = branch gh-pages (after the first run creates it).
 name: prerelease
 on:
+  push:
+    branches:            # a push to one of these branches updates the prerelease channel; add or remove names here
+      - master
+      - prerelease_ci
+    paths-ignore:        # changes to documentation only do not start a build
+      - "**.md"
+      - "docs/**"
   release:
-    types: [published]   # a release, or a pre-release, made on GitHub
-  workflow_dispatch:
+    types: [published]   # a release updates the stable channel; a pre-release updates the prerelease channel
+  workflow_dispatch:     # a manual run updates the prerelease channel
 
 permissions:
   contents: read   # the publish job asks for write access itself
