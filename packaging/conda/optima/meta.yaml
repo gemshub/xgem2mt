@@ -6,7 +6,7 @@ package:
 
 source:
   git_url: {{ environ.get("OPTIMA_REPO", "https://github.com/gemshub/optima.git") }}
-  git_rev: {{ environ.get("OPTIMA_BRANCH", "optima_develop") }}
+  git_rev: {{ environ.get("OPTIMA_REV", environ.get("OPTIMA_BRANCH", "optima_develop")) }}
 
 build:
   number: 900

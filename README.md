@@ -26,6 +26,8 @@ conda create -n xgem2mt -c https://gemshub.github.io/xgem2mt/prerelease -c conda
 conda activate xgem2mt
 ```
 
+Packages are available for Linux, macOS on Apple Silicon and Windows (not for Intel Macs).
+
 #### How to build from source code
 
 * In your home directory, make a folder named e.g. `~/xgem2mt`, open a terminal, and type the command line (do not forget a period) to download the actual "master" branch:

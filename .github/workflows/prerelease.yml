@@ -19,7 +19,7 @@ permissions:
 # ---- Settings: edit here ----------------------------------------------------------------------
 env:
   BASE_PACKAGES: "optima gems3k"            # python-independent recipes under RECIPE_ROOT, built once, in order
-  PUBLISH_PACKAGES: "gems3k xgem2mt"        # these go into the release; optima is linked into gems3k
+  PUBLISH_PACKAGES: "optima gems3k xgem2mt" # these go into the channel and the release
   PYTHON_PACKAGES: "xgem2mt"                # recipes built once per python version below
   PYTHON_VERSIONS: "3.12 3.13 3.14"         # a version missing from the conda-forge pinning is skipped with a warning
   RECIPE_ROOT: packaging/conda
@@ -28,17 +28,57 @@ env:
   PAGES_DIR: site                           # staging dir published to the gh-pages branch
   BUILD_DIR: channel                        # conda-build output folder
   ARTIFACT_PREFIX: channel                  # per-platform artifact name prefix
-  # Source repos and branches, read by the recipes' meta.yaml through jinja environ.get(...)
+  # Source repos and branches. The resolve job turns each branch into one commit (OPTIMA_REV, GEMS3K_REV),
+  # so that all platforms build the same source; the recipes read these through jinja environ.get(...)
   OPTIMA_REPO: https://github.com/gemshub/optima.git
   OPTIMA_BRANCH: optima_develop
   GEMS3K_REPO: https://github.com/gemshub/GEMS3K.git
   GEMS3K_BRANCH: develop_optima
-# xgem2mt itself is built from the tag (or branch) this workflow runs on.
+# xgem2mt itself is built from the tag (or branch) this workflow runs on. A tag must be v<version> or
+# v<version>-<suffix> (for example v1.0.4 or v1.0.4-rc1), with <version> from CMakeLists.txt.
 # ------------------------------------------------------------------------------------------------
 
 jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      optima_rev: ${{ steps.r.outputs.optima_rev }}
+      gems3k_rev: ${{ steps.r.outputs.gems3k_rev }}
+      gems3k_version: ${{ steps.r.outputs.gems3k_version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the tag, pin the Optima and GEMS3K commits, read the GEMS3K version
+        id: r
+        run: |
+          XV="$(sed -n 's/^project(xGEM2MT VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          [ -n "$XV" ] || { echo "::error::xGEM2MT version not found in CMakeLists.txt"; exit 1; }
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            case "${GITHUB_REF_NAME#v}" in
+              "$XV"|"$XV"-*) ;;
+              *) echo "::error::tag $GITHUB_REF_NAME does not match the CMakeLists.txt version $XV (use v$XV or v$XV-<suffix>)"; exit 1 ;;
+            esac
+          fi
+          rev() {  # rev <repo> <branch> -> commit SHA of the branch head
+            local r; r="$(git ls-remote "$1" "refs/heads/$2" | cut -f1)"
+            [ -n "$r" ] || { echo "::error::branch $2 not found in $1" >&2; return 1; }
+            echo "$r"
+          }
+          OREV="$(rev "$OPTIMA_REPO" "$OPTIMA_BRANCH")"
+          GREV="$(rev "$GEMS3K_REPO" "$GEMS3K_BRANCH")"
+          RAW="${GEMS3K_REPO%.git}/${GREV}/CMakeLists.txt"
+          RAW="${RAW/github.com/raw.githubusercontent.com}"
+          GV="$(curl -fsSL "$RAW" | sed -n 's/^project(GEMS3K VERSION \([0-9.]*\).*/\1/p')"
+          [ -n "$GV" ] || { echo "::error::GEMS3K version not found in $RAW"; exit 1; }
+          echo "Optima $OPTIMA_BRANCH @ $OREV, GEMS3K $GEMS3K_BRANCH @ $GREV (version $GV), xGEM2MT $XV"
+          { echo "optima_rev=$OREV"; echo "gems3k_rev=$GREV"; echo "gems3k_version=$GV"; } >> "$GITHUB_OUTPUT"
+
   build:
+    needs: resolve
     runs-on: ${{ matrix.os }}
+    env:
+      OPTIMA_REV: ${{ needs.resolve.outputs.optima_rev }}
+      GEMS3K_REV: ${{ needs.resolve.outputs.gems3k_rev }}
+      GEMS3K_VERSION: ${{ needs.resolve.outputs.gems3k_version }}
     strategy:
       fail-fast: false
       matrix:
@@ -57,19 +97,6 @@ jobs:
       - name: Install conda-build
         shell: bash -el {0}
         run: conda install -n base -y conda-build conda-forge-pinning  # base: that is where `conda build` is looked up
-      - name: Read the GEMS3K and xgem2mt versions from their CMakeLists.txt
-        shell: bash -el {0}
-        run: |
-          RAW="${GEMS3K_REPO%.git}/${GEMS3K_BRANCH}/CMakeLists.txt"
-          RAW="${RAW/github.com/raw.githubusercontent.com}"
-          V="$(curl -fsSL "$RAW" | sed -n 's/^project(GEMS3K VERSION \([0-9.]*\).*/\1/p')"
-          [ -n "$V" ] || { echo "::error::GEMS3K version not found in $RAW"; exit 1; }
-          echo "GEMS3K_VERSION=$V" >> "$GITHUB_ENV"
-          XV="$(sed -n 's/^project(xGEM2MT VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
-          [ -n "$XV" ] || { echo "::error::xGEM2MT version not found in CMakeLists.txt"; exit 1; }
-          if [ "$GITHUB_REF_TYPE" = tag ] && [ "${GITHUB_REF_NAME#v}" != "$XV" ]; then
-            echo "::warning::tag $GITHUB_REF_NAME differs from the CMakeLists.txt version $XV; the package is $XV"
-          fi
       - name: Build base packages once, then python packages per python version
         shell: bash -el {0}
         run: |
@@ -104,12 +131,15 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: build
+    needs: [resolve, build]
     # Publish also when one platform fails (for example Windows): the channel then holds the platforms that built.
-    if: always() && needs.build.result != 'cancelled'
+    if: always() && needs.resolve.result == 'success' && needs.build.result != 'cancelled'
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      OPTIMA_REV: ${{ needs.resolve.outputs.optima_rev }}
+      GEMS3K_REV: ${{ needs.resolve.outputs.gems3k_rev }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -138,7 +168,7 @@ jobs:
           cat > notes.md <<EON
           Test build of xGEM2MT. Not a final release.
 
-          GEMS3K is built from \`${GEMS3K_BRANCH}\` (with Optima from \`${OPTIMA_BRANCH}\`).
+          GEMS3K is built from \`${GEMS3K_BRANCH}\` at ${GEMS3K_REV}, with Optima from \`${OPTIMA_BRANCH}\` at ${OPTIMA_REV}.
           Other dependencies come from conda-forge.
 
           ## Install
@@ -146,6 +176,9 @@ jobs:
           \`\`\`bash
           conda create -n xgem2mt -c ${URL} -c conda-forge xgem2mt
           \`\`\`
+
+          Packages are built for Linux (linux-64), macOS on Apple Silicon (osx-arm64) and Windows (win-64).
+          There are no packages for Intel Macs (osx-64).
 
           The channel holds the latest build. The packages of this build are also attached below.
 
@@ -169,6 +202,9 @@ jobs:
         run: |
           TAG="$GITHUB_REF_NAME"
           if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            # Drop the files of an earlier run, so that a package that did not build this time is not left behind
+            gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' |
+              while read -r a; do gh release delete-asset "$TAG" "$a" -y -R "$GITHUB_REPOSITORY"; done
             gh release upload "$TAG" assets/* --clobber -R "$GITHUB_REPOSITORY"
             gh release edit "$TAG" --prerelease --notes-file notes.md -R "$GITHUB_REPOSITORY"
           else

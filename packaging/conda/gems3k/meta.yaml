@@ -6,7 +6,7 @@ package:
 
 source:
   git_url: {{ environ.get("GEMS3K_REPO", "https://github.com/gemshub/GEMS3K.git") }}
-  git_rev: {{ environ.get("GEMS3K_BRANCH", "develop_optima") }}
+  git_rev: {{ environ.get("GEMS3K_REV", environ.get("GEMS3K_BRANCH", "develop_optima")) }}
 
 build:
   number: 900
@@ -30,6 +30,7 @@ requirements:
     - autodiff
   run:
     - thermofun >=0.7.1
+    - optima * optima*  # the exported GEMS3K targets link Optima::Optima; this is the build from this channel
 
 test:
   commands:
