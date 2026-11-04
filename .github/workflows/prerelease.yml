@@ -57,16 +57,17 @@ jobs:
       optima_rev: ${{ steps.r.outputs.optima_rev }}
       gems3k_rev: ${{ steps.r.outputs.gems3k_rev }}
       gems3k_version: ${{ steps.r.outputs.gems3k_version }}
+      optima_version: ${{ steps.r.outputs.optima_version }}
     steps:
       - uses: actions/checkout@v4
-      - name: Check the tag, pin the Optima and GEMS3K commits, read the GEMS3K version
+      - name: Check the tag, pin the Optima and GEMS3K commits, read their versions
         id: r
         run: |
           XV="$(sed -n 's/^project(xGEM2MT VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
           [ -n "$XV" ] || { echo "::error::xGEM2MT version not found in CMakeLists.txt"; exit 1; }
           if [ "$GITHUB_REF_TYPE" = tag ]; then
-            case "${GITHUB_REF_NAME#v}" in
-              "$XV"|"$XV"-*) ;;
+            case "$GITHUB_REF_NAME" in
+              "v$XV"|"v$XV"-*) ;;
               *) echo "::error::tag $GITHUB_REF_NAME does not match the CMakeLists.txt version $XV (use v$XV or v$XV-<suffix>)"; exit 1 ;;
             esac
           fi
@@ -75,14 +76,19 @@ jobs:
             [ -n "$r" ] || { echo "::error::branch $2 not found in $1" >&2; return 1; }
             echo "$r"
           }
+          ver() {  # ver <GitHub repo> <commit> <CMake project name> -> project(... VERSION x.y.z) at that commit
+            local raw="${1%.git}/$2/CMakeLists.txt" v
+            raw="${raw/github.com/raw.githubusercontent.com}"
+            v="$(curl -fsSL "$raw" | sed -n "s/^project($3 VERSION \([0-9.]*\).*/\1/p")"
+            [ -n "$v" ] || { echo "::error::$3 version not found in $raw" >&2; return 1; }
+            echo "$v"
+          }
           OREV="$(rev "$OPTIMA_REPO" "$OPTIMA_BRANCH")"
           GREV="$(rev "$GEMS3K_REPO" "$GEMS3K_BRANCH")"
-          RAW="${GEMS3K_REPO%.git}/${GREV}/CMakeLists.txt"
-          RAW="${RAW/github.com/raw.githubusercontent.com}"
-          GV="$(curl -fsSL "$RAW" | sed -n 's/^project(GEMS3K VERSION \([0-9.]*\).*/\1/p')"
-          [ -n "$GV" ] || { echo "::error::GEMS3K version not found in $RAW"; exit 1; }
-          echo "Optima $OPTIMA_BRANCH @ $OREV, GEMS3K $GEMS3K_BRANCH @ $GREV (version $GV), xGEM2MT $XV"
-          { echo "optima_rev=$OREV"; echo "gems3k_rev=$GREV"; echo "gems3k_version=$GV"; } >> "$GITHUB_OUTPUT"
+          OV="$(ver "$OPTIMA_REPO" "$OREV" Optima)"
+          GV="$(ver "$GEMS3K_REPO" "$GREV" GEMS3K)"
+          echo "Optima $OV ($OPTIMA_BRANCH @ $OREV), GEMS3K $GV ($GEMS3K_BRANCH @ $GREV), xGEM2MT $XV"
+          { echo "optima_rev=$OREV"; echo "gems3k_rev=$GREV"; echo "optima_version=$OV"; echo "gems3k_version=$GV"; } >> "$GITHUB_OUTPUT"
 
   build:
     needs: resolve
@@ -91,6 +97,7 @@ jobs:
       OPTIMA_REV: ${{ needs.resolve.outputs.optima_rev }}
       GEMS3K_REV: ${{ needs.resolve.outputs.gems3k_rev }}
       GEMS3K_VERSION: ${{ needs.resolve.outputs.gems3k_version }}
+      OPTIMA_VERSION: ${{ needs.resolve.outputs.optima_version }}
     strategy:
       fail-fast: false
       matrix:
@@ -112,9 +119,10 @@ jobs:
       - name: Build base packages once, then python packages per python version
         shell: bash -el {0}
         run: |
-          # A new build number on every run gives new file names, so conda neither reuses a cached older
-          # package of the same name nor treats a new build as older than one already installed
-          export XGEM2MT_BUILD_NUMBER=$((1000 + GITHUB_RUN_NUMBER))
+          # A new build number on every run and every rerun gives new file names, so conda neither reuses a
+          # cached older package of the same name nor treats a new build as older than one already installed.
+          # A rerun looks up the Optima and GEMS3K branch heads again, so it can build other source.
+          export XGEM2MT_BUILD_NUMBER=$(( (1000 + GITHUB_RUN_NUMBER) * 100 + GITHUB_RUN_ATTEMPT ))
           PIN="$(conda info --base)/conda_build_config.yaml"
           build() {  # build() <recipe> [--variants "<variant>"]
             local r="$1"; shift
@@ -220,10 +228,15 @@ jobs:
           TAG: ${{ github.event.release.tag_name }}
         run: |
           R="-R $GITHUB_REPOSITORY"
-          # Drop the files of an earlier run, so that a package that did not build this time is not left behind
-          gh release view "$TAG" $R --json assets --jq '.assets[].name' |
-            while read -r a; do gh release delete-asset "$TAG" "$a" -y $R; done
           gh release upload "$TAG" assets/* --clobber $R
+          # Then remove package files of an earlier run that this run did not make (for example a platform
+          # that failed this time). Only <platform>-<package>-<version>...conda files of PUBLISH_PACKAGES are
+          # touched; files attached to the release by hand stay.
+          PKG_RE="^[a-z]+-[a-z0-9_]+-($(echo $PUBLISH_PACKAGES | tr ' ' '|'))-[0-9][^/]*\.conda\$"
+          gh release view "$TAG" $R --json assets --jq '.assets[].name' | grep -E "$PKG_RE" |
+            while read -r a; do
+              [ -e "assets/$a" ] || { echo "removing $a"; gh release delete-asset "$TAG" "$a" -y $R; }
+            done
           # Keep the text written on GitHub; put the generated notes below a marker, replacing those of an earlier run
           M='<!-- conda-packages -->'
           gh release view "$TAG" $R --json body --jq .body | awk -v m="$M" '$0 == m {exit} {print}' |

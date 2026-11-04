@@ -8,7 +8,7 @@ source:
   path: ../../..
 
 build:
-  number: {{ environ.get("XGEM2MT_BUILD_NUMBER", 900) }}  # set by the workflow: 1000 + run number, so every run gets new file names
+  number: {{ environ.get("XGEM2MT_BUILD_NUMBER", 900) }}  # set by the workflow: (1000 + run number) * 100 + run attempt, so every run gets new file names
   string: optima_py{{ py }}_h{{ PKG_HASH }}_{{ PKG_BUILDNUM }}
 
 requirements:

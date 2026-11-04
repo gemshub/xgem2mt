@@ -1,4 +1,4 @@
-{% set version = "0.6.0" %}
+{% set version = environ["OPTIMA_VERSION"] %}  # read from the pinned commit by the workflow
 
 package:
   name: optima
@@ -9,7 +9,7 @@ source:
   git_rev: {{ environ.get("OPTIMA_REV", environ.get("OPTIMA_BRANCH", "optima_develop")) }}
 
 build:
-  number: {{ environ.get("XGEM2MT_BUILD_NUMBER", 900) }}  # set by the workflow: 1000 + run number, so every run gets new file names
+  number: {{ environ.get("XGEM2MT_BUILD_NUMBER", 900) }}  # set by the workflow: (1000 + run number) * 100 + run attempt, so every run gets new file names
   string: optima_h{{ PKG_HASH }}_{{ PKG_BUILDNUM }}
 
 requirements:
