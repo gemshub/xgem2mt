@@ -17,24 +17,18 @@ The **xGEM2MT** module can simulate reactive transport in three main modes:
 
 ### Installation and Build
 
-#### Installation using Conda 
+#### Installation using Conda
 
-[![Conda-Forge](https://img.shields.io/conda/vn/conda-forge/xgems?style=for-the-badge&logo=conda-forge)](https://anaconda.org/conda-forge/xgems)
-
-xGEM2MT can be easily installed using [Conda](https://www.anaconda.com/docs/getting-started/miniconda/install) package manager. If you have Conda or Miniforge installed, first add the conda-forge channel by executing 
+xGEM2MT is not yet on conda-forge. Install it with [Conda](https://github.com/conda-forge/miniforge) from the xGEM2MT channel:
 
 ```bash
-conda config --add channels conda-forge
+conda create -n xgem2mt -c https://gemshub.github.io/xgem2mt/stable -c conda-forge xgem2mt
+conda activate xgem2mt
 ```
 
-install xGEM2MT by executing the following command:
+For the latest test build, use `https://gemshub.github.io/xgem2mt/prerelease` instead of `.../stable`.
 
-```bash
-conda install xgem2mt
-```
-
-Conda can be installed from [Miniconda](https://conda.io/miniconda.html).
-
+Packages are available for Linux, macOS on Apple Silicon and Windows (not for Intel Macs).
 
 #### How to build from source code
 

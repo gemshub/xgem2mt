@@ -1,0 +1,245 @@
+# Builds optima + gems3k (develop_optima) + xgem2mt (this checkout) as conda packages and publishes them
+# as a conda channel on the gh-pages branch of this repo:
+#   https://gemshub.github.io/xgem2mt/prerelease   a push to a branch listed under on.push.branches below,
+#                                                  a GitHub pre-release, or a manual run
+#   https://gemshub.github.io/xgem2mt/stable       a published GitHub release (Releases > Draft a new release,
+#                                                  tag for example v1.0.4); the packages are attached to it
+#                                                  and the install notes are added below its text
+# Each run replaces its channel and leaves the other one as it is.
+# Install:
+#   conda create -n xgem2mt -c https://gemshub.github.io/xgem2mt/stable -c conda-forge xgem2mt
+# Requires: repo Settings > Pages > source = branch gh-pages (after the first run creates it).
+name: prerelease
+on:
+  push:
+    branches:            # a push to one of these branches updates the prerelease channel; add or remove names here
+      - master
+      - prerelease_ci
+    paths-ignore:        # changes to documentation only do not start a build
+      - "**.md"
+      - "docs/**"
+  release:
+    types: [published]   # a release updates the stable channel; a pre-release updates the prerelease channel
+  workflow_dispatch:     # a manual run updates the prerelease channel
+
+permissions:
+  contents: read   # the publish job asks for write access itself
+
+concurrency:
+  group: ${{ github.workflow }}   # one run at a time updates the channel on gh-pages
+  cancel-in-progress: false
+
+# ---- Settings: edit here ----------------------------------------------------------------------
+env:
+  BASE_PACKAGES: "optima gems3k"            # python-independent recipes under RECIPE_ROOT, built once, in order
+  PUBLISH_PACKAGES: "optima gems3k xgem2mt" # these go into the channel and the release
+  PYTHON_PACKAGES: "xgem2mt"                # recipes built once per python version below
+  PYTHON_VERSIONS: "3.12 3.13 3.14"         # a version missing from the conda-forge pinning is skipped with a warning
+  RECIPE_ROOT: packaging/conda
+  UPSTREAM_CHANNEL: conda-forge
+  PAGES_DIR: site                           # staging dir published to the gh-pages branch
+  BUILD_DIR: channel                        # conda-build output folder
+  ARTIFACT_PREFIX: channel                  # per-platform artifact name prefix
+  # Source repos and branches. The resolve job turns each branch into one commit (OPTIMA_REV, GEMS3K_REV),
+  # so that all platforms build the same source; the recipes read these through jinja environ.get(...)
+  OPTIMA_REPO: https://github.com/gemshub/optima.git
+  OPTIMA_BRANCH: optima_develop
+  GEMS3K_REPO: https://github.com/gemshub/GEMS3K.git
+  GEMS3K_BRANCH: develop_optima
+# xgem2mt itself is built from the tag (or branch) this workflow runs on. A tag must be v<version> or
+# v<version>-<suffix> (for example v1.0.4 or v1.0.4-rc1), with <version> from CMakeLists.txt.
+# ------------------------------------------------------------------------------------------------
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      optima_rev: ${{ steps.r.outputs.optima_rev }}
+      gems3k_rev: ${{ steps.r.outputs.gems3k_rev }}
+      gems3k_version: ${{ steps.r.outputs.gems3k_version }}
+      optima_version: ${{ steps.r.outputs.optima_version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the tag, pin the Optima and GEMS3K commits, read their versions
+        id: r
+        run: |
+          XV="$(sed -n 's/^project(xGEM2MT VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          [ -n "$XV" ] || { echo "::error::xGEM2MT version not found in CMakeLists.txt"; exit 1; }
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            case "$GITHUB_REF_NAME" in
+              "v$XV"|"v$XV"-*) ;;
+              *) echo "::error::tag $GITHUB_REF_NAME does not match the CMakeLists.txt version $XV (use v$XV or v$XV-<suffix>)"; exit 1 ;;
+            esac
+          fi
+          rev() {  # rev <repo> <branch> -> commit SHA of the branch head
+            local r; r="$(git ls-remote "$1" "refs/heads/$2" | cut -f1)"
+            [ -n "$r" ] || { echo "::error::branch $2 not found in $1" >&2; return 1; }
+            echo "$r"
+          }
+          ver() {  # ver <GitHub repo> <commit> <CMake project name> -> project(... VERSION x.y.z) at that commit
+            local raw="${1%.git}/$2/CMakeLists.txt" v
+            raw="${raw/github.com/raw.githubusercontent.com}"
+            v="$(curl -fsSL "$raw" | sed -n "s/^project($3 VERSION \([0-9.]*\).*/\1/p")"
+            [ -n "$v" ] || { echo "::error::$3 version not found in $raw" >&2; return 1; }
+            echo "$v"
+          }
+          OREV="$(rev "$OPTIMA_REPO" "$OPTIMA_BRANCH")"
+          GREV="$(rev "$GEMS3K_REPO" "$GEMS3K_BRANCH")"
+          OV="$(ver "$OPTIMA_REPO" "$OREV" Optima)"
+          GV="$(ver "$GEMS3K_REPO" "$GREV" GEMS3K)"
+          echo "Optima $OV ($OPTIMA_BRANCH @ $OREV), GEMS3K $GV ($GEMS3K_BRANCH @ $GREV), xGEM2MT $XV"
+          { echo "optima_rev=$OREV"; echo "gems3k_rev=$GREV"; echo "optima_version=$OV"; echo "gems3k_version=$GV"; } >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: resolve
+    runs-on: ${{ matrix.os }}
+    env:
+      OPTIMA_REV: ${{ needs.resolve.outputs.optima_rev }}
+      GEMS3K_REV: ${{ needs.resolve.outputs.gems3k_rev }}
+      GEMS3K_VERSION: ${{ needs.resolve.outputs.gems3k_version }}
+      OPTIMA_VERSION: ${{ needs.resolve.outputs.optima_version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-latest,  subdir: linux-64}
+          - {os: macos-latest,   subdir: osx-arm64}
+          - {os: windows-latest, subdir: win-64}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: 26.7.2-1   # 26.9.4-0 fails in "conda init --all" on Windows; unpin when fixed
+          channels: ${{ env.UPSTREAM_CHANNEL }}
+          channel-priority: strict
+          auto-activate-base: true
+      - name: Install conda-build
+        shell: bash -el {0}
+        run: conda install -n base -y conda-build conda-forge-pinning  # base: that is where `conda build` is looked up
+      - name: Build base packages once, then python packages per python version
+        shell: bash -el {0}
+        run: |
+          # A new build number on every run and every rerun gives new file names, so conda neither reuses a
+          # cached older package of the same name nor treats a new build as older than one already installed.
+          # A rerun looks up the Optima and GEMS3K branch heads again, so it can build other source.
+          export XGEM2MT_BUILD_NUMBER=$(( (1000 + GITHUB_RUN_NUMBER) * 100 + GITHUB_RUN_ATTEMPT ))
+          PIN="$(conda info --base)/conda_build_config.yaml"
+          build() {  # build() <recipe> [--variants "<variant>"]
+            local r="$1"; shift
+            conda build "$RECIPE_ROOT/$r" -m "$PIN" "$@" --output-folder "$BUILD_DIR" -c "$UPSTREAM_CHANNEL"
+          }
+          for p in $BASE_PACKAGES; do build "$p" || { echo "::error::base package $p failed"; exit 1; }; done
+          for v in $PYTHON_VERSIONS; do
+            if ! VARIANT=$(python "$RECIPE_ROOT/python_variant.py" "$PIN" "$v"); then
+              echo "::warning::python $v is not in the conda-forge pinning yet - skipped"; continue
+            fi
+            for p in $PYTHON_PACKAGES; do
+              build "$p" --variants "$VARIANT" || {
+                echo "::warning::$p failed for python $v"
+                echo "- $p failed for python $v on ${{ matrix.subdir }}" >> "$GITHUB_STEP_SUMMARY"
+              }
+            done
+          done
+      - name: Collect the packages to publish
+        shell: bash -el {0}
+        run: |
+          mkdir -p publish
+          for p in $PUBLISH_PACKAGES; do cp "$BUILD_DIR/${{ matrix.subdir }}/$p"-[0-9]*.conda publish/ || true; done
+          ls publish
+          ls publish/xgem2mt-*.conda >/dev/null 2>&1 || { echo "::error::no xgem2mt package was built"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_PREFIX }}-${{ matrix.subdir }}
+          path: publish/*.conda
+          if-no-files-found: error
+
+  publish:
+    needs: [resolve, build]
+    # Publish also when one platform fails (for example Windows): the channel then holds the platforms that built.
+    if: always() && needs.resolve.result == 'success' && needs.build.result != 'cancelled'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      OPTIMA_REV: ${{ needs.resolve.outputs.optima_rev }}
+      GEMS3K_REV: ${{ needs.resolve.outputs.gems3k_rev }}
+      IS_FINAL: ${{ github.event_name == 'release' && !github.event.release.prerelease }}
+      # channel folder on gh-pages, served at https://<owner>.github.io/<repo>/<CHANNEL_NAME>
+      CHANNEL_NAME: ${{ (github.event_name == 'release' && !github.event.release.prerelease) && 'stable' || 'prerelease' }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dl
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: 26.7.2-1
+          channels: ${{ env.UPSTREAM_CHANNEL }}
+      - name: Index the channel and write the notes
+        shell: bash -el {0}
+        run: |
+          ls dl/$ARTIFACT_PREFIX-* >/dev/null 2>&1 || { echo "::error::no platform built"; exit 1; }
+          conda install -y conda-index
+          CH="$PAGES_DIR/$CHANNEL_NAME"
+          mkdir -p "$CH/noarch" assets
+          for d in dl/$ARTIFACT_PREFIX-*; do
+            sub=${d#dl/$ARTIFACT_PREFIX-}
+            mkdir -p "$CH/$sub"; cp "$d"/* "$CH/$sub/"
+            for f in "$d"/*.conda; do cp "$f" "assets/$sub-$(basename "$f")"; done
+          done
+          python -m conda_index "$CH"
+          find "$CH" -name .cache -prune -exec rm -rf {} +
+          URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/${CHANNEL_NAME}"
+          PKGS=$(cd "$CH" && ls */*.conda | sed 's#^#- #')
+          cat > notes.md <<EON
+          $( [ "$IS_FINAL" = true ] && echo "xGEM2MT conda packages." || echo "Test build of xGEM2MT. Not a final release." )
+
+          GEMS3K is built from \`${GEMS3K_BRANCH}\` at ${GEMS3K_REV}, with Optima from \`${OPTIMA_BRANCH}\` at ${OPTIMA_REV}.
+          Other dependencies come from conda-forge.
+
+          ## Install
+
+          \`\`\`bash
+          conda create -n xgem2mt -c ${URL} -c conda-forge xgem2mt
+          \`\`\`
+
+          Packages are built for Linux (linux-64), macOS on Apple Silicon (osx-arm64) and Windows (win-64).
+          There are no packages for Intel Macs (osx-64).
+
+          The channel holds the latest build. The packages of this build are also attached below.
+
+          ## Packages
+
+          ${PKGS}
+
+          Built from ${GITHUB_REPOSITORY}@${GITHUB_REF_NAME} (${GITHUB_SHA}). Platforms and Python versions not listed are not available.
+          EON
+          ( echo '<!doctype html><meta charset="utf-8"><title>xgem2mt '"$CHANNEL_NAME"' channel</title><pre>'
+            sed 's/&/\&amp;/g; s/</\&lt;/g' notes.md; echo '</pre>' ) > "$CH/index.html"
+          cat notes.md
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ${{ env.PAGES_DIR }}/${{ env.CHANNEL_NAME }}
+          destination_dir: ${{ env.CHANNEL_NAME }}   # replaces only this channel's folder on gh-pages
+      - name: Attach the packages and the install notes to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          R="-R $GITHUB_REPOSITORY"
+          gh release upload "$TAG" assets/* --clobber $R
+          # Then remove package files of an earlier run that this run did not make (for example a platform
+          # that failed this time). Only <platform>-<package>-<version>...conda files of PUBLISH_PACKAGES are
+          # touched; files attached to the release by hand stay.
+          PKG_RE="^[a-z]+-[a-z0-9_]+-($(echo $PUBLISH_PACKAGES | tr ' ' '|'))-[0-9][^/]*\.conda\$"
+          gh release view "$TAG" $R --json assets --jq '.assets[].name' | grep -E "$PKG_RE" |
+            while read -r a; do
+              [ -e "assets/$a" ] || { echo "removing $a"; gh release delete-asset "$TAG" "$a" -y $R; }
+            done
+          # Keep the text written on GitHub; put the generated notes below a marker, replacing those of an earlier run
+          M='<!-- conda-packages -->'
+          gh release view "$TAG" $R --json body --jq .body | awk -v m="$M" '$0 == m {exit} {print}' |
+            sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > body.md   # without trailing blank lines
+          { cat body.md; echo; echo "$M"; cat notes.md; } > release.md
+          gh release edit "$TAG" --notes-file release.md $R
