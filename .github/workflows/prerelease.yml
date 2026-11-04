@@ -112,6 +112,9 @@ jobs:
       - name: Build base packages once, then python packages per python version
         shell: bash -el {0}
         run: |
+          # A new build number on every run gives new file names, so conda neither reuses a cached older
+          # package of the same name nor treats a new build as older than one already installed
+          export XGEM2MT_BUILD_NUMBER=$((1000 + GITHUB_RUN_NUMBER))
           PIN="$(conda info --base)/conda_build_config.yaml"
           build() {  # build() <recipe> [--variants "<variant>"]
             local r="$1"; shift

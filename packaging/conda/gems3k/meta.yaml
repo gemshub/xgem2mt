@@ -9,7 +9,7 @@ source:
   git_rev: {{ environ.get("GEMS3K_REV", environ.get("GEMS3K_BRANCH", "develop_optima")) }}
 
 build:
-  number: 900
+  number: {{ environ.get("XGEM2MT_BUILD_NUMBER", 900) }}  # set by the workflow: 1000 + run number, so every run gets new file names
   string: optima_h{{ PKG_HASH }}_{{ PKG_BUILDNUM }}
 
 requirements:
