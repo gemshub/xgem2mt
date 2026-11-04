@@ -1,20 +1,24 @@
 # Prerelease: builds optima + gems3k (develop_optima) + xgem2mt (this checkout) as conda packages and
 # publishes them as a conda channel on the gh-pages branch of this repo:
 #   https://gemshub.github.io/xgem2mt/prerelease
-# Each run replaces the channel. A pushed tag (for example v1.0.4) also makes a GitHub pre-release on that
-# tag with the packages attached. A manual run (Actions > prerelease > Run workflow) only updates the channel.
+# Each run replaces the channel. Publishing a GitHub release (Releases > Draft a new release, tag for example
+# v1.0.4) runs it and attaches the packages to that release; the install notes are added below its text.
+# A manual run (Actions > prerelease > Run workflow) only updates the channel.
 # Install:
 #   conda create -n xgem2mt -c https://gemshub.github.io/xgem2mt/prerelease -c conda-forge xgem2mt
 # Requires: repo Settings > Pages > source = branch gh-pages (after the first run creates it).
 name: prerelease
 on:
-  push:
-    tags:
-      - "v*"
+  release:
+    types: [published]   # a release, or a pre-release, made on GitHub
   workflow_dispatch:
 
 permissions:
-  contents: read   # the release job asks for write access itself
+  contents: read   # the publish job asks for write access itself
+
+concurrency:
+  group: ${{ github.workflow }}   # one run at a time updates the channel on gh-pages
+  cancel-in-progress: false
 
 # ---- Settings: edit here ----------------------------------------------------------------------
 env:
@@ -140,6 +144,7 @@ jobs:
     env:
       OPTIMA_REV: ${{ needs.resolve.outputs.optima_rev }}
       GEMS3K_REV: ${{ needs.resolve.outputs.gems3k_rev }}
+      IS_FINAL: ${{ github.event_name == 'release' && !github.event.release.prerelease }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -166,7 +171,7 @@ jobs:
           URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/${CHANNEL_NAME}"
           PKGS=$(cd "$CH" && ls */*.conda | sed 's#^#- #')
           cat > notes.md <<EON
-          Test build of xGEM2MT. Not a final release.
+          $( [ "$IS_FINAL" = true ] && echo "xGEM2MT conda packages." || echo "Test build of xGEM2MT. Not a final release." )
 
           GEMS3K is built from \`${GEMS3K_BRANCH}\` at ${GEMS3K_REV}, with Optima from \`${OPTIMA_BRANCH}\` at ${OPTIMA_REV}.
           Other dependencies come from conda-forge.
@@ -195,19 +200,20 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ${{ env.PAGES_DIR }}
-      - name: Create the GitHub pre-release
-        if: github.ref_type == 'tag'
+      - name: Attach the packages and the install notes to the release
+        if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
         run: |
-          TAG="$GITHUB_REF_NAME"
-          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            # Drop the files of an earlier run, so that a package that did not build this time is not left behind
-            gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' |
-              while read -r a; do gh release delete-asset "$TAG" "$a" -y -R "$GITHUB_REPOSITORY"; done
-            gh release upload "$TAG" assets/* --clobber -R "$GITHUB_REPOSITORY"
-            gh release edit "$TAG" --prerelease --notes-file notes.md -R "$GITHUB_REPOSITORY"
-          else
-            gh release create "$TAG" assets/* --prerelease --title "xgem2mt $TAG (prerelease)" \
-              --notes-file notes.md --verify-tag -R "$GITHUB_REPOSITORY"
-          fi
+          R="-R $GITHUB_REPOSITORY"
+          # Drop the files of an earlier run, so that a package that did not build this time is not left behind
+          gh release view "$TAG" $R --json assets --jq '.assets[].name' |
+            while read -r a; do gh release delete-asset "$TAG" "$a" -y $R; done
+          gh release upload "$TAG" assets/* --clobber $R
+          # Keep the text written on GitHub; put the generated notes below a marker, replacing those of an earlier run
+          M='<!-- conda-packages -->'
+          gh release view "$TAG" $R --json body --jq .body | awk -v m="$M" '$0 == m {exit} {print}' |
+            sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > body.md   # without trailing blank lines
+          { cat body.md; echo; echo "$M"; cat notes.md; } > release.md
+          gh release edit "$TAG" --notes-file release.md $R

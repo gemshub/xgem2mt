@@ -3,16 +3,19 @@
 The workflow `.github/workflows/prerelease.yml` builds conda packages of xgem2mt.
 It also builds Optima and GEMS3K from their development branches.
 
-## Make a prerelease
+## Make a release
 
-1. Set the version in `CMakeLists.txt` (`project(xGEM2MT VERSION ...)`).
-2. Push a tag `v<version>` or `v<version>-<suffix>`, for example `git tag v1.0.4-rc1 && git push origin v1.0.4-rc1`,
-   or start the workflow by hand (Actions > prerelease > Run workflow). A tag that does not match the
-   version in `CMakeLists.txt` stops the workflow.
-3. The workflow builds the packages for Linux (`linux-64`), macOS on Apple Silicon (`osx-arm64`) and
-   Windows (`win-64`) and publishes them as a conda channel
-   on the `gh-pages` branch: https://gemshub.github.io/xgem2mt/prerelease. Each run replaces the channel.
-4. For a tag, the workflow also makes a GitHub pre-release on the tag with the packages attached.
+1. Set the version in `CMakeLists.txt` (`project(xGEM2MT VERSION ...)`) and merge it into `master`.
+2. On GitHub, open Releases > Draft a new release. Create a tag `v<version>` or `v<version>-<suffix>`
+   (for example `v1.0.4` or `v1.0.4-rc1`) on `master`, write the notes, tick "Set as a pre-release" if
+   it is a test build, and publish. A tag that does not match the version in `CMakeLists.txt` stops the workflow.
+3. Publishing the release starts the workflow. It builds the packages for Linux (`linux-64`), macOS on
+   Apple Silicon (`osx-arm64`) and Windows (`win-64`) and publishes them as a conda channel on the
+   `gh-pages` branch: https://gemshub.github.io/xgem2mt/prerelease. Each run replaces the channel.
+4. The workflow attaches the packages to the release and adds the install notes below your text.
+
+To update only the channel, start the workflow by hand (Actions > prerelease > Run workflow).
+A pushed tag alone does not start the workflow.
 
 Once, after the first run: Settings > Pages > Source = branch `gh-pages`.
 
