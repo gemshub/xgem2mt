@@ -16,6 +16,7 @@
 //-------------------------------------------------------------------
 //
 
+#include <vector>
 #include <fstream>
 #include "m_gem2mt.h"
 #include "GEMS3K/nodearray.h"
@@ -363,6 +364,23 @@ void TGEM2MT::MassTransAdvecStep( bool CompMode )
     mtp->cTau += mtp->dTau;
     cr = mtp->fVel * mtp->dTau/mtp->dx;
 
+    // Amounts at the start of the time step. The fluxes of all nodes must be calculated from these:
+    // reading the already updated upstream node would move the fluid further than cr cells per step.
+    const long int nDCaq = CH->nDCinPH[0]-1;
+    std::vector<double> old_xDC, old_bPS;
+    if( CompMode == true ) {
+        old_xDC.resize( mtp->nC*nDCaq );
+        for( ii = 0; ii < mtp->nC; ii++ )
+            for( jc = 0; jc < nDCaq; jc++ )
+                old_xDC[ii*nDCaq+jc] = node1_xDC( ii, jc );
+    }
+    else {
+        old_bPS.resize( mtp->nC*CH->nICb );
+        for( ii = 0; ii < mtp->nC; ii++ )
+            for( ic = 0; ic < CH->nICb; ic++ )
+                old_bPS[ii*CH->nICb+ic] = node1_bPS( ii, 0, ic );
+    }
+
     for( ii = 2; ii< mtp->nC-1; ii++) // node iteration, -1 the right boundary is open ....
     {
         mtp->qc = ii;
@@ -372,10 +390,10 @@ void TGEM2MT::MassTransAdvecStep( bool CompMode )
             for( jc=0; jc < CH->nDCinPH[0]-1; jc++ )
             {   // splitting for dependent components except H2O@
                 // It has to be checked on minimal allowed c0 value
-                c0  = node1_xDC( ii, jc )* fmolal;
-                c1  = node1_xDC( ii+1, jc )* fmolal;
-                cm1 = node1_xDC( ii-1, jc )* fmolal;
-                cm2 = node1_xDC( ii-2, jc )* fmolal;
+                c0  = old_xDC[ii*nDCaq+jc]* fmolal;
+                c1  = old_xDC[(ii+1)*nDCaq+jc]* fmolal;
+                cm1 = old_xDC[(ii-1)*nDCaq+jc]* fmolal;
+                cm2 = old_xDC[(ii-2)*nDCaq+jc]* fmolal;
                 if( c0 < 1e-20 && c1 < 1e-20 && cm1 < 1e-20 && cm2 < 1e-20 )
                     continue;
                 c12=((c1+c0)/2)-(cr*(c1-c0)/2)-((1-cr*cr)*(c1-2*c0+cm1)/6);
@@ -416,10 +434,10 @@ void TGEM2MT::MassTransAdvecStep( bool CompMode )
                 // IC amount in H2O
                 // Chemical compositions may become inconsistent with time
                 // It has to be checked on minimal allowed c0 value
-                c0  = (node1_bPS( ii, 0, ic ) - niw )*fmolal;    //C1[ii]->bPS[0*CH->nICb + ic];
-                c1  = (node1_bPS( ii+1, 0, ic) - niw )*fmolal;   //C1[ii+1]->bPS[0*CH->nICb + ic];
-                cm1 = (node1_bPS( ii-1, 0, ic ) - niw )*fmolal;  //C1[ii-1]->bPS[0*CH->nICb + ic];
-                cm2 = (node1_bPS( ii-2, 0, ic ) - niw )*fmolal;  //C1[ii-2]->bPS[0*CH->nICb + ic];
+                c0  = (old_bPS[ii*CH->nICb+ic] - niw )*fmolal;    //C1[ii]->bPS[0*CH->nICb + ic];
+                c1  = (old_bPS[(ii+1)*CH->nICb+ic] - niw )*fmolal;   //C1[ii+1]->bPS[0*CH->nICb + ic];
+                cm1 = (old_bPS[(ii-1)*CH->nICb+ic] - niw )*fmolal;  //C1[ii-1]->bPS[0*CH->nICb + ic];
+                cm2 = (old_bPS[(ii-2)*CH->nICb+ic] - niw )*fmolal;  //C1[ii-2]->bPS[0*CH->nICb + ic];
 
                 // Finite-difference calculation (suggested by FE )
                 c12=((c1+c0)/2)-(cr*(c1-c0)/2)-((1-cr*cr)*(c1-2*c0+cm1)/6);
@@ -473,6 +491,23 @@ void TGEM2MT::MassTransCraNicStep( bool CompMode )
     mtp->cTau += mtp->dTau;
     cr = mtp->fVel * mtp->dTau/mtp->dx;
 
+    // Amounts at the start of the time step. The fluxes of all nodes must be calculated from these:
+    // reading the already updated upstream node would move the fluid further than cr cells per step.
+    const long int nDCaq = CH->nDCinPH[0]-1;
+    std::vector<double> old_xDC, old_bPS;
+    if( CompMode == true ) {
+        old_xDC.resize( mtp->nC*nDCaq );
+        for( ii = 0; ii < mtp->nC; ii++ )
+            for( jc = 0; jc < nDCaq; jc++ )
+                old_xDC[ii*nDCaq+jc] = node1_xDC( ii, jc );
+    }
+    else {
+        old_bPS.resize( mtp->nC*CH->nICb );
+        for( ii = 0; ii < mtp->nC; ii++ )
+            for( ic = 0; ic < CH->nICb; ic++ )
+                old_bPS[ii*CH->nICb+ic] = node1_bPS( ii, 0, ic );
+    }
+
     for( ii = 2; ii< mtp->nC-1; ii++) // node iteration, -1 the right boundary is open ....
     {
         mtp->qc = ii;
@@ -482,10 +517,10 @@ void TGEM2MT::MassTransCraNicStep( bool CompMode )
             for( jc=0; jc < CH->nDCinPH[0]-1; jc++ )
             {   // splitting for dependent components except H2O@
                 // It has to be checked on minimal allowed c0 value
-                c0  = node1_xDC( ii, jc )* fmolal;
-                c1  = node1_xDC( ii+1, jc )* fmolal;
-                cm1 = node1_xDC( ii-1, jc )* fmolal;
-                cm2 = node1_xDC( ii-2, jc )* fmolal;
+                c0  = old_xDC[ii*nDCaq+jc]* fmolal;
+                c1  = old_xDC[(ii+1)*nDCaq+jc]* fmolal;
+                cm1 = old_xDC[(ii-1)*nDCaq+jc]* fmolal;
+                cm2 = old_xDC[(ii-2)*nDCaq+jc]* fmolal;
                 if( c0 < 1e-20 && c1 < 1e-20 && cm1 < 1e-20 && cm2 < 1e-20 )
                     continue;
                 c12=((c1+c0)/2)-(cr*(c1-c0)/2)-((1-cr*cr)*(c1-2*c0+cm1)/6);
@@ -526,10 +561,10 @@ void TGEM2MT::MassTransCraNicStep( bool CompMode )
                 // IC amount in H2O
                 // Chemical compositions may become inconsistent with time
                 // It has to be checked on minimal allowed c0 value
-                c0  = (node1_bPS( ii, 0, ic ) - niw )*fmolal;    //C1[ii]->bPS[0*CH->nICb + ic];
-                c1  = (node1_bPS( ii+1, 0, ic) - niw )*fmolal;   //C1[ii+1]->bPS[0*CH->nICb + ic];
-                cm1 = (node1_bPS( ii-1, 0, ic ) - niw )*fmolal;  //C1[ii-1]->bPS[0*CH->nICb + ic];
-                cm2 = (node1_bPS( ii-2, 0, ic ) - niw )*fmolal;  //C1[ii-2]->bPS[0*CH->nICb + ic];
+                c0  = (old_bPS[ii*CH->nICb+ic] - niw )*fmolal;    //C1[ii]->bPS[0*CH->nICb + ic];
+                c1  = (old_bPS[(ii+1)*CH->nICb+ic] - niw )*fmolal;   //C1[ii+1]->bPS[0*CH->nICb + ic];
+                cm1 = (old_bPS[(ii-1)*CH->nICb+ic] - niw )*fmolal;  //C1[ii-1]->bPS[0*CH->nICb + ic];
+                cm2 = (old_bPS[(ii-2)*CH->nICb+ic] - niw )*fmolal;  //C1[ii-2]->bPS[0*CH->nICb + ic];
 
                 // Finite-difference calculation (suggested by FE )
                 c12=((c1+c0)/2)-(cr*(c1-c0)/2)-((1-cr*cr)*(c1-2*c0+cm1)/6);
