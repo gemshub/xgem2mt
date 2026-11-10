@@ -17,6 +17,8 @@
 //
 
 #include <vector>
+#include <algorithm>
+#include <cmath>
 #include <fstream>
 #include "m_gem2mt.h"
 #include "GEMS3K/nodearray.h"
@@ -284,13 +286,35 @@ bool TGEM2MT::CalcIPM( char mode, long int start_node, long int end_node)
     return iRet;
 }
 
+// Longitudinal hydrodynamic dispersion coefficient D = al*vp + Dif*eps/nto (m2/s) in node q
+double TGEM2MT::DispersionCoef( long int q ) const
+{
+    double al = mtp->al_in, vp = mtp->fVel, Dif = mtp->Dif_in, eps = mtp->eps_in, nto = mtp->nto_in;
+    if( mtp->HydP ) {
+        vp = mtp->HydP[q][1];  eps = mtp->HydP[q][2];
+        al = mtp->HydP[q][4];  Dif = mtp->HydP[q][5];  nto = mtp->HydP[q][6];
+    }
+    double D = al*fabs(vp);
+    if( nto > 0. )
+        D += Dif*eps/nto;
+    return D;
+}
+
 // The mass transport iteration initial time step
 void TGEM2MT::MassTransAdvecStart()
 {
     if( mtp->tf <= 0 ) // foolproof
         mtp->tf = 1.;
     mtp->dx = mtp->sizeLc[0]/mtp->nC;  // was mtp->cLen/mtp->nC; changed 15.12.2011 DK
-    mtp->dTau = 0.5*(mtp->dx/mtp->fVel)*1./mtp->tf;
+    // Courant criterion for advection (cr = 0.5), and dt <= dx^2/(4 D) for the explicit dispersion term,
+    // so that cr + 2 D dt/dx^2 <= 1
+    double dt = 0.5*mtp->dx/mtp->fVel;
+    double Dmax = 0.;
+    for( long int q = 0; q < mtp->nC; q++ )
+        Dmax = std::max( Dmax, DispersionCoef( q ) );
+    if( Dmax > 0. )
+        dt = std::min( dt, 0.25*mtp->dx*mtp->dx/Dmax );
+    mtp->dTau = dt/mtp->tf;
     mtp->oTau = 0.;
     mtp->cTau = mtp->Tau[START_];
     // mtp->cTau = 0;
@@ -384,6 +408,8 @@ void TGEM2MT::MassTransAdvecStep( bool CompMode )
     for( ii = 2; ii< mtp->nC-1; ii++) // node iteration, -1 the right boundary is open ....
     {
         mtp->qc = ii;
+        // dispersion number of this node: D dt/dx^2
+        const double dn = DispersionCoef( ii ) * mtp->dTau/(mtp->dx*mtp->dx);
         if( CompMode == true )
         {  // Advective mass transport over DC gradients in Aq phase
             fmolal = 55.5084/node1_xDC( ii, CH->nDCinPH[0]-1 );
@@ -399,6 +425,7 @@ void TGEM2MT::MassTransAdvecStep( bool CompMode )
                 c12=((c1+c0)/2)-(cr*(c1-c0)/2)-((1-cr*cr)*(c1-2*c0+cm1)/6);
                 cm12=((c0+cm1)/2)-(cr*(c0-cm1)/2)-((1-cr*cr)*(c0-2*cm1+cm2)/6);
                 dc = cr*(c12-cm12);
+                dc -= dn*(c1-2*c0+cm1);  // explicit central-difference dispersion
                 if( fabs( dc ) < mtp->cdv )   // *c0   Insignificant fractional difference?
                     continue;
                 dc /= fmolal;
@@ -443,6 +470,7 @@ void TGEM2MT::MassTransAdvecStep( bool CompMode )
                 c12=((c1+c0)/2)-(cr*(c1-c0)/2)-((1-cr*cr)*(c1-2*c0+cm1)/6);
                 cm12=((c0+cm1)/2)-(cr*(c0-cm1)/2)-((1-cr*cr)*(c0-2*cm1+cm2)/6);
                 dc = cr*(c12-cm12);
+                dc -= dn*(c1-2*c0+cm1);  // explicit central-difference dispersion
                 if( fabs( dc ) < mtp->cdv )  // *c0
                     continue;
                 dc /= fmolal;
