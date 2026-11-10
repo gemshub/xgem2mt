@@ -19,6 +19,7 @@
 #include <vector>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <fstream>
 #include "m_gem2mt.h"
 #include "GEMS3K/nodearray.h"
@@ -68,7 +69,7 @@ bool TGEM2MT::internalCalc()
         //pVisor->CloseMessage();
         //vfMessage(window(), xcpt.title, xcpt.mess);
         gems_logger->error("{}  {}", xcpt.title, xcpt.mess);
-        return 1;
+        throw;  // RecCalc marks the task as failed; MassTransport::runMassTransport reports it to the caller
     }
 }
 
@@ -306,15 +307,24 @@ void TGEM2MT::MassTransAdvecStart()
     if( mtp->tf <= 0 ) // foolproof
         mtp->tf = 1.;
     mtp->dx = mtp->sizeLc[0]/mtp->nC;  // was mtp->cLen/mtp->nC; changed 15.12.2011 DK
+    // The upwind stencil and the source nodes 0, 1 assume flow from node 0 towards the last node
+    if( mtp->fVel < 0. )
+        Error( "MassTransAdvecStart", "'A' mode needs a fluid advection velocity >= 0 "
+                                      "(flow from node 0 towards the last node)." );
     // Courant criterion for advection (cr = 0.5), and dt <= dx^2/(4 D) for the explicit dispersion term,
     // so that cr + 2 D dt/dx^2 <= 1
-    double dt = 0.5*mtp->dx/mtp->fVel;
+    double dt = std::numeric_limits<double>::infinity();
+    if( mtp->fVel > 0. )
+        dt = 0.5*mtp->dx/mtp->fVel;
     double Dmax = 0.;
     for( long int q = 0; q < mtp->nC; q++ )
         Dmax = std::max( Dmax, DispersionCoef( q ) );
     if( Dmax > 0. )
         dt = std::min( dt, 0.25*mtp->dx*mtp->dx/Dmax );
-    mtp->dTau = dt/mtp->tf;
+    if( !std::isfinite( dt ) )
+        Error( "MassTransAdvecStart", "'A' mode needs a fluid advection velocity or a dispersion > 0." );
+    // tf only reduces the time step: a value below 1 would exceed the stability limits above
+    mtp->dTau = dt/std::max( mtp->tf, 1. );
     mtp->oTau = 0.;
     mtp->cTau = mtp->Tau[START_];
     // mtp->cTau = 0;
