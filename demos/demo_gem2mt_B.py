@@ -58,7 +58,6 @@ def task_B(nnodes: int, ipm_lst: str, dbr_lst: str) -> int:
         # (3) Here we read the MULTI structure, DATACH and DATABR files prepared from GEMS,
         # allocate and set default values for gem2mt arrays
         mt_task.initNodes(ipm_lst, dbr_lst)
-        print(mt_task)  # setup summary: nodes, time step, properties, phases
 
         # (4) Change/define some other gem2mt arrays
         # Set ID of the first mobile phase group
@@ -70,6 +69,7 @@ def task_B(nnodes: int, ipm_lst: str, dbr_lst: str) -> int:
         # Change from default: flux order 1 (proportional to source MPG mass)
         mt_task.setFluxDefinition(0, 1.0, 0.1, 0, 0)
 
+        print(mt_task)  # setup summary after the last change: nodes, time step, properties, fluxes
         mt_task.dumpTask("gem2mt_out.dat")
 
         # (5) Here we call the mass-transport finite-difference coupled routine

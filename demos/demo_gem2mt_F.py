@@ -67,7 +67,6 @@ def task_F(nnodes: int, ipm_lst: str, dbr_lst: str) -> int:
         # (3) Here we read the MULTI structure, DATACH and DATABR files prepared from GEMS,
         # allocate and set default values for gem2mt arrays
         mt_task.initNodes(ipm_lst, dbr_lst)
-        print(mt_task)  # setup summary: nodes, time step, properties, phases
 
         # (4) Change/define some other gem2mt arrays
         for ii in range(mt_task.nPhaseGroups):
@@ -97,6 +96,7 @@ def task_F(nnodes: int, ipm_lst: str, dbr_lst: str) -> int:
         mt_task.setVTKfields([[33, 0], [32, 0], [38, 1], [38, 4]])
         mt_task.setOutVTK(False)  # allocated but no write
 
+        print(mt_task)  # setup summary after the last change: nodes, time step, properties, fluxes
         mt_task.dumpTask("gem2mt_out.dat")
 
         # (5) Here we call the mass-transport finite-difference coupled routine

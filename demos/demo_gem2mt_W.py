@@ -94,7 +94,6 @@ def task_W(nnodes: int, ipm_lst: str, dbr_lst: str) -> int:
         # (3) Here we read the MULTI structure, DATACH and DATABR files prepared from GEMS,
         # allocate and set default values for gem2mt arrays
         mt_task.initNodes(ipm_lst, dbr_lst)
-        print(mt_task)  # setup summary: nodes, time step, properties, phases
 
         # (4) Change/define some other gem2mt arrays
         # Set list of selected fields and indexes to VTK format
@@ -104,6 +103,7 @@ def task_W(nnodes: int, ipm_lst: str, dbr_lst: str) -> int:
         # If need update initial hydraulic parameters in node: Vt, vp, eps, Km, al, Dif,  nto
         # mt_task.setHydraulicParameters(1, 0.0015, 2.1e-06, 0.6, 1e-11, 0.0015, 3e-09, 1)
 
+        print(mt_task)  # setup summary after the last change: nodes, time step, properties, fluxes
         mt_task.dumpTask("gem2mt_out.dat")
 
         # (5) Here we call the mass-transport finite-difference coupled routine

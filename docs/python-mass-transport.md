@@ -112,7 +112,7 @@ The GEMS3K files:
 | `*-dch.dat` | The chemical system: elements, species, phases, thermodynamic data. |
 | `*-ipm.dat` | The settings of the GEM solver. |
 | `*-dbr-0-0000.dat`, ... | One composition each: bulk composition, T, P, equilibrium speciation. |
-| `*-dat.lst` | `-t` (text files), the dch and ipm file names, then the dbr file names, separated by spaces (a comma after a name is permitted). |
+| `*-dat.lst` | `-t` (text files), the dch and ipm file names, then the dbr file names, separated by spaces. Put each name in double quotes; a comma directly after a quoted name is permitted (`"a.dat", "b.dat"`), a comma after a name without quotes is not. |
 | `*-dbr.lst` | The dbr file names again, separated by commas. Only for `initNodes(dat_lst, dbr_lst)`. |
 
 The position of a dbr file in the list gives the index of the initial system. The first file is

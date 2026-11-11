@@ -396,19 +396,36 @@ void MassTransport::setNodes(const std::vector<size_t>& nodes, const NodeSetup& 
         }
     }
 
+    if(b && b->size() != pimpl->chem_array->numElements())
+        throw std::runtime_error("Bulk composition has "+std::to_string(b->size())+" values, the chemical system has "+
+                                 std::to_string(pimpl->chem_array->numElements())+" elements");
+
+    // Each node is changed completely or not at all: if the chemistry fails, the previous
+    // transport properties are restored (setNodeBulkComposition restores the chemistry itself)
     const double nan = std::numeric_limits<double>::quiet_NaN();
     try {
         for(auto q: nodes) {
+            std::array<double, 7> old_h{};
             if(set_transport) {
-                auto h = pimpl->gem2mt_task->hydraulicParameters(q);
+                old_h = pimpl->gem2mt_task->hydraulicParameters(q);
+                const auto& h = old_h;
                 pimpl->gem2mt_task->setHydraulicParameters(q,
                     t.volume.value_or(h[0]), t.velocity.value_or(h[1]), t.porosity.value_or(h[2]),
                     t.permeability.value_or(h[3]), t.dispersivity.value_or(h[4]),
                     t.diffusivity.value_or(h[5]), t.tortuosity.value_or(h[6]));
             }
-            if(set_chemistry)
-                pimpl->gem2mt_task->setNodeBulkComposition(q, b ? &*b : nullptr,
-                    setup.temperature.value_or(nan), setup.pressure.value_or(nan));
+            if(set_chemistry) {
+                try {
+                    pimpl->gem2mt_task->setNodeBulkComposition(q, b ? &*b : nullptr,
+                        setup.temperature.value_or(nan), setup.pressure.value_or(nan));
+                }
+                catch(...) {
+                    if(set_transport)
+                        pimpl->gem2mt_task->setHydraulicParameters(q, old_h[0], old_h[1], old_h[2],
+                                                                   old_h[3], old_h[4], old_h[5], old_h[6]);
+                    throw;
+                }
+            }
         }
     }
     catch(TError& err) {
