@@ -1671,7 +1671,7 @@ std::string TGEM2MT::summary(size_t width, bool phases) const
         how.push_back({"porosity, dispersivity,", "before initNodes:", "setInitialNodeEffectivePorosity(v), setInitialDispersivity(v), ... (all nodes)"});
         how.push_back({"diffusivity, tortuosity", "after initNodes:", "setSystem/setNodes(..., transport=TransportProperties(porosity=..., ...))"});
     }
-    how.push_back({"node type", fixed_ends ? "not used in this mode" : "", "setNodeType(node, type) (Python also setNodesType(nodes, type))"});
+    how.push_back({"node type", fixed_ends ? "not used in this mode" : "", "setNodeType(node, type), setNodesType(nodes, type)"});
     o << "\nHow to change:\n" << table(how, "  ", width);
     if(fixed_ends)
         o << wrap(std::string("Mode ")+mode+": nodes 0 and 1 (inflow) and the last node (outlet) keep their composition during the run.",

@@ -403,6 +403,22 @@ public:
     void setNodeType(size_t node_ndx, long int type);
 
     /**
+     * @brief Changes the initialization type of several nodes (boxes); see setNodeType() for the types.
+     *
+     * All the indices are checked before a node is changed.
+     *
+     * @param nodes The indices of the target nodes.
+     * @param type  The boundary condition type to assign to the nodes.
+     * @throws std::runtime_error If a node index is out of range.
+     *
+     * @code
+     * // Set the nodes 0 and 1 as Cauchy sources (constant flux)
+     * task.setNodesType({0, 1}, 3);
+     * @endcode
+     */
+    void setNodesType(const std::vector<size_t>& nodes, long int type);
+
+    /**
      * @brief Sets the initial approximation mode for the GEM IPM solver.
      *
      * Activating a smart initial approximation for GEM calculations at each node and

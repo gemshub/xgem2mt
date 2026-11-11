@@ -959,11 +959,9 @@ void exportMassTransport(py::module& m)
              )doc")
         .def("nodesOfType", &MassTransport::nodesOfType, py::arg("type"),
              "Indices of all nodes of the given node type (see setNodeType).")
-        .def("setNodesType",
-             [](MassTransport& self, const std::vector<size_t>& nodes, long int type) {
-                 for(auto q: nodes) self.setNodeType(q, type);
-             },
-             py::arg("nodes"), py::arg("type"), "As setNodeType(node_ndx, type), for a list of nodes.")
+        .def("setNodesType", &MassTransport::setNodesType, py::arg("nodes"), py::arg("type"),
+             "As setNodeType(node_ndx, type), for a list of nodes. A node index out of range gives a RuntimeError "
+             "before any node is changed.")
 
         .def("transportProperties", &MassTransport::transportProperties, py::arg("node_ndx"),
              "Transport properties of a node (all fields set). Available after initNodes().")

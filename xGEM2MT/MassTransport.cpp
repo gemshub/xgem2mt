@@ -212,6 +212,16 @@ void MassTransport::setNodeType(size_t node_ndx, long type)
     pimpl->gem2mt_task->setNodeType(node_ndx, type);
 }
 
+void MassTransport::setNodesType(const std::vector<size_t>& nodes, long type)
+{
+    for(auto q: nodes)
+        if(q >= nNodes())
+            throw std::runtime_error("Node index "+std::to_string(q)+" out of range (nodes: "+
+                                     std::to_string(nNodes())+")");
+    for(auto q: nodes)
+        pimpl->gem2mt_task->setNodeType(q, type);
+}
+
 void MassTransport::setSIA(char flag)
 {
     pimpl->gem2mt_task->setSIA(flag);
