@@ -1172,22 +1172,106 @@ std::string num(double v, int prec = 4)
     return s.str();
 }
 
-// Table with left-aligned columns
-std::string table(const std::vector<std::vector<std::string>>& rows, const std::string& indent = "  ")
+// Split text into lines of at most `width` characters, breaking after ", " or at a space
+std::vector<std::string> wrapLines(const std::string& text, size_t width)
 {
-    std::vector<size_t> w;
-    for(const auto& r: rows)
-        for(size_t c=0; c<r.size(); ++c) {
-            if(w.size() <= c) w.push_back(0);
-            w[c] = std::max(w[c], r[c].size());
+    width = std::max<size_t>(width, 20);
+    std::vector<std::string> lines;
+    std::string rest = text;
+    while(rest.size() > width) {
+        size_t pos = rest.rfind(", ", width-1);
+        if(pos != std::string::npos && pos > width/3)
+            pos += 1;                                   // keep the comma on this line
+        else {
+            pos = rest.rfind(' ', width);
+            if(pos == std::string::npos || pos < width/3) {
+                // no break before width: do not cut a word, break at the next space instead
+                pos = rest.find(' ', width);
+                if(pos == std::string::npos)
+                    break;
+            }
         }
+        std::string line = rest.substr(0, pos);
+        while(!line.empty() && line.back() == ' ') line.pop_back();
+        lines.push_back(line);
+        rest = rest.substr(pos);
+        rest.erase(0, rest.find_first_not_of(' ') == std::string::npos ? rest.size() : rest.find_first_not_of(' '));
+    }
+    if(!rest.empty() || lines.empty())
+        lines.push_back(rest);
+    return lines;
+}
+
+// Text wrapped to `width`; the first line starts with `indent`, the others with `cont`
+std::string wrap(const std::string& text, size_t width, const std::string& indent = "", const std::string& cont = "    ")
+{
+    std::ostringstream o;
+    const auto lines = wrapLines(text, width - std::max(indent.size(), cont.size()));
+    for(size_t i=0; i<lines.size(); ++i)
+        o << (i ? cont : indent) << lines[i] << "\n";
+    return o.str();
+}
+
+// Table with left-aligned columns. If a row is wider than `width` (0: no limit), its last
+// column continues on the next lines, below the start of that column
+std::string table(const std::vector<std::vector<std::string>>& rows, const std::string& indent = "  ",
+                  size_t width = 0)
+{
+    size_t ncol = 0;
+    for(const auto& r: rows) ncol = std::max(ncol, r.size());
+    std::vector<size_t> w(ncol, 0);
+    for(const auto& r: rows)
+        if(r.size() == ncol)                            // a shorter row ("... more groups") does not set widths
+            for(size_t c=0; c<r.size(); ++c)
+                w[c] = std::max(w[c], r[c].size());
+    size_t start = indent.size();                       // start of the last column
+    for(size_t c=0; c+1<ncol; ++c) start += w[c]+2;
+
     std::ostringstream o;
     for(const auto& r: rows) {
         std::string line = indent;
-        for(size_t c=0; c<r.size(); ++c)
-            line += (c+1 < r.size() ? r[c] + std::string(w[c]-r[c].size()+2, ' ') : r[c]);
-        while(!line.empty() && line.back() == ' ') line.pop_back();
-        o << line << "\n";
+        for(size_t c=0; c+1<r.size(); ++c)
+            line += r[c] + std::string(w[c] > r[c].size() ? w[c]-r[c].size()+2 : 2, ' ');
+        const std::string last = r.empty() ? "" : r.back();
+        if(r.size() < ncol || width == 0 || line.size() + last.size() <= width) {
+            line += last;
+            while(!line.empty() && line.back() == ' ') line.pop_back();
+            o << line << "\n";
+        }
+        else if(width >= start + 40)                    // wrap the last column in its place
+        {
+            const auto lines = wrapLines(last, width - start);
+            for(size_t i=0; i<lines.size(); ++i)
+                o << (i ? std::string(start, ' ') : line) << lines[i] << "\n";
+        }
+        else {                                          // the last column below the row
+            while(!line.empty() && line.back() == ' ') line.pop_back();
+            o << line << "\n" << wrap(last, width, indent+"    ", indent+"    ");
+        }
+    }
+    return o.str();
+}
+
+// Header lines: label, value, and a hint in brackets on the same line if it fits, else below the value
+std::string headerBlock(const std::vector<std::vector<std::string>>& head, size_t width)
+{
+    size_t lw = 0;
+    for(const auto& h: head) lw = std::max(lw, h[0].size());
+    lw += 2;
+    const std::string pad(lw, ' ');
+    std::ostringstream o;
+    for(const auto& h: head) {
+        auto lines = wrapLines(h[1], width > lw + 20 ? width - lw : 40);
+        for(size_t i=0; i<lines.size(); ++i)
+            o << (i ? pad : h[0] + std::string(lw - h[0].size(), ' ')) << lines[i]
+              << (i+1 < lines.size() ? "\n" : "");
+        const std::string& hint = h.size() > 2 ? h[2] : std::string();
+        if(hint.empty())
+            o << "\n";
+        else if(lw + lines.back().size() + 2 + hint.size() <= width)
+            o << "  " << hint << "\n";
+        else
+            o << "\n" << wrap(hint, width, pad, pad + "  ");
     }
     return o.str();
 }
@@ -1199,8 +1283,9 @@ std::string nodeRange(long int a, long int b)
 
 } // namespace
 
-std::string TGEM2MT::summary() const
+std::string TGEM2MT::summary(size_t width, bool phases) const
 {
+    if(width < 60) width = 60;
     static const std::map<char, std::string> mode_text = {
         {RMT_MODE_S, "chain of reactors with waves of moving fluid or solids"},
         {RMT_MODE_F, "chain of flow-through reactors (transport, then equilibrium)"},
@@ -1259,7 +1344,7 @@ std::string TGEM2MT::summary() const
             const long int steps = static_cast<long int>(std::ceil(span/dt - 1e-9));
             const long int max_steps = static_cast<long int>(span/tau_step) + 1;
             head.push_back({"Time step", "dt = "+num(dt)+" s ("+limit+"), tf = "+num(tf),
-                            "[set by the program; setTimeStepReductionFactor(tf) divides it]"});
+                            "[set by the program; divided by setTimeStepReductionFactor(tf)]"});
             head.push_back({"Steps", "about "+std::to_string(std::min(steps, max_steps))+", to t = "+
                             num(tau0+std::min(steps, max_steps)*dt, 8), "[stop time and setTau step]"});
             if(max_steps < steps)
@@ -1281,7 +1366,11 @@ std::string TGEM2MT::summary() const
     else
         systems = "not read yet";
     head.push_back({"Initial systems", systems, "[initNodes(dat_lst) reads the dbr files in their order]"});
-    o << table(head, "") << warning;
+    o << headerBlock(head, width);
+    if(!warning.empty()) {
+        while(!warning.empty() && warning.back() == '\n') warning.pop_back();
+        o << wrap(warning, width, "", "         ");
+    }
 
     // Per node description; consecutive nodes with an equal description form one group
     auto role = [&](long int q) -> std::string {
@@ -1311,6 +1400,15 @@ std::string TGEM2MT::summary() const
         for(long int q=0; q<nC; ++q)
             if(mtp->HydP[q][1] != mtp->fVel) own_velocity = true;
 
+    // Phases present in any node (DBR phase indices)
+    std::vector<long int> present;
+    if(initialized) {
+        const DATACH* ch = na->pCSD();
+        for(long int k=0; k<ch->nPHb; ++k)
+            for(long int q=0; q<nC; ++q)
+                if(na->pNodT1()[q]->xPH[k] > 1e-12) { present.push_back(k); break; }
+    }
+
     auto describe = [&](long int q) {
         std::vector<std::string> r{std::to_string(mtp->DiCp[q][0]), role(q), std::to_string(mtp->DiCp[q][1])};
         if(one_d) {
@@ -1320,30 +1418,30 @@ std::string TGEM2MT::summary() const
         }
         if(initialized) {
             const DATABR* n = na->pNodT1()[q];   // equilibrated state (initNodes, setNodes, each step)
-            const DATACH* ch = na->pCSD();
             r.push_back(num(n->TK, 5));
             r.push_back(num(n->P/1e5));
             r.push_back(num(n->Ms));
             r.push_back(num(n->Vs*1e3));
-            std::string ph;
-            for(long int k=0; k<ch->nPHb; ++k)
-                if(n->xPH[k] > 1e-12)
-                    ph += (ph.empty() ? "" : ", ") + ch->PHNL[ch->xph[k]] + " " + num(n->xPH[k]);
-            r.push_back(ph);
+            if(phases)                           // amounts only when asked: nodes then group by them too
+                for(auto k: present)
+                    r.push_back(n->xPH[k] > 1e-12 ? num(n->xPH[k]) : "-");
         }
         return r;
     };
 
-    std::vector<std::vector<std::string>> rows;
-    std::vector<std::string> hdr{"nodes", "system", "role", "type"};
+    std::vector<std::string> hdr{"system", "role", "type"};
     if(one_d) {
         for(auto h: {"porosity", "dispersivity m", "diffusivity m2/s", "tortuosity"}) hdr.push_back(h);
         if(own_velocity) hdr.push_back("velocity m/s");
     }
+    const size_t n_setup = hdr.size();     // the columns before T, P, mass, volume
+    size_t n_chem = n_setup;               // the columns before the phase amounts
     if(initialized) {
-        for(auto h: {"T K", "P bar", "mass kg", "volume L", "phases (mol)"}) hdr.push_back(h);
+        for(auto h: {"T K", "P bar", "mass kg", "volume L"}) hdr.push_back(h);
+        n_chem = hdr.size();
+        if(phases)
+            for(auto k: present) hdr.push_back(na->pCSD()->PHNL[na->pCSD()->xph[k]]);
     }
-    rows.push_back(hdr);
     std::vector<std::pair<std::pair<long int,long int>, std::vector<std::string>>> groups;
     for(long int q=0; q<nC; ++q) {
         auto d = describe(q);
@@ -1352,16 +1450,44 @@ std::string TGEM2MT::summary() const
         else
             groups.push_back({{q, q}, d});
     }
+    // Two tables: the node setup, and the chemical state (if the nodes are read)
     const size_t max_rows = 30;
-    for(size_t g=0; g<groups.size(); ++g) {
-        if(groups.size() > max_rows && g == max_rows-5) {
-            rows.push_back({"...", "("+std::to_string(groups.size()-max_rows+1)+" more groups)"});
-            g = groups.size()-5;
+    auto one_table = [&](size_t c0, size_t c1) {
+        std::vector<std::vector<std::string>> t{{"nodes"}};
+        t[0].insert(t[0].end(), hdr.begin()+c0, hdr.begin()+c1);
+        for(size_t g=0; g<groups.size(); ++g) {
+            if(groups.size() > max_rows && g == max_rows-5) {
+                t.push_back({"...", "("+std::to_string(groups.size()-max_rows+1)+" more groups)"});
+                g = groups.size()-5;
+            }
+            std::vector<std::string> r{nodeRange(groups[g].first.first, groups[g].first.second)};
+            r.insert(r.end(), groups[g].second.begin()+c0, groups[g].second.begin()+c1);
+            t.push_back(r);
         }
-        std::vector<std::string> r{nodeRange(groups[g].first.first, groups[g].first.second)};
-        r.insert(r.end(), groups[g].second.begin(), groups[g].second.end());
-        rows.push_back(r);
-    }
+        return t;
+    };
+    // Columns [c0, c1) as one or more tables that fit the width (the nodes column is repeated);
+    // a last text column (phases) may wrap
+    auto node_table = [&](size_t c0, size_t c1) {
+        auto full = one_table(c0, c1);
+        std::vector<size_t> w(c1-c0+1, 0);
+        for(const auto& r: full)
+            for(size_t c=0; c<r.size() && r.size() == w.size(); ++c)
+                w[c] = std::max(w[c], r[c].size());
+        std::string out;
+        size_t c = c0;
+        while(c < c1) {
+            size_t used = 2 + w[0] + 2, e = c;
+            while(e < c1 && (e == c || used + w[e-c0+1] <= width)) {
+                used += w[e-c0+1] + 2;
+                ++e;
+            }
+            if(!out.empty()) out += "\n";
+            out += table(one_table(c, e), "  ", width);
+            c = e;
+        }
+        return out;
+    };
 
     // Simple picture of the column: the groups along the flow
     if(one_d && groups.size() <= 8) {
@@ -1372,9 +1498,24 @@ std::string TGEM2MT::summary() const
             pic[3].push_back("| "+gr.second[0]);
         }
         for(size_t i=1; i<pic.size(); ++i) pic[i].push_back("|");
-        o << "\n" << table(pic);
+        o << "\n" << table(pic, "  ", width);
     }
-    o << "\n" << table(rows);
+    o << "\n" << node_table(0, n_setup);
+    if(initialized)
+    {
+        o << "\n" << node_table(n_setup, n_chem);
+        if(phases && !present.empty())
+            o << "\nPhases (mol), \"-\" = not present:\n" << node_table(n_chem, hdr.size());
+        else if(!present.empty()) {
+            std::string names;
+            for(auto k: present)
+                names += (names.empty() ? "" : ", ") + na->pCSD()->PHNL[na->pCSD()->xph[k]];
+            if(names.size() > width/2)
+                names = names.substr(0, names.rfind(", ", width/2)) + ", ...";
+            o << wrap("Phases present: " + std::to_string(present.size()) + " (" + names +
+                      ")  [amounts: summary(phases=True)]", width, "", "    ");
+        }
+    }
 
     if(!one_d) {
         auto id = [](const char* p) {
@@ -1384,8 +1525,9 @@ std::string TGEM2MT::summary() const
         };
         const DATACH* ch = initialized ? na->pCSD() : nullptr;
         // Mobile phase groups: the phases (with quantities) that a flux moves
-        o << "\nMobile phase groups: " << mtp->nPG
-          << "   [setNumberPhaseGroups(n), setPhaseGroupID(g, id), setPhaseGroupQuantities(g, phase, q), setUnitsPhaseQuantities(phase, unit)]\n";
+        o << "\nMobile phase groups: " << mtp->nPG << "\n"
+          << wrap("[setNumberPhaseGroups(n), setPhaseGroupID(g, id), setPhaseGroupQuantities(g, phase, q), "
+                  "setUnitsPhaseQuantities(phase, unit)]", width, "  ", "   ");
         if(mtp->nPG > 0 && mtp->MGPid && mtp->PGT) {
             std::vector<std::vector<std::string>> g_rows{{"group", "id", "phases (quantity unit)"}};
             for(long int g=0; g<mtp->nPG; ++g) {
@@ -1399,11 +1541,12 @@ std::string TGEM2MT::summary() const
                 }
                 g_rows.push_back({std::to_string(g), id(mtp->MGPid[g]), ph.empty() ? "-" : ph});
             }
-            o << table(g_rows);
+            o << table(g_rows, "  ", width);
         }
         // Flux definitions
-        o << "Fluxes: " << mtp->nFD
-          << "   [setNumberMGPfluxes(n), setFluxSourceReceive(i, from, to), setFluxDefinition(i, order, rate, quantity, value), setFluxMGPid(i, id), setFluxID(i, id)]\n";
+        o << "Fluxes: " << mtp->nFD << "\n"
+          << wrap("[setNumberMGPfluxes(n), setFluxSourceReceive(i, from, to), setFluxDefinition(i, order, rate, "
+                  "quantity, value), setFluxMGPid(i, id), setFluxID(i, id)]", width, "  ", "   ");
         if(mtp->nFD > 0 && mtp->FDLi && mtp->FDLf) {
             // Consecutive fluxes along a chain (i -> i+1) with equal settings form one row
             struct Flux { long int i0, i1, from0, from1, to0, to1; std::vector<std::string> rest; };
@@ -1426,26 +1569,28 @@ std::string TGEM2MT::summary() const
             for(const auto& f: fl)
                 f_rows.push_back({nodeRange(f.i0, f.i1), f.rest[0], node(f.from0, f.from1), node(f.to0, f.to1),
                                   f.rest[1], f.rest[2], f.rest[3], f.rest[4]});
-            o << table(f_rows);
+            o << table(f_rows, "  ", width);
             if(fl.size() < static_cast<size_t>(mtp->nFD))
-                o << "  (a row \"1-49, from 1-49 to 2-50\" means flux 1 goes from node 1 to 2, flux 2 from 2 to 3, ...)\n";
+                o << wrap("(a row \"1-49, from 1-49 to 2-50\" means: flux 1 goes from node 1 to 2, flux 2 from 2 to 3, ...)",
+                          width, "  ", "   ");
         }
         if(mtp->nSFD > 0)
-            o << "Elemental source fluxes: " << mtp->nSFD
-              << "   [setNumberICsourceFluxes(n), setICsourceQuantities(i, element, q)]\n";
+            o << "Elemental source fluxes: " << mtp->nSFD << "\n"
+              << wrap("[setNumberICsourceFluxes(n), setICsourceQuantities(i, element, q)]", width, "  ", "   ");
     }
 
     std::vector<std::vector<std::string>> how{
-        {"system of a node", "setDistributing(node, system)", "before initNodes"},
-        {"composition, T, P", "setSystem(system, composition=..., T=..., P=...), setNodes(nodes, ...)", "after initNodes"}};
+        {"system of a node", "before initNodes", "setDistributing(node, system)"},
+        {"composition, T, P", "after initNodes", "setSystem(system, composition=..., T=..., P=...), setNodes(nodes, ...)"}};
     if(one_d) {
-        how.push_back({"porosity, dispersivity,", "setInitialNodeEffectivePorosity(v), setInitialDispersivity(v), ...", "before initNodes, all nodes"});
-        how.push_back({"diffusivity, tortuosity", "setSystem/setNodes(..., transport=TransportProperties(porosity=..., ...))", "after initNodes"});
+        how.push_back({"porosity, dispersivity,", "before initNodes:", "setInitialNodeEffectivePorosity(v), setInitialDispersivity(v), ... (all nodes)"});
+        how.push_back({"diffusivity, tortuosity", "after initNodes:", "setSystem/setNodes(..., transport=TransportProperties(porosity=..., ...))"});
     }
-    how.push_back({"node type", "setNodeType(node, type), setNodesType(nodes, type)", fixed_ends ? "not used in this mode" : ""});
-    o << "\nHow to change:\n" << table(how);
+    how.push_back({"node type", fixed_ends ? "not used in this mode" : "", "setNodeType(node, type), setNodesType(nodes, type)"});
+    o << "\nHow to change:\n" << table(how, "  ", width);
     if(fixed_ends)
-        o << "Mode " << mode << ": nodes 0 and 1 (inflow) and the last node (outlet) keep their composition during the run.\n";
+        o << wrap(std::string("Mode ")+mode+": nodes 0 and 1 (inflow) and the last node (outlet) keep their composition during the run.",
+                  width);
     if(!initialized)
         o << "Compositions are shown after initNodes.\n";
     return o.str();

@@ -825,14 +825,19 @@ void exportMassTransport(py::module& m)
                  task.setHydraulicParameters(0, 1.0, 1e-4, 0.3, 1e-12, 0.1, 2e-9, 1.5)
              )doc")
 
-        .def("summary", &MassTransport::summary,
+        .def("summary", &MassTransport::summary, py::arg("width") = 100, py::arg("phases") = false,
              R"doc(
              Text summary of the task, also given by ``print(task)``.
 
              Shows the mode, the column, the time step that the program will use, the initial systems,
              and the nodes grouped by equal setup (system, role, node type, transport properties, and
-             after initNodes: T, P, mass, volume, phases). The last part tells which function changes
+             after initNodes: T, P, mass, volume). The last part tells which function changes
              each value.
+
+             :param int width: Maximum line length (default 100). Long tables and texts continue on
+                 the next lines. ``print(task)`` uses the default.
+             :param bool phases: Also show a table of the phase amounts (mol) in the node groups, one
+                 column for each phase present in a node (default False: only the phase names).
              )doc")
         .def("nodeSystem", &MassTransport::nodeSystem, py::arg("node_ndx"),
              "Index of the initial system (dbr file) the node was set up from.")
@@ -1290,7 +1295,7 @@ void exportMassTransport(py::module& m)
                                     Must accept three arguments: (engine: ChemicalEngineArray, step: int, time: float)
              )doc")
 
-        .def("__str__", &MassTransport::summary,
+        .def("__str__", [](const MassTransport& self) { return self.summary(); },
              "The same as summary().");
 
 }

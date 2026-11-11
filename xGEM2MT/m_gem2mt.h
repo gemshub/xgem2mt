@@ -700,7 +700,7 @@ public:
     void setNodeBulkComposition(size_t q, const std::vector<double>* b, double T, double P);
     /// Text summary of the task: mode, column, time step, initial systems, and the nodes grouped by
     /// equal setup, with the functions that change each value
-    std::string summary() const;
+    std::string summary(size_t width = 100, bool phases = false) const;
 
 
     // Use phase groups definitions

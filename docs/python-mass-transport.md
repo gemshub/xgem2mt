@@ -18,9 +18,11 @@ tells you differently.
 Do the steps in this sequence. Some functions have no effect if you call them at a different time
 (see the "When" column).
 
-To see the setup at any step, use `print(task)` or `task.summary()`. It shows the mode, the column,
-the time step that the program will use, the initial systems, and the nodes grouped by equal setup
-(system, role, node type, transport properties; after `initNodes` also T, P, mass, volume and phases).
+To see the setup at any step, use `print(task)` or `task.summary(width=100, phases=False)`. It shows
+the mode, the column, the time step that the program will use, the initial systems, and the nodes
+grouped by equal setup (system, role, node type, transport properties; after `initNodes` also T, P,
+mass and volume, and the names of the phases present). Lines are not longer than `width`.
+`phases=True` adds a table of the phase amounts, with one column for each phase.
 In modes 'S', 'F' and 'B' it also shows the mobile phase groups and the fluxes. Each value has the
 function that changes it. If the `setTau` step is too large for the time step, it shows a warning.
 `task.dump()` gives the full task as JSON.

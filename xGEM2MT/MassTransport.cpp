@@ -298,9 +298,9 @@ void MassTransport::setHydraulicParameters(size_t node_ndx, double Vt, double vp
     pimpl->gem2mt_task->setHydraulicParameters(node_ndx, Vt, vp, eps, Km, al, Dif, nto);
 }
 
-std::string MassTransport::summary() const
+std::string MassTransport::summary(size_t width, bool phases) const
 {
-    return pimpl->gem2mt_task->summary();
+    return pimpl->gem2mt_task->summary(width, phases);
 }
 
 long int MassTransport::nodeSystem(size_t node_ndx) const
