@@ -139,6 +139,7 @@ void exportTransportProperties(py::module& m)
         .def_readonly("first_time", &GEMFailures::first_time)
         .def_readonly("first_node", &GEMFailures::first_node)
         .def_readonly("first_message", &GEMFailures::first_message)
+        .def("message", &GEMFailures::message, "A text for a log or a warning; empty if there is no failure.")
         .def("__bool__", [](const GEMFailures& f) { return f.count > 0; })
         .def("__repr__", [](const GEMFailures& f) {
             if(!f.ran) return std::string("GEMFailures(no run yet)");
@@ -352,14 +353,9 @@ void exportMassTransport(py::module& m)
         .def("runMassTransport",
              [](MassTransport& self) {
                  self.runMassTransport();
-                 const auto f = self.gemFailures();
-                 if(f.count > 0) {
-                     std::string msg = std::to_string(f.count) + " GEM calculations failed or are not trustful in " +
-                                       std::to_string(f.nodes.size()) + " nodes (first: step " + std::to_string(f.first_step) +
-                                       ", node " + std::to_string(f.first_node) + ": " + f.first_message +
-                                       "). See task.gemFailures() and xGEM2MT.log.";
+                 const auto msg = self.gemFailures().message();      // the same text that C++ writes to the log
+                 if(!msg.empty())
                      py::module_::import("warnings").attr("warn")(msg, py::module_::import("builtins").attr("RuntimeWarning"), 2);
-                 }
              },
              R"doc(
              Executes the coupled finite-difference mass-transport simulation loop.

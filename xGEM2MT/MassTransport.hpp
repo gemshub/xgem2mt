@@ -66,6 +66,16 @@ struct GEMFailures
     double first_time = 0.;           ///< time of the first failure
     long int first_node = -1;         ///< node of the first failure
     std::string first_message;        ///< GEMS3K message of the first failure
+
+    /// A text for a log or a warning; empty if there is no failure.
+    std::string message() const
+    {
+        if(count == 0)
+            return {};
+        return std::to_string(count) + " GEM calculations failed or are not trustful in " + std::to_string(nodes.size()) +
+               " nodes (first: step " + std::to_string(first_step) + ", node " + std::to_string(first_node) + ": " +
+               first_message + "). See gemFailures() and xGEM2MT.log.";
+    }
 };
 
 /**
@@ -294,8 +304,9 @@ public:
     /**
      * @brief The GEM calculations that failed or were not trustful in the last run of runMassTransport().
      *
-     * The run goes on after such a failure; the node keeps the previous result. Python gives a
-     * RuntimeWarning after a run with failures. Details for each failure are in xGEM2MT.log.
+     * The run goes on after such a failure; the node keeps the previous result. runMassTransport() writes
+     * GEMFailures::message() to the log, and Python also gives a RuntimeWarning. Details for each failure
+     * are in xGEM2MT.log.
      */
     GEMFailures gemFailures() const;
 

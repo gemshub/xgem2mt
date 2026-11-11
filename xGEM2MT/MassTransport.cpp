@@ -22,6 +22,7 @@
 // GEMS3K includes
 #include <GEMS3K/io_simdjson.h>
 #include <GEMS3K/gems3k_impex.h>
+#include <GEMS3K/verror.h>
 #include <chrono>
 #include <sstream>
 #include <cmath>
@@ -161,6 +162,10 @@ void MassTransport::runMassTransport()
         throw std::runtime_error("\n*** ERROR ***\n"
                                  "Error run the MassTransport .\n"+err.mess);
     }
+    // The run goes on after a failed node calculation: tell the user (also C++), the details are in the log
+    const auto failures = gemFailures();
+    if(failures.count > 0)
+        gems_logger->warn("{}", failures.message());
 }
 
 GEMFailures MassTransport::gemFailures() const
