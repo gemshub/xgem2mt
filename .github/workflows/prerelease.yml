@@ -115,7 +115,7 @@ jobs:
           auto-activate-base: true
       - name: Install conda-build
         shell: bash -el {0}
-        run: conda install -n base -y conda-build conda-forge-pinning  # base: that is where `conda build` is looked up
+        run: conda install -n base -y conda-build conda-forge-pinning conda-index  # base: that is where `conda build` is looked up
       # Optima and GEMS3K take most of the build time and rarely change. Their packages are cached, keyed on
       # the pinned commits, their recipes and the month (so that a newer conda-forge pinning is picked up).
       # A cache hit keeps the build number of the run that made them; xgem2mt always gets a new one.
@@ -159,7 +159,9 @@ jobs:
             echo "Using cached base packages:"; ls basepkgs
             mkdir -p "$BUILD_DIR/${{ matrix.subdir }}" "$BUILD_DIR/noarch"
             cp basepkgs/*.conda "$BUILD_DIR/${{ matrix.subdir }}/"
-            python -m conda_index "$BUILD_DIR"   # the output folder is the local channel xgem2mt resolves gems3k from
+            # the output folder is the local channel xgem2mt resolves gems3k from; `python` here can be the
+            # system one, so run the indexer in base, where conda-build and conda-index are installed
+            conda run -n base python -m conda_index "$BUILD_DIR"
           fi
           build() {  # build() <recipe> [--variants "<variant>"]
             local r="$1"; shift
