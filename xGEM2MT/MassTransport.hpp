@@ -190,7 +190,7 @@ public:
      * @brief Initializes all nodes from one GEMS3K "*-dat.lst" file.
      *
      * The initial systems are the dbr files listed in the "*-dat.lst" file (after the dch and ipm
-     * files, separated by commas), in their order: the first file is system 0. A "*-dbr.lst" file
+     * files, separated by spaces), in their order: the first file is system 0. A "*-dbr.lst" file
      * is not necessary.
      *
      * @note GEMS3K reads the initial systems only from a list file. This function writes a

@@ -23,6 +23,8 @@
 #include <GEMS3K/io_simdjson.h>
 #include <GEMS3K/gems3k_impex.h>
 #include <chrono>
+#include <sstream>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 
@@ -103,7 +105,7 @@ void MassTransport::initNodes(const std::string& ipm_filename)
     if(dbr_names.empty())
         throw std::runtime_error("\n*** ERROR ***\n"
                                  "No dbr files are listed in "+ipm_filename+
-                                 " (list them after the dch and ipm files, separated by commas).");
+                                 " (list them after the dch and ipm files, separated by spaces).");
 
     // GEMS3K reads the node array only from a list file, with names relative to the folder of that file.
     // Write the names to a temporary hidden list file in the folder of the *-dat.lst file.
@@ -351,21 +353,46 @@ void MassTransport::setNodes(const std::vector<size_t>& nodes, const NodeSetup& 
     const bool set_chemistry = !std::holds_alternative<std::monostate>(setup.composition) ||
                                setup.temperature || setup.pressure;
 
-    // Element amounts in element order (empty: keep the composition of each node)
-    std::vector<double> b;
+    // Check everything before a node is changed
+    for(auto q: nodes)
+        if(q >= nNodes())
+            throw std::runtime_error("Node index "+std::to_string(q)+" out of range (nodes: "+
+                                     std::to_string(nNodes())+")");
+    // Permitted ranges: porosity in (0, 1], tortuosity > 0, the others >= 0
+    auto check = [](const std::optional<double>& v, const std::string& name, bool positive, double hi) {
+        if(!v) return;
+        const bool ok = (positive ? *v > 0. : *v >= 0.) && *v <= hi;
+        if(!ok) {
+            std::ostringstream msg;
+            msg << "TransportProperties." << name << " = " << *v << " is not permitted: it must be "
+                << (positive ? "> 0" : ">= 0");
+            if(std::isfinite(hi)) msg << " and <= " << hi;
+            throw std::runtime_error(msg.str());
+        }
+    };
+    const double inf = std::numeric_limits<double>::infinity();
+    check(t.volume, "volume", false, inf);
+    check(t.porosity, "porosity", true, 1.);
+    check(t.permeability, "permeability", false, inf);
+    check(t.dispersivity, "dispersivity", false, inf);
+    check(t.diffusivity, "diffusivity", false, inf);
+    check(t.tortuosity, "tortuosity", true, inf);
+    if(set_chemistry && !pimpl->chem_array)
+        throw std::runtime_error("Nodes are not initialized: call initNodes first");
+
+    // New element amounts in chemical-system order (no value: keep the composition of each node)
+    std::optional<std::vector<double>> b;
     if(const auto* v = std::get_if<std::vector<double>>(&setup.composition)) {
-        b = *v;
+        b = *v;    // the size is checked for each node
     }
     else if(const auto* m = std::get_if<std::map<std::string, double>>(&setup.composition)) {
-        if(!pimpl->chem_array)
-            throw std::runtime_error("Nodes are not initialized: call initNodes first");
         const auto& engine = *pimpl->chem_array;
-        b.assign(engine.numElements(), 0.);
+        b = std::vector<double>(engine.numElements(), 0.);
         for(const auto& [name, amount]: *m) {
             auto i = engine.indexElement(name);
             if(i >= engine.numElements())
                 throw std::runtime_error("Element "+name+" is not in the chemical system");
-            b[i] = amount;
+            (*b)[i] = amount;
         }
     }
 
@@ -379,11 +406,9 @@ void MassTransport::setNodes(const std::vector<size_t>& nodes, const NodeSetup& 
                     t.permeability.value_or(h[3]), t.dispersivity.value_or(h[4]),
                     t.diffusivity.value_or(h[5]), t.tortuosity.value_or(h[6]));
             }
-            if(set_chemistry) {
-                pimpl->gem2mt_task->setNodeBulkComposition(q,
-                    b.empty() ? pimpl->gem2mt_task->nodeBulkComposition(q) : b,
+            if(set_chemistry)
+                pimpl->gem2mt_task->setNodeBulkComposition(q, b ? &*b : nullptr,
                     setup.temperature.value_or(nan), setup.pressure.value_or(nan));
-            }
         }
     }
     catch(TError& err) {

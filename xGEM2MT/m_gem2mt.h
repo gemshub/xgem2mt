@@ -692,16 +692,16 @@ public:
     long int nodeType(size_t q) const
     {  return (mtp->DiCp && q<static_cast<size_t>(mtp->nC) ? mtp->DiCp[q][1] : 0); }
 
-    /// Sets the bulk composition (moles of elements, DCH order) of node q in both node arrays and
-    /// re-equilibrates the node from scratch (AIA). T in K and P in Pa are changed only if finite.
-    /// Must be called after MassTransInit. Throws TError on a bad index or size, or when GEM fails.
-    void setNodeBulkComposition(size_t q, const std::vector<double>& b, double T, double P);
+    /// Sets the bulk composition of node q in both node arrays and re-equilibrates the node from
+    /// scratch (AIA). b: moles of elements in chemical-system (DCH) order, nIC values; nullptr keeps
+    /// the composition. T in K and P in Pa are changed only if finite. Must be called after
+    /// MassTransInit. Throws TError on a bad index or size, for an element that the DBR does not
+    /// keep, or when GEM fails; then the node keeps its previous inputs and is equilibrated again.
+    void setNodeBulkComposition(size_t q, const std::vector<double>* b, double T, double P);
     /// Text summary of the task: mode, column, time step, initial systems, and the nodes grouped by
     /// equal setup, with the functions that change each value
     std::string summary() const;
 
-    /// Bulk composition (moles of elements) of node q at the current time level (C0)
-    std::vector<double> nodeBulkComposition(size_t q) const;
 
     // Use phase groups definitions
     /// MGPid: ID list of mobile phase groups

@@ -198,7 +198,7 @@ void exportMassTransport(py::module& m)
              Initializes all nodes from one GEMS3K ``*-dat.lst`` file.
 
              The initial systems are the dbr files listed in the ``*-dat.lst`` file (after the dch and ipm
-             files, separated by commas), in their order: the first file is system 0. A ``*-dbr.lst`` file is
+             files, separated by spaces), in their order: the first file is system 0. A ``*-dbr.lst`` file is
              not necessary.
 
              .. note::

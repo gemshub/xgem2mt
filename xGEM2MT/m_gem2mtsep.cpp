@@ -16,6 +16,7 @@
 //
 
 #include <array>
+#include <algorithm>
 #include <cstring>
 #include <limits>
 #include <sstream>
@@ -434,30 +435,41 @@ std::array<double, SIZE_HYDP> TGEM2MT::hydraulicParameters(size_t pndx) const
     return hp;
 }
 
-std::vector<double> TGEM2MT::nodeBulkComposition(size_t q) const
-{
-    ErrorIf(!na || !na->pNodT0() || !na->pNodT0()[0], GetName(),
-            "Nodes are not initialized: call initNodes first");
-    ErrorIf(q >= static_cast<size_t>(mtp->nC), GetName(),
-            "Node index "+std::to_string(q)+" out of range (nodes: "+std::to_string(mtp->nC)+")");
-    const DATABR* node = na->pNodT0()[q];
-    return std::vector<double>(node->bIC, node->bIC + na->pCSD()->nICb);
-}
-
-void TGEM2MT::setNodeBulkComposition(size_t q, const std::vector<double>& b, double T, double P)
+void TGEM2MT::setNodeBulkComposition(size_t q, const std::vector<double>* b, double T, double P)
 {
     ErrorIf(!na || !na->pNodT0() || !na->pNodT1() || !na->pNodT0()[0], GetName(),
             "Nodes are not initialized: call initNodes first");
     ErrorIf(q >= static_cast<size_t>(mtp->nC), GetName(),
             "Node index "+std::to_string(q)+" out of range (nodes: "+std::to_string(mtp->nC)+")");
-    const long int nIC = na->pCSD()->nICb;
-    ErrorIf(static_cast<long int>(b.size()) != nIC, GetName(),
-            "Bulk composition has "+std::to_string(b.size())+" values, the system has "+std::to_string(nIC)+" elements");
+    const DATACH* ch = na->pCSD();
+    const long int nICb = ch->nICb;
+
+    // New element amounts in DBR order: the DBR keeps nICb of the nIC elements (index list xic)
+    std::vector<double> b_dbr;
+    if(b) {
+        ErrorIf(static_cast<long int>(b->size()) != ch->nIC, GetName(),
+                "Bulk composition has "+std::to_string(b->size())+" values, the chemical system has "+
+                std::to_string(ch->nIC)+" elements");
+        std::vector<bool> kept(ch->nIC, false);
+        b_dbr.resize(nICb);
+        for(long int j=0; j<nICb; ++j) {
+            b_dbr[j] = (*b)[ch->xic[j]];
+            kept[ch->xic[j]] = true;
+        }
+        for(long int i=0; i<ch->nIC; ++i)
+            ErrorIf(!kept[i] && (*b)[i] != 0., GetName(),
+                    "Element "+ch->ICNL[i]+" is not kept in the node data (DBR); its amount must be 0");
+    }
 
     DATABRPTR* C0 = na->pNodT0();
     DATABRPTR* C1 = na->pNodT1();
-    for(long int i=0; i<nIC; ++i)
-        C0[q]->bIC[i] = C1[q]->bIC[i] = b[i];
+    // The previous inputs, to restore them if the calculation fails
+    const std::vector<double> old0(C0[q]->bIC, C0[q]->bIC+nICb), old1(C1[q]->bIC, C1[q]->bIC+nICb);
+    const double T0 = C0[q]->TK, P0 = C0[q]->P, T1 = C1[q]->TK, P1 = C1[q]->P;
+
+    if(b)
+        for(long int j=0; j<nICb; ++j)
+            C0[q]->bIC[j] = C1[q]->bIC[j] = b_dbr[j];
     if(std::isfinite(T))
         C0[q]->TK = C1[q]->TK = T;
     if(std::isfinite(P))
@@ -465,8 +477,26 @@ void TGEM2MT::setNodeBulkComposition(size_t q, const std::vector<double>& b, dou
 
     // Equilibrate the node from scratch into C1, then make C0 the same
     TestModeGEMParam mode(NEED_GEM_AIA, S_OFF, mtp->ct, mtp->cdv, mtp->cez);
-    ErrorIf(!na->CalcIPM_One(mode, static_cast<long int>(q), nullptr), GetName(),
-            "GEM calculation failed for the new composition of node "+std::to_string(q));
+    auto restore = [&]() {
+        std::copy(old0.begin(), old0.end(), C0[q]->bIC);
+        std::copy(old1.begin(), old1.end(), C1[q]->bIC);
+        C0[q]->TK = T0;  C0[q]->P = P0;  C1[q]->TK = T1;  C1[q]->P = P1;
+        try { na->CalcIPM_One(mode, static_cast<long int>(q), nullptr); }  // the previous equilibrium again
+        catch(...) {}
+    };
+    bool ok = false;
+    try {
+        ok = na->CalcIPM_One(mode, static_cast<long int>(q), nullptr);
+    }
+    catch(...) {
+        restore();
+        throw;
+    }
+    if(!ok) {
+        restore();
+        Error(GetName(), "GEM calculation failed for the new composition of node "+std::to_string(q)+
+                         "; the node keeps its previous composition");
+    }
     na->CopyNodeFromTo(static_cast<long int>(q), mtp->nC, C1, C0);
 }
 

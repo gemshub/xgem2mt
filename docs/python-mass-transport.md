@@ -112,7 +112,7 @@ The GEMS3K files:
 | `*-dch.dat` | The chemical system: elements, species, phases, thermodynamic data. |
 | `*-ipm.dat` | The settings of the GEM solver. |
 | `*-dbr-0-0000.dat`, ... | One composition each: bulk composition, T, P, equilibrium speciation. |
-| `*-dat.lst` | `-t` (text files), the dch and ipm file names, then the dbr file names. |
+| `*-dat.lst` | `-t` (text files), the dch and ipm file names, then the dbr file names, separated by spaces (a comma after a name is permitted). |
 | `*-dbr.lst` | The dbr file names again, separated by commas. Only for `initNodes(dat_lst, dbr_lst)`. |
 
 The position of a dbr file in the list gives the index of the initial system. The first file is
@@ -158,7 +158,7 @@ Parameters of `setSystem` and `setNodes`. Give only the parts that you want to c
     not in the dict get 0,
   * an array in the element order of the chemical system.
 * `T`: temperature in K. `P`: pressure in Pa.
-* `transport`: a `TransportProperties` object. Only its fields that are set are changed.
+* `transport`: a `TransportProperties` object. Only its fields that are set are changed. The permitted values are: porosity more than 0 and not more than 1, tortuosity more than 0, the other fields 0 or more.
 
 If you give `composition`, `T` or `P`, the program equilibrates each node again from the start.
 
