@@ -18,6 +18,13 @@ tells you differently.
 Do the steps in this sequence. Some functions have no effect if you call them at a different time
 (see the "When" column).
 
+To see the setup at any step, use `print(task)` or `task.summary()`. It shows the mode, the column,
+the time step that the program will use, the initial systems, and the nodes grouped by equal setup
+(system, role, node type, transport properties; after `initNodes` also T, P, mass, volume and phases).
+In modes 'S', 'F' and 'B' it also shows the mobile phase groups and the fluxes. Each value has the
+function that changes it. If the `setTau` step is too large for the time step, it shows a warning.
+`task.dump()` gives the full task as JSON.
+
 ## 1. Create the task
 
 | Function | Parameters | Notes |
@@ -110,6 +117,14 @@ The GEMS3K files:
 
 The position of a dbr file in the list gives the index of the initial system. The first file is
 system 0. The numbers in the file names are not used.
+
+If there is only one dbr file, all nodes start from it. The system numbers (0 for nodes 0 and 1,
+1 for the other nodes in mode 'A') then only mark groups. Use `setSystem(0, ...)` and
+`setSystem(1, ...)` to give the fluid and the column their compositions.
+
+Mode 'A' and 'C' boundaries: nodes 0 and 1 (inflow) and the last node (outlet) keep their composition
+during the run. To change the inflow, change the composition of nodes 0 and 1 (system 0). The node
+type is not used in these modes.
 
 Node types: 0 normal; 1 and −1 Dirichlet source and sink; 2 and −2 Neumann source and sink;
 3 and −3 Cauchy source and sink; 4 time-dependent input. Default: 3 for nodes 0 and 1, −3 for the

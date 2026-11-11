@@ -296,6 +296,11 @@ void MassTransport::setHydraulicParameters(size_t node_ndx, double Vt, double vp
     pimpl->gem2mt_task->setHydraulicParameters(node_ndx, Vt, vp, eps, Km, al, Dif, nto);
 }
 
+std::string MassTransport::summary() const
+{
+    return pimpl->gem2mt_task->summary();
+}
+
 long int MassTransport::nodeSystem(size_t node_ndx) const
 {
     return pimpl->gem2mt_task->nodeSystem(node_ndx);
@@ -508,7 +513,7 @@ std::ostream& operator<<(std::ostream& out, const MassTransport& engine)
 {
     auto flags = out.flags();
 
-    out << engine.dump() << std::endl;
+    out << engine.summary();
 
     // Recover the previous state of `out`
     out.flags(flags);

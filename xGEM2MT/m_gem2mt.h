@@ -696,6 +696,10 @@ public:
     /// re-equilibrates the node from scratch (AIA). T in K and P in Pa are changed only if finite.
     /// Must be called after MassTransInit. Throws TError on a bad index or size, or when GEM fails.
     void setNodeBulkComposition(size_t q, const std::vector<double>& b, double T, double P);
+    /// Text summary of the task: mode, column, time step, initial systems, and the nodes grouped by
+    /// equal setup, with the functions that change each value
+    std::string summary() const;
+
     /// Bulk composition (moles of elements) of node q at the current time level (C0)
     std::vector<double> nodeBulkComposition(size_t q) const;
 
@@ -761,6 +765,7 @@ public:
 protected:
 
     std::shared_ptr<TNodeArray> na = nullptr;       // pointer to nodearray class instance
+    std::vector<std::string> dbr_file_names;        // initial systems (dbr files) read by initNodes
     TParticleArray* pa_mt = nullptr;       // pointer to TParticleArray class instance
 
     // for box flux ODE integration sims with variable time step (TBD)

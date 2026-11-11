@@ -825,6 +825,15 @@ void exportMassTransport(py::module& m)
                  task.setHydraulicParameters(0, 1.0, 1e-4, 0.3, 1e-12, 0.1, 2e-9, 1.5)
              )doc")
 
+        .def("summary", &MassTransport::summary,
+             R"doc(
+             Text summary of the task, also given by ``print(task)``.
+
+             Shows the mode, the column, the time step that the program will use, the initial systems,
+             and the nodes grouped by equal setup (system, role, node type, transport properties, and
+             after initNodes: T, P, mass, volume, phases). The last part tells which function changes
+             each value.
+             )doc")
         .def("nodeSystem", &MassTransport::nodeSystem, py::arg("node_ndx"),
              "Index of the initial system (dbr file) the node was set up from.")
         .def("nodeType", &MassTransport::nodeType, py::arg("node_ndx"),
@@ -1281,25 +1290,7 @@ void exportMassTransport(py::module& m)
                                     Must accept three arguments: (engine: ChemicalEngineArray, step: int, time: float)
              )doc")
 
-        .def("__str__", [](const MassTransport& engine) {
-            std::ostringstream oss;
-            oss << engine;
-            return oss.str();
-        },
-             R"doc(
-        Outputs the internal state of the MassTransport object as a human-readable string.
-
-        Formats the simulator's parameters, active mode, and current node states
-        into a human-readable format, suitable for logging or console output.
-
-        :return str: A string representation of the MassTransport internal state.
-
-        **Example:**
-
-             .. code-block:: python
-
-                 task = MassTransport('F', 100)
-                 print(task)
-        )doc");
+        .def("__str__", &MassTransport::summary,
+             "The same as summary().");
 
 }

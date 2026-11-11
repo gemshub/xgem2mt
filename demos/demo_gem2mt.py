@@ -26,6 +26,7 @@ def main():
 
         mttask.readTask(gem2mt_init)
         mttask.initNodes(gems_init_lst, gems_init_dbr_lst)
+        print(mttask)  # setup summary: nodes, time step, properties, phases
 
         engine = mttask.getChemicalEngineArray()
         bj = engine.elementAmounts(0)

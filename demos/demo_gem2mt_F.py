@@ -67,6 +67,7 @@ def task_F(nnodes: int, ipm_lst: str, dbr_lst: str) -> int:
         # (3) Here we read the MULTI structure, DATACH and DATABR files prepared from GEMS,
         # allocate and set default values for gem2mt arrays
         mt_task.initNodes(ipm_lst, dbr_lst)
+        print(mt_task)  # setup summary: nodes, time step, properties, phases
 
         # (4) Change/define some other gem2mt arrays
         for ii in range(mt_task.nPhaseGroups):

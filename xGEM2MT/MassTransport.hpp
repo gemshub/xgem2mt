@@ -698,6 +698,13 @@ public:
      */
     void setHydraulicParameters(size_t node_ndx, double Vt, double vp, double eps, double Km, double al, double Dif, double nto);
 
+    /**
+     * @brief Text summary of the task: mode, column, time step, initial systems, and the nodes grouped
+     *        by equal setup (system, role, type, transport properties, T, P, phases), with the
+     *        functions that change each value. Also used by operator<< and Python print().
+     */
+    std::string summary() const;
+
     /// Index of the initial system (dbr file in the dbr list) that node node_ndx was set up from.
     long int nodeSystem(size_t node_ndx) const;
 

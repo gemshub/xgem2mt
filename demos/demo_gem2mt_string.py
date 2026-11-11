@@ -30,9 +30,10 @@ def main():
 
         mttask.readTaskString(gem2mt_json)
         mttask.initNodesFromStrings(dch_json, ipm_json, dbr_jsons)
+        print(mttask)  # setup summary: nodes, time step, properties, phases
 
         mttask.runMassTransport()
-        print(mttask)
+        print(mttask.dump())  # the task as JSON
 
     except RuntimeError as ex:
         print(ex)
