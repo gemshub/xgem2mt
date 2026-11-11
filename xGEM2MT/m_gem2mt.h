@@ -792,6 +792,7 @@ protected:
     bool  CalcIPM(char mode, long int start_node = 0,long int end_node = 1000);
 
     void  MassTransAdvecStart();
+    double DispersionCoef( long int q ) const;
     void  MassTransAdvecStep( bool ComponentMode = true );
     void  MassTransCraNicStart();
     void  MassTransCraNicStep( bool ComponentMode = true );

@@ -16,6 +16,10 @@
 //-------------------------------------------------------------------
 //
 
+#include <vector>
+#include <algorithm>
+#include <cmath>
+#include <limits>
 #include <fstream>
 #include "m_gem2mt.h"
 #include "GEMS3K/nodearray.h"
@@ -65,7 +69,7 @@ bool TGEM2MT::internalCalc()
         //pVisor->CloseMessage();
         //vfMessage(window(), xcpt.title, xcpt.mess);
         gems_logger->error("{}  {}", xcpt.title, xcpt.mess);
-        return 1;
+        throw;  // RecCalc marks the task as failed; MassTransport::runMassTransport reports it to the caller
     }
 }
 
@@ -283,13 +287,44 @@ bool TGEM2MT::CalcIPM( char mode, long int start_node, long int end_node)
     return iRet;
 }
 
+// Longitudinal hydrodynamic dispersion coefficient D = al*vp + Dif*eps/nto (m2/s) in node q
+double TGEM2MT::DispersionCoef( long int q ) const
+{
+    double al = mtp->al_in, vp = mtp->fVel, Dif = mtp->Dif_in, eps = mtp->eps_in, nto = mtp->nto_in;
+    if( mtp->HydP ) {
+        vp = mtp->HydP[q][1];  eps = mtp->HydP[q][2];
+        al = mtp->HydP[q][4];  Dif = mtp->HydP[q][5];  nto = mtp->HydP[q][6];
+    }
+    double D = al*fabs(vp);
+    if( nto > 0. )
+        D += Dif*eps/nto;
+    return D;
+}
+
 // The mass transport iteration initial time step
 void TGEM2MT::MassTransAdvecStart()
 {
     if( mtp->tf <= 0 ) // foolproof
         mtp->tf = 1.;
     mtp->dx = mtp->sizeLc[0]/mtp->nC;  // was mtp->cLen/mtp->nC; changed 15.12.2011 DK
-    mtp->dTau = 0.5*(mtp->dx/mtp->fVel)*1./mtp->tf;
+    // The upwind stencil and the source nodes 0, 1 assume flow from node 0 towards the last node
+    if( mtp->fVel < 0. )
+        Error( "MassTransAdvecStart", "'A' mode needs a fluid advection velocity >= 0 "
+                                      "(flow from node 0 towards the last node)." );
+    // Courant criterion for advection (cr = 0.5), and dt <= dx^2/(4 D) for the explicit dispersion term,
+    // so that cr + 2 D dt/dx^2 <= 1
+    double dt = std::numeric_limits<double>::infinity();
+    if( mtp->fVel > 0. )
+        dt = 0.5*mtp->dx/mtp->fVel;
+    double Dmax = 0.;
+    for( long int q = 0; q < mtp->nC; q++ )
+        Dmax = std::max( Dmax, DispersionCoef( q ) );
+    if( Dmax > 0. )
+        dt = std::min( dt, 0.25*mtp->dx*mtp->dx/Dmax );
+    if( !std::isfinite( dt ) )
+        Error( "MassTransAdvecStart", "'A' mode needs a fluid advection velocity or a dispersion > 0." );
+    // tf only reduces the time step: a value below 1 would exceed the stability limits above
+    mtp->dTau = dt/std::max( mtp->tf, 1. );
     mtp->oTau = 0.;
     mtp->cTau = mtp->Tau[START_];
     // mtp->cTau = 0;
@@ -363,24 +398,44 @@ void TGEM2MT::MassTransAdvecStep( bool CompMode )
     mtp->cTau += mtp->dTau;
     cr = mtp->fVel * mtp->dTau/mtp->dx;
 
+    // Amounts at the start of the time step. The fluxes of all nodes must be calculated from these:
+    // reading the already updated upstream node would move the fluid further than cr cells per step.
+    const long int nDCaq = CH->nDCinPH[0]-1;
+    std::vector<double> old_xDC, old_bPS;
+    if( CompMode == true ) {
+        old_xDC.resize( mtp->nC*nDCaq );
+        for( ii = 0; ii < mtp->nC; ii++ )
+            for( jc = 0; jc < nDCaq; jc++ )
+                old_xDC[ii*nDCaq+jc] = node1_xDC( ii, jc );
+    }
+    else {
+        old_bPS.resize( mtp->nC*CH->nICb );
+        for( ii = 0; ii < mtp->nC; ii++ )
+            for( ic = 0; ic < CH->nICb; ic++ )
+                old_bPS[ii*CH->nICb+ic] = node1_bPS( ii, 0, ic );
+    }
+
     for( ii = 2; ii< mtp->nC-1; ii++) // node iteration, -1 the right boundary is open ....
     {
         mtp->qc = ii;
+        // dispersion number of this node: D dt/dx^2
+        const double dn = DispersionCoef( ii ) * mtp->dTau/(mtp->dx*mtp->dx);
         if( CompMode == true )
         {  // Advective mass transport over DC gradients in Aq phase
             fmolal = 55.5084/node1_xDC( ii, CH->nDCinPH[0]-1 );
             for( jc=0; jc < CH->nDCinPH[0]-1; jc++ )
             {   // splitting for dependent components except H2O@
                 // It has to be checked on minimal allowed c0 value
-                c0  = node1_xDC( ii, jc )* fmolal;
-                c1  = node1_xDC( ii+1, jc )* fmolal;
-                cm1 = node1_xDC( ii-1, jc )* fmolal;
-                cm2 = node1_xDC( ii-2, jc )* fmolal;
+                c0  = old_xDC[ii*nDCaq+jc]* fmolal;
+                c1  = old_xDC[(ii+1)*nDCaq+jc]* fmolal;
+                cm1 = old_xDC[(ii-1)*nDCaq+jc]* fmolal;
+                cm2 = old_xDC[(ii-2)*nDCaq+jc]* fmolal;
                 if( c0 < 1e-20 && c1 < 1e-20 && cm1 < 1e-20 && cm2 < 1e-20 )
                     continue;
                 c12=((c1+c0)/2)-(cr*(c1-c0)/2)-((1-cr*cr)*(c1-2*c0+cm1)/6);
                 cm12=((c0+cm1)/2)-(cr*(c0-cm1)/2)-((1-cr*cr)*(c0-2*cm1+cm2)/6);
                 dc = cr*(c12-cm12);
+                dc -= dn*(c1-2*c0+cm1);  // explicit central-difference dispersion
                 if( fabs( dc ) < mtp->cdv )   // *c0   Insignificant fractional difference?
                     continue;
                 dc /= fmolal;
@@ -416,15 +471,16 @@ void TGEM2MT::MassTransAdvecStep( bool CompMode )
                 // IC amount in H2O
                 // Chemical compositions may become inconsistent with time
                 // It has to be checked on minimal allowed c0 value
-                c0  = (node1_bPS( ii, 0, ic ) - niw )*fmolal;    //C1[ii]->bPS[0*CH->nICb + ic];
-                c1  = (node1_bPS( ii+1, 0, ic) - niw )*fmolal;   //C1[ii+1]->bPS[0*CH->nICb + ic];
-                cm1 = (node1_bPS( ii-1, 0, ic ) - niw )*fmolal;  //C1[ii-1]->bPS[0*CH->nICb + ic];
-                cm2 = (node1_bPS( ii-2, 0, ic ) - niw )*fmolal;  //C1[ii-2]->bPS[0*CH->nICb + ic];
+                c0  = (old_bPS[ii*CH->nICb+ic] - niw )*fmolal;    //C1[ii]->bPS[0*CH->nICb + ic];
+                c1  = (old_bPS[(ii+1)*CH->nICb+ic] - niw )*fmolal;   //C1[ii+1]->bPS[0*CH->nICb + ic];
+                cm1 = (old_bPS[(ii-1)*CH->nICb+ic] - niw )*fmolal;  //C1[ii-1]->bPS[0*CH->nICb + ic];
+                cm2 = (old_bPS[(ii-2)*CH->nICb+ic] - niw )*fmolal;  //C1[ii-2]->bPS[0*CH->nICb + ic];
 
                 // Finite-difference calculation (suggested by FE )
                 c12=((c1+c0)/2)-(cr*(c1-c0)/2)-((1-cr*cr)*(c1-2*c0+cm1)/6);
                 cm12=((c0+cm1)/2)-(cr*(c0-cm1)/2)-((1-cr*cr)*(c0-2*cm1+cm2)/6);
                 dc = cr*(c12-cm12);
+                dc -= dn*(c1-2*c0+cm1);  // explicit central-difference dispersion
                 if( fabs( dc ) < mtp->cdv )  // *c0
                     continue;
                 dc /= fmolal;
@@ -473,6 +529,23 @@ void TGEM2MT::MassTransCraNicStep( bool CompMode )
     mtp->cTau += mtp->dTau;
     cr = mtp->fVel * mtp->dTau/mtp->dx;
 
+    // Amounts at the start of the time step. The fluxes of all nodes must be calculated from these:
+    // reading the already updated upstream node would move the fluid further than cr cells per step.
+    const long int nDCaq = CH->nDCinPH[0]-1;
+    std::vector<double> old_xDC, old_bPS;
+    if( CompMode == true ) {
+        old_xDC.resize( mtp->nC*nDCaq );
+        for( ii = 0; ii < mtp->nC; ii++ )
+            for( jc = 0; jc < nDCaq; jc++ )
+                old_xDC[ii*nDCaq+jc] = node1_xDC( ii, jc );
+    }
+    else {
+        old_bPS.resize( mtp->nC*CH->nICb );
+        for( ii = 0; ii < mtp->nC; ii++ )
+            for( ic = 0; ic < CH->nICb; ic++ )
+                old_bPS[ii*CH->nICb+ic] = node1_bPS( ii, 0, ic );
+    }
+
     for( ii = 2; ii< mtp->nC-1; ii++) // node iteration, -1 the right boundary is open ....
     {
         mtp->qc = ii;
@@ -482,10 +555,10 @@ void TGEM2MT::MassTransCraNicStep( bool CompMode )
             for( jc=0; jc < CH->nDCinPH[0]-1; jc++ )
             {   // splitting for dependent components except H2O@
                 // It has to be checked on minimal allowed c0 value
-                c0  = node1_xDC( ii, jc )* fmolal;
-                c1  = node1_xDC( ii+1, jc )* fmolal;
-                cm1 = node1_xDC( ii-1, jc )* fmolal;
-                cm2 = node1_xDC( ii-2, jc )* fmolal;
+                c0  = old_xDC[ii*nDCaq+jc]* fmolal;
+                c1  = old_xDC[(ii+1)*nDCaq+jc]* fmolal;
+                cm1 = old_xDC[(ii-1)*nDCaq+jc]* fmolal;
+                cm2 = old_xDC[(ii-2)*nDCaq+jc]* fmolal;
                 if( c0 < 1e-20 && c1 < 1e-20 && cm1 < 1e-20 && cm2 < 1e-20 )
                     continue;
                 c12=((c1+c0)/2)-(cr*(c1-c0)/2)-((1-cr*cr)*(c1-2*c0+cm1)/6);
@@ -526,10 +599,10 @@ void TGEM2MT::MassTransCraNicStep( bool CompMode )
                 // IC amount in H2O
                 // Chemical compositions may become inconsistent with time
                 // It has to be checked on minimal allowed c0 value
-                c0  = (node1_bPS( ii, 0, ic ) - niw )*fmolal;    //C1[ii]->bPS[0*CH->nICb + ic];
-                c1  = (node1_bPS( ii+1, 0, ic) - niw )*fmolal;   //C1[ii+1]->bPS[0*CH->nICb + ic];
-                cm1 = (node1_bPS( ii-1, 0, ic ) - niw )*fmolal;  //C1[ii-1]->bPS[0*CH->nICb + ic];
-                cm2 = (node1_bPS( ii-2, 0, ic ) - niw )*fmolal;  //C1[ii-2]->bPS[0*CH->nICb + ic];
+                c0  = (old_bPS[ii*CH->nICb+ic] - niw )*fmolal;    //C1[ii]->bPS[0*CH->nICb + ic];
+                c1  = (old_bPS[(ii+1)*CH->nICb+ic] - niw )*fmolal;   //C1[ii+1]->bPS[0*CH->nICb + ic];
+                cm1 = (old_bPS[(ii-1)*CH->nICb+ic] - niw )*fmolal;  //C1[ii-1]->bPS[0*CH->nICb + ic];
+                cm2 = (old_bPS[(ii-2)*CH->nICb+ic] - niw )*fmolal;  //C1[ii-2]->bPS[0*CH->nICb + ic];
 
                 // Finite-difference calculation (suggested by FE )
                 c12=((c1+c0)/2)-(cr*(c1-c0)/2)-((1-cr*cr)*(c1-2*c0+cm1)/6);

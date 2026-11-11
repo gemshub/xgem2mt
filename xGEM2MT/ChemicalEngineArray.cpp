@@ -763,7 +763,7 @@ auto ChemicalEngineArray::elementAmounts(size_t ndx) const -> Vector
 auto ChemicalEngineArray::elementAmountsInPhase_i(size_t ndx, size_t iphase) const -> Vector
 {
     MatrixConstRef W = formulaMatrix();
-    VectorConstRef n = speciesAmounts(ndx);
+    const Vector n = speciesAmounts(ndx);
     const size_t first = indexFirstSpeciesInPhase_i(iphase);
     const size_t size = numSpeciesInPhase_i(iphase);
     MatrixConstRef Wp = W.middleCols(first, size);
@@ -792,7 +792,7 @@ auto ChemicalEngineArray::elementAmountsInPhase(size_t ndx, std::string phase) c
 auto ChemicalEngineArray::elementAmountsInSpecies(size_t ndx, VectorXiConstRef ispecies) const -> Vector
 {
     MatrixConstRef W = formulaMatrix();
-    VectorConstRef n = speciesAmounts(ndx);
+    const Vector n = speciesAmounts(ndx);
     MatrixConstRef Wp = W(all, ispecies);
     VectorConstRef np = n(ispecies);
     Vector res = Wp * np;
@@ -1741,7 +1741,7 @@ auto operator<<(std::ostream& out, const ChemicalEngineArray& state) -> std::ost
     {
         const double T = state.temperature(ii);
         const double P = state.pressure(ii);
-        VectorConstRef n = state.speciesAmounts(ii);
+        const Vector n = state.speciesAmounts(ii);
         const Vector activity_coeffs = state.lnActivityCoefficients(ii).array().exp();
         const Vector activities = state.lnActivities(ii).array() * 0.4343; // .exp();
         const Vector chemical_potentials = state.chemicalPotentials(ii).array() / 1000.;
