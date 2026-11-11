@@ -19,6 +19,8 @@
 #define _m_gem2mt_h_
 
 #include <array>
+#include <set>
+#include <string>
 #include <vector>
 #include <functional>
 #include "particlearray.h"
@@ -698,9 +700,27 @@ public:
     /// MassTransInit. Throws TError on a bad index or size, for an element that the DBR does not
     /// keep, or when GEM fails; then the node keeps its previous inputs and is equilibrated again.
     void setNodeBulkComposition(size_t q, const std::vector<double>* b, double T, double P);
+    /// Volume (L) of the equilibrium state of a material at T (K) and P (Pa), from a GEM calculation with the
+    /// models of the chemical system. b: element amounts in chemical-system (DCH) order. Throws TError if the
+    /// GEM calculation fails, or if the material has an element that the DBR does not keep.
+    /// A material without water (a solid, a gas) does not converge alone: give it with a pore water and take
+    /// the difference (see MassTransport::setNodes).
+    double materialVolume(const std::vector<double>& b, double T, double P) const;
     /// Text summary of the task: mode, column, time step, initial systems, and the nodes grouped by
     /// equal setup, with the functions that change each value
     std::string summary(size_t width = 100, bool phases = false) const;
+
+    /// GEM calculations in the nodes that failed or gave a result that is not trustful, in the last run
+    struct GemFailures {
+        bool ran = false;            ///< a run was done
+        long int count = 0;          ///< number of failed node calculations
+        std::set<long int> nodes;    ///< nodes with a failed calculation
+        long int first_step = -1;    ///< time step, time, node and message of the first failure
+        double first_time = 0.;
+        long int first_node = -1;
+        std::string first_message;
+    };
+    GemFailures gem_failures;
 
 
     // Use phase groups definitions

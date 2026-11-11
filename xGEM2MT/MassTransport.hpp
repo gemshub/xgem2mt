@@ -54,14 +54,59 @@ struct TransportProperties
 using Composition = std::variant<std::monostate, std::vector<double>, std::map<std::string, double>>;
 
 /**
+ * @brief GEM calculations in the nodes that failed or gave a result that is not trustful, in the last run.
+ */
+struct GEMFailures
+{
+    long int count = 0;               ///< number of failed node calculations (0: all converged)
+    std::vector<size_t> nodes;        ///< nodes with at least one failure
+    long int first_step = -1;         ///< time step of the first failure
+    double first_time = 0.;           ///< time of the first failure
+    long int first_node = -1;         ///< node of the first failure
+    std::string first_message;        ///< GEMS3K message of the first failure
+};
+
+/**
+ * @brief A part of a node: a phase or a solid, given as a material and the share of the node that it fills.
+ *
+ * `of` says which volume the part fills: "pore" (a gas, another liquid) or "solid". Give either a fraction
+ * of that volume or a mass. The material can have any amount: it is scaled. The volume of the part comes
+ * from a GEM calculation at the T and P of the node (the volume that it adds to the pore water), unless a
+ * density is given. A part given by mass also takes its volume from its `of` volume.
+ */
+struct Part
+{
+    Composition material;                ///< composition of the part (any amount)
+    std::optional<double> fraction;      ///< share of the `of` volume, 0..1 (solids: of the solid volume
+                                         ///< that the parts given by mass leave; the solid fractions add up to 1)
+    std::optional<double> mass;          ///< or: kg of the part in the node
+    std::string of;                      ///< "pore" or "solid"
+    std::optional<double> density;       ///< kg/L; if not set, from GEM at the T and P of the node
+};
+
+/**
  * @brief Setup of a node or a group of nodes. A part that is not set is not changed.
+ *
+ * The chemistry is given in one of two ways:
+ * - `composition`: the amounts of the node, as given (no scaling);
+ * - scaled: `pore_water` (the reference: water_mass kg of water per node) and `parts` (and/or the short
+ *   form `solids` = one part with fraction 1 of "solid" and density grain_density). For each node:
+ *   pore volume = volume of the pore water / water_saturation, solid volume = pore volume * (1 - porosity)
+ *   / porosity (transport porosity of the node); each part fills its share of these volumes.
  */
 struct NodeSetup
 {
-    Composition composition;             ///< bulk composition (chemical state)
+    Composition composition;             ///< bulk composition of the node (chemical state), as given
     std::optional<double> temperature;   ///< K
     std::optional<double> pressure;      ///< Pa
     TransportProperties transport;       ///< physical transport properties
+
+    Composition pore_water;              ///< solution per kg of water (it contains 1 kg of H2O)
+    std::optional<double> water_mass;    ///< kg of pore water in the node; default 1
+    std::optional<double> water_saturation; ///< share of the pore volume with pore water; default 1
+    std::vector<Part> parts;             ///< other phases and solids of the node
+    Composition solids;                  ///< short form: the dry solid, one part (fraction 1 of "solid")
+    std::optional<double> grain_density; ///< short form: kg/L of the solid grains; if not set, from GEM
 };
 
 /**
@@ -243,6 +288,14 @@ public:
      * @throws std::runtime_error If the simulation fails to converge or hits a numerical instability.
      */
     void runMassTransport();
+
+    /**
+     * @brief The GEM calculations that failed or were not trustful in the last run of runMassTransport().
+     *
+     * The run goes on after such a failure; the node keeps the previous result. Python gives a
+     * RuntimeWarning after a run with failures. Details for each failure are in xGEM2MT.log.
+     */
+    GEMFailures gemFailures() const;
 
     /**
      * @brief Gets the total number of nodes (boxes).

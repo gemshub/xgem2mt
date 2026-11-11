@@ -81,6 +81,9 @@ void TGEM2MT::RecCalc()
             mtp->gStat = GS_DONE;
         }
 
+        gem_failures = GemFailures();
+        gem_failures.ran = true;
+
         // internal calc
         auto iret = internalCalc();
         if(!iret) {
@@ -295,6 +298,12 @@ int TGEM2MT::gem3k_files_read(const std::string& ipm_lst_file, const std::string
 int TGEM2MT::restore_data_from_gems3k(const std::vector<std::string>& dbr_names)
 {
     int ii;
+    // Node identification: the node index (GEMS3K sets the index of the initial system), so that
+    // GEMS3K messages ("Error Node:...") name the node
+    for(long int q=0; q<mtp->nC; ++q) {
+        if(na->pNodT0()[q]) na->pNodT0()[q]->NodeHandle = q;
+        if(na->pNodT1()[q]) na->pNodT1()[q]->NodeHandle = q;
+    }
     CalcIPM(NEED_GEM_AIA, 0, mtp->nC); //recalc all nodes ?
 
     // realloc gem2mt memory  (if not read exported gem2mt)
@@ -433,6 +442,33 @@ std::array<double, SIZE_HYDP> TGEM2MT::hydraulicParameters(size_t pndx) const
     for(size_t i=0; i<SIZE_HYDP; ++i)
         hp[i] = mtp->HydP[pndx][i];
     return hp;
+}
+
+double TGEM2MT::materialVolume(const std::vector<double>& b, double T, double P) const
+{
+    ErrorIf(!na || !na->pNodT1() || !na->pNodT1()[0], GetName(), "Nodes are not initialized: call initNodes first");
+    const DATACH* ch = na->pCSD();
+    ErrorIf(static_cast<long int>(b.size()) != ch->nIC, GetName(), "Wrong number of element amounts");
+    std::vector<bool> kept(ch->nIC, false);
+    std::vector<double> b_dbr(ch->nICb);
+    for(long int j=0; j<ch->nICb; ++j) {
+        // elements that are not in the material get the minimal amount (as in the node calculations)
+        b_dbr[j] = std::max(b[ch->xic[j]], mtp->cez);
+        kept[ch->xic[j]] = true;
+    }
+    for(long int i=0; i<ch->nIC; ++i)
+        ErrorIf(!kept[i] && b[i] != 0., GetName(),
+                "Element "+ch->ICNL[i]+" is not kept in the node data (DBR); its amount must be 0");
+
+    // A copy of the work node, with the bounds and surface areas of node 0
+    TNode work(*na->getCalcNode());
+    const DATABR* n0 = na->pNodT1()[0];
+    work.GEM_from_MT(0, NEED_GEM_AIA, T, P, 0., 0., b_dbr.data(), n0->dul, n0->dll, n0->aPH);
+    const long int st = work.GEM_run(false);
+    ErrorIf(!(st == OK_GEM_AIA || st == OK_GEM_SIA), GetName(),
+            "GEM calculation failed for the volume of a part of the node (status "+std::to_string(st)+"): "+
+            work.ipmLogError());
+    return work.cVs() * 1e3;     // m3 -> L
 }
 
 void TGEM2MT::setNodeBulkComposition(size_t q, const std::vector<double>* b, double T, double P)
@@ -1310,9 +1346,9 @@ std::string TGEM2MT::summary(size_t width, bool phases) const
     std::vector<std::vector<std::string>> head;
     if(one_d) {
         const double L = mtp->sizeLc[0];
-        head.push_back({"Column", num(L)+" m, "+std::to_string(nC)+" nodes, dx = "+num(L/nC)+" m",
+        head.push_back({"Column", num(L)+" m, "+std::to_string(nC)+" nodes, node length "+num(L/nC)+" m",
                         "[setSpatialDimensions(x), MassTransport(mode, nnodes)]"});
-        head.push_back({"Velocity", num(mtp->fVel)+" m/s (advection, all nodes)", "[setFluidAdvectionVelocity(v)]"});
+        head.push_back({"Velocity", num(mtp->fVel)+" m/s (pore velocity, all nodes)", "[setFluidAdvectionVelocity(velocity)]"});
     }
     else
         head.push_back({"Nodes", std::to_string(nC), "[MassTransport(mode, nnodes)]"});
@@ -1336,20 +1372,20 @@ std::string TGEM2MT::summary(size_t width, bool phases) const
         }
         else if(mtp->fVel > 0.) {
             dt = dx/mtp->fVel;
-            limit = "dx / velocity";
+            limit = "node length / velocity";
         }
         if(std::isfinite(dt)) {
             dt /= tf;
             const double span = tau1 - tau0;
             const long int steps = static_cast<long int>(std::ceil(span/dt - 1e-9));
             const long int max_steps = static_cast<long int>(span/tau_step) + 1;
-            head.push_back({"Time step", "dt = "+num(dt)+" s ("+limit+"), tf = "+num(tf),
-                            "[set by the program; divided by setTimeStepReductionFactor(tf)]"});
+            head.push_back({"Time step", num(dt)+" s ("+limit+"), reduction factor "+num(tf),
+                            "[set by the program; divided by setTimeStepReductionFactor(factor)]"});
             head.push_back({"Steps", "about "+std::to_string(std::min(steps, max_steps))+", to t = "+
                             num(tau0+std::min(steps, max_steps)*dt, 8), "[stop time and setTau step]"});
             if(max_steps < steps)
                 warning = "WARNING: the run stops after " + std::to_string(max_steps) + " steps (t = " +
-                          num(tau0+max_steps*dt) + "), before the stop time. Make the setTau step smaller than dt.\n";
+                          num(tau0+max_steps*dt) + "), before the stop time. Make the setTau step smaller than the time step.\n";
         }
         else
             warning = "WARNING: the velocity and the dispersion are 0: no time step (runMassTransport will fail).\n";
@@ -1577,6 +1613,26 @@ std::string TGEM2MT::summary(size_t width, bool phases) const
         if(mtp->nSFD > 0)
             o << "Elemental source fluxes: " << mtp->nSFD << "\n"
               << wrap("[setNumberICsourceFluxes(n), setICsourceQuantities(i, element, q)]", width, "  ", "   ");
+    }
+
+    if(gem_failures.ran) {
+        const auto& f = gem_failures;
+        o << "\n";
+        if(f.count == 0)
+            o << "Last run: all GEM calculations in the nodes converged.\n";
+        else {
+            std::string nodes;
+            long int a = -2, b = -2;
+            auto flush = [&]() { if(a >= 0) nodes += (nodes.empty() ? "" : ", ") + nodeRange(a, b); };
+            for(auto q: f.nodes) {
+                if(q == b+1) { b = q; continue; }
+                flush(); a = b = q;
+            }
+            flush();
+            o << wrap("WARNING: last run: " + std::to_string(f.count) + " GEM calculations failed or are not trustful, in nodes " +
+                      nodes + ". First: step " + std::to_string(f.first_step) + ", t = " + num(f.first_time) + ", node " +
+                      std::to_string(f.first_node) + ": " + f.first_message + "  [gemFailures(); see xGEM2MT.log]", width, "", "         ");
+        }
     }
 
     std::vector<std::vector<std::string>> how{

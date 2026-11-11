@@ -163,6 +163,19 @@ void MassTransport::runMassTransport()
     }
 }
 
+GEMFailures MassTransport::gemFailures() const
+{
+    const auto& f = pimpl->gem2mt_task->gem_failures;
+    GEMFailures r;
+    r.count = f.count;
+    r.nodes.assign(f.nodes.begin(), f.nodes.end());
+    r.first_step = f.first_step;
+    r.first_time = f.first_time;
+    r.first_node = f.first_node;
+    r.first_message = f.first_message;
+    return r;
+}
+
 size_t MassTransport::nNodes() const
 {
     return pimpl->gem2mt_task->nNodes();
@@ -350,8 +363,11 @@ void MassTransport::setNodes(const std::vector<size_t>& nodes, const NodeSetup& 
     const auto& t = setup.transport;
     const bool set_transport = t.volume || t.velocity || t.porosity || t.permeability ||
                                t.dispersivity || t.diffusivity || t.tortuosity;
-    const bool set_chemistry = !std::holds_alternative<std::monostate>(setup.composition) ||
-                               setup.temperature || setup.pressure;
+    const bool has_composition = !std::holds_alternative<std::monostate>(setup.composition);
+    const bool has_pore_water = !std::holds_alternative<std::monostate>(setup.pore_water);
+    const bool has_solids = !std::holds_alternative<std::monostate>(setup.solids);
+    const bool scaled = has_pore_water || has_solids || !setup.parts.empty();
+    const bool set_chemistry = has_composition || scaled || setup.temperature || setup.pressure;
 
     // Check everything before a node is changed
     for(auto q: nodes)
@@ -380,25 +396,86 @@ void MassTransport::setNodes(const std::vector<size_t>& nodes, const NodeSetup& 
     if(set_chemistry && !pimpl->chem_array)
         throw std::runtime_error("Nodes are not initialized: call initNodes first");
 
-    // New element amounts in chemical-system order (no value: keep the composition of each node)
-    std::optional<std::vector<double>> b;
-    if(const auto* v = std::get_if<std::vector<double>>(&setup.composition)) {
-        b = *v;    // the size is checked for each node
-    }
-    else if(const auto* m = std::get_if<std::map<std::string, double>>(&setup.composition)) {
-        const auto& engine = *pimpl->chem_array;
-        b = std::vector<double>(engine.numElements(), 0.);
-        for(const auto& [name, amount]: *m) {
-            auto i = engine.indexElement(name);
-            if(i >= engine.numElements())
-                throw std::runtime_error("Element "+name+" is not in the chemical system");
-            (*b)[i] = amount;
+    // Element amounts in chemical-system order (no value: not given)
+    auto to_vector = [&](const Composition& c, const std::string& what) -> std::optional<std::vector<double>> {
+        std::optional<std::vector<double>> v;
+        if(const auto* vec = std::get_if<std::vector<double>>(&c))
+            v = *vec;
+        else if(const auto* m = std::get_if<std::map<std::string, double>>(&c)) {
+            const auto& engine = *pimpl->chem_array;
+            v = std::vector<double>(engine.numElements(), 0.);
+            for(const auto& [name, amount]: *m) {
+                auto i = engine.indexElement(name);
+                if(i >= engine.numElements())
+                    throw std::runtime_error("Element "+name+" ("+what+") is not in the chemical system");
+                (*v)[i] = amount;
+            }
         }
-    }
+        if(v && v->size() != pimpl->chem_array->numElements())
+            throw std::runtime_error("The "+what+" has "+std::to_string(v->size())+" values, the chemical system has "+
+                                     std::to_string(pimpl->chem_array->numElements())+" elements");
+        return v;
+    };
+    if(has_composition && scaled)
+        throw std::runtime_error("Give either composition, or pore_water and parts (solids), not both");
+    if(scaled && !has_pore_water)
+        throw std::runtime_error("pore_water is needed: it is the reference of the node (water_mass kg of water)");
+    if(setup.water_mass && !(*setup.water_mass > 0.))
+        throw std::runtime_error("water_mass must be > 0");
+    const double water_saturation = setup.water_saturation.value_or(1.);
+    if(!(water_saturation > 0. && water_saturation <= 1.))
+        throw std::runtime_error("water_saturation must be > 0 and <= 1");
+    const auto b = to_vector(setup.composition, "composition");             // as given (no scaling)
+    const auto b_water = to_vector(setup.pore_water, "pore water");         // per kg of water
 
-    if(b && b->size() != pimpl->chem_array->numElements())
-        throw std::runtime_error("Bulk composition has "+std::to_string(b->size())+" values, the chemical system has "+
-                                 std::to_string(pimpl->chem_array->numElements())+" elements");
+    // The parts, each normalised to 1 kg (element molar masses in kg/mol)
+    struct PartIn { std::vector<double> b; bool solid; bool by_mass; double value; std::optional<double> density; };
+    std::vector<PartIn> parts;
+    const auto mm = pimpl->chem_array->elementMolarMasses();
+    auto per_kg = [&](const Composition& c, const std::string& what) {
+        auto v = to_vector(c, what);
+        double mass = 0.;
+        for(size_t i=0; i<v->size(); ++i) mass += (*v)[i] * mm[i];
+        if(!(mass > 0.))
+            throw std::runtime_error("The "+what+" has no mass");
+        for(auto& x: *v) x /= mass;
+        return *v;
+    };
+    if(has_solids) {
+        if(setup.grain_density && !(*setup.grain_density > 0.))
+            throw std::runtime_error("grain_density must be > 0");
+        parts.push_back({per_kg(setup.solids, "solids"), true, false, 1., setup.grain_density});
+    }
+    for(size_t k=0; k<setup.parts.size(); ++k) {
+        const auto& pt = setup.parts[k];
+        const std::string what = "part " + std::to_string(k);
+        if(int(bool(pt.fraction)) + int(bool(pt.mass)) != 1)
+            throw std::runtime_error("Give either fraction or mass for "+what);
+        if(pt.of != "pore" && pt.of != "solid")
+            throw std::runtime_error("Give of=\"pore\" or of=\"solid\" for "+what);
+        if(std::holds_alternative<std::monostate>(pt.material))
+            throw std::runtime_error("No material for "+what);
+        if(pt.density && !(*pt.density > 0.))
+            throw std::runtime_error("density must be > 0 ("+what+")");
+        if(pt.fraction && !(*pt.fraction >= 0. && *pt.fraction <= 1.))
+            throw std::runtime_error("fraction must be 0 to 1 ("+what+")");
+        if(pt.mass && !(*pt.mass >= 0.))
+            throw std::runtime_error("mass must be >= 0 ("+what+")");
+        parts.push_back({per_kg(pt.material, what), pt.of == "solid", bool(pt.mass),
+                         pt.mass ? *pt.mass : *pt.fraction, pt.density});
+    }
+    double pore_sum = water_saturation, solid_sum = 0.;
+    bool any_solid_fraction = false;
+    for(const auto& pt: parts) {
+        if(pt.by_mass) continue;
+        if(pt.solid) { solid_sum += pt.value; any_solid_fraction = true; }
+        else pore_sum += pt.value;
+    }
+    if(pore_sum > 1. + 1e-9)
+        throw std::runtime_error("water_saturation and the pore fractions add up to more than 1");
+    if(any_solid_fraction && std::fabs(solid_sum - 1.) > 1e-6)
+        throw std::runtime_error("The solid fractions must add up to 1");
+    const double water_mass = setup.water_mass.value_or(1.);
 
     // Each node is changed completely or not at all: if the chemistry fails, the previous
     // transport properties are restored (setNodeBulkComposition restores the chemistry itself)
@@ -416,7 +493,86 @@ void MassTransport::setNodes(const std::vector<size_t>& nodes, const NodeSetup& 
             }
             if(set_chemistry) {
                 try {
-                    pimpl->gem2mt_task->setNodeBulkComposition(q, b ? &*b : nullptr,
+                    // Scaled composition from the porosity of this node (after its transport values are set)
+                    std::optional<std::vector<double>> b_node = b;
+                    if(scaled) {
+                        // Volumes from GEM at the T and P of the node (L per kg; the pore water per kg of water)
+                        const double T = setup.temperature.value_or(pimpl->chem_array->temperature(q));
+                        const double P = setup.pressure.value_or(pimpl->chem_array->pressure(q));
+                        // Volume per kg of a part: the volume that 1 kg of it adds to the pore water (1 kg of
+                        // water), at the T and P of the node. A solid or a gas does not converge alone.
+                        const double pore_water_volume = pimpl->gem2mt_task->materialVolume(*b_water, T, P);   // L per kg of water
+                        auto volume_per_kg = [&](const std::vector<double>& bk) {
+                            std::vector<double> mix(*b_water);
+                            for(size_t i=0; i<mix.size(); ++i) mix[i] += bk[i];
+                            const double v = pimpl->gem2mt_task->materialVolume(mix, T, P) - pore_water_volume;
+                            if(!(v > 0.))
+                                throw std::runtime_error("A part adds no volume to the pore water (it dissolves?): give its density");
+                            return v;
+                        };
+                        const double porosity = pimpl->gem2mt_task->hydraulicParameters(q)[2];
+                        const double water_volume = water_mass * pore_water_volume;                // L
+                        const double pore_volume = water_volume / water_saturation;
+                        const double solid_volume = pore_volume * (1. - porosity) / porosity;
+                        // Mass (kg) of each part. Parts given by mass take their volume from their `of` volume;
+                        // the solid fractions are shares of the solid volume that is left.
+                        std::vector<double> kg(parts.size(), 0.), target(parts.size(), 0.), vpk(parts.size(), 0.);
+                        double mass_pore = 0., mass_solid = 0.;
+                        for(size_t k=0; k<parts.size(); ++k) {
+                            const auto& pt = parts[k];
+                            vpk[k] = pt.density ? 1. / *pt.density : volume_per_kg(pt.b);         // L/kg
+                            if(pt.by_mass) {
+                                kg[k] = pt.value;
+                                (pt.solid ? mass_solid : mass_pore) += kg[k] * vpk[k];
+                            }
+                        }
+                        if(any_solid_fraction && mass_solid > solid_volume * (1. + 1e-9))
+                            throw std::runtime_error("The solid parts given by mass need more than the solid volume of node "+
+                                                     std::to_string(q));
+                        if(pore_sum + mass_pore / pore_volume > 1. + 1e-9)
+                            throw std::runtime_error("The pore parts need more than the pore volume of node "+std::to_string(q));
+                        for(size_t k=0; k<parts.size(); ++k) {
+                            const auto& pt = parts[k];
+                            if(pt.by_mass) continue;
+                            target[k] = pt.solid ? (solid_volume - mass_solid) * pt.value : pore_volume * pt.value;  // L
+                            kg[k] = target[k] / vpk[k];
+                        }
+                        auto compose = [&]() {
+                            std::vector<double> bn(pimpl->chem_array->numElements(), 0.);
+                            for(size_t i=0; i<bn.size(); ++i)
+                                bn[i] = (*b_water)[i] * water_mass;
+                            for(size_t k=0; k<parts.size(); ++k)
+                                for(size_t i=0; i<bn.size(); ++i)
+                                    bn[i] += parts[k].b[i] * kg[k];
+                            return bn;
+                        };
+                        b_node = compose();
+
+                        // A gas (or another fluid) can dissolve in part in the pore water, so that its volume in
+                        // the node is smaller than planned. Then add the missing volume to the fluid parts and
+                        // calculate again, until the node volume is pore volume + solid volume.
+                        double fluid_target = 0.;
+                        for(size_t k=0; k<parts.size(); ++k)
+                            if(!parts[k].solid && !parts[k].by_mass && !parts[k].density) fluid_target += target[k];
+                        if(fluid_target > 0.) {
+                            const double node_target = pore_volume + solid_volume;     // L
+                            bool converged = false;
+                            for(int it=0; it<30 && !converged; ++it) {
+                                pimpl->gem2mt_task->setNodeBulkComposition(q, &*b_node,
+                                    setup.temperature.value_or(nan), setup.pressure.value_or(nan));
+                                const double missing = node_target - pimpl->chem_array->systemVolume(q) * 1e3;
+                                if(std::fabs(missing) <= 1e-5 * node_target) { converged = true; break; }
+                                for(size_t k=0; k<parts.size(); ++k)
+                                    if(!parts[k].solid && !parts[k].by_mass && !parts[k].density)
+                                        kg[k] = std::max(0., kg[k] + missing * (target[k] / fluid_target) / vpk[k]);
+                                b_node = compose();
+                            }
+                            if(!converged)
+                                throw std::runtime_error("The volume of the fluid parts of node "+std::to_string(q)+
+                                                         " did not converge (does the gas dissolve completely?)");
+                        }
+                    }
+                    pimpl->gem2mt_task->setNodeBulkComposition(q, b_node ? &*b_node : nullptr,
                         setup.temperature.value_or(nan), setup.pressure.value_or(nan));
                 }
                 catch(...) {

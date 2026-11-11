@@ -259,7 +259,25 @@ bool TGEM2MT::CalcIPM( char mode, long int start_node, long int end_node)
 #endif
 
 
-    na->CalcIPM_List( TestModeGEMParam(mode, mtp->PsSIA, mtp->ct, mtp->cdv, mtp->cez ), start_node, end_node, diffile );
+    // Node by node (as TNodeArray::CalcIPM_List without OpenMP), to record the nodes where GEM fails
+    const TestModeGEMParam mode_param(mode, mtp->PsSIA, mtp->ct, mtp->cdv, mtp->cez);
+    for( long int ii = start_node; ii<= end_node; ii++)
+    {
+        if( na->CalcIPM_One( mode_param, ii, diffile ) )
+            continue;
+        iRet = false;
+        auto& f = gem_failures;
+        if( f.count == 0 ) {
+            f.first_step = mtp->ct;
+            f.first_time = mtp->cTau;
+            f.first_node = ii;
+            f.first_message = na->getCalcNode()->ipmLogError();
+            if( f.first_message.empty() )
+                f.first_message = "GEM status code " + std::to_string( na->pNodT1()[ii]->NodeStatusCH );
+        }
+        f.count++;
+        f.nodes.insert( ii );
+    }
 
     /* test output generated structure
     ProcessProgressFunction messageF = [](const std::string& message, long point){
