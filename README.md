@@ -56,10 +56,11 @@ and which function changes each value (shortened):
 
 ```
 Mode A: 1-D advection + dispersion, explicit finite differences
-Column           0.5 m, 80 nodes, dx = 0.00625 m
+Column           0.5 m, 80 nodes, node length 0.00625 m
                  [setSpatialDimensions(x), MassTransport(mode, nnodes)]
-Time step        dt = 153.9 s (dispersion; advection limit 333.3 s, dispersion limit 153.9 s),
-                 tf = 1  [set by the program; divided by setTimeStepReductionFactor(tf)]
+Time step        153.9 s (dispersion; advection limit 333.3 s, dispersion limit 153.9 s),
+                 reduction factor 1
+                 [set by the program; divided by setTimeStepReductionFactor(factor)]
 Steps            about 137, to t = 21084.916  [stop time and setTau step]
 
   flow ->
