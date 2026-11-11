@@ -259,25 +259,45 @@ bool TGEM2MT::CalcIPM( char mode, long int start_node, long int end_node)
 #endif
 
 
-    // Node by node (as TNodeArray::CalcIPM_List without OpenMP), to record the nodes where GEM fails
+    // The nodes where GEM fails (after the retries of GEMS3K), recorded for the run only
+    // (not for the calculations of initNodes)
     const TestModeGEMParam mode_param(mode, mtp->PsSIA, mtp->ct, mtp->cdv, mtp->cez);
+    auto record_failure = [&](long int ii, const std::string& message) {
+        if( !gem_failures.ran )
+            return;
+        auto& f = gem_failures;
+        if( f.count == 0 || ii < f.first_node ) {
+            f.first_step = mtp->ct;
+            f.first_time = mtp->cTau;
+            f.first_node = ii;
+            f.first_message = message.empty() ? "GEM status code " + std::to_string( na->pNodT1()[ii]->NodeStatusCH ) : message;
+        }
+        f.count++;
+        f.nodes.insert( ii );
+    };
+#ifdef useOMP
+    // In parallel, as TNodeArray::CalcIPM_List (each thread has its own work node). The failed nodes are
+    // the nodes with an error or bad status after the calculation.
+    if( !na->CalcIPM_List( mode_param, start_node, end_node, diffile ) )
+    {
+        iRet = false;
+        for( long int ii = start_node; ii<= end_node; ii++)
+        {
+            const long int st = na->pNodT1()[ii]->NodeStatusCH;
+            if( st == BAD_GEM_AIA || st == ERR_GEM_AIA || st == BAD_GEM_SIA || st == ERR_GEM_SIA || st == T_ERROR_GEM )
+                record_failure( ii, "" );
+        }
+    }
+#else
+    // Node by node (as TNodeArray::CalcIPM_List without OpenMP), to record the message of each failure
     for( long int ii = start_node; ii<= end_node; ii++)
     {
         if( na->CalcIPM_One( mode_param, ii, diffile ) )
             continue;
         iRet = false;
-        auto& f = gem_failures;
-        if( f.count == 0 ) {
-            f.first_step = mtp->ct;
-            f.first_time = mtp->cTau;
-            f.first_node = ii;
-            f.first_message = na->getCalcNode()->ipmLogError();
-            if( f.first_message.empty() )
-                f.first_message = "GEM status code " + std::to_string( na->pNodT1()[ii]->NodeStatusCH );
-        }
-        f.count++;
-        f.nodes.insert( ii );
+        record_failure( ii, na->getCalcNode()->ipmLogError() );
     }
+#endif
 
     /* test output generated structure
     ProcessProgressFunction messageF = [](const std::string& message, long point){

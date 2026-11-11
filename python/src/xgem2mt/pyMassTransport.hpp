@@ -132,6 +132,7 @@ void exportTransportProperties(py::module& m)
 
     py::class_<GEMFailures>(m, "GEMFailures",
         "GEM calculations in the nodes that failed or were not trustful in the last run.")
+        .def_readonly("ran", &GEMFailures::ran)
         .def_readonly("count", &GEMFailures::count)
         .def_readonly("nodes", &GEMFailures::nodes)
         .def_readonly("first_step", &GEMFailures::first_step)
@@ -140,6 +141,7 @@ void exportTransportProperties(py::module& m)
         .def_readonly("first_message", &GEMFailures::first_message)
         .def("__bool__", [](const GEMFailures& f) { return f.count > 0; })
         .def("__repr__", [](const GEMFailures& f) {
+            if(!f.ran) return std::string("GEMFailures(no run yet)");
             return "GEMFailures(count=" + std::to_string(f.count) + ", nodes=" + std::to_string(f.nodes.size()) +
                    (f.count ? ", first: step " + std::to_string(f.first_step) + " node " + std::to_string(f.first_node) +
                               ": " + f.first_message : std::string()) + ")";
@@ -378,8 +380,10 @@ void exportMassTransport(py::module& m)
              R"doc(
              The GEM calculations that failed or were not trustful in the last run.
 
-             :return GEMFailures: ``count`` (0: all converged), ``nodes``, and ``first_step``, ``first_time``,
-                 ``first_node``, ``first_message`` of the first failure.
+             :return GEMFailures: ``ran`` (False before the first run: then there is no result), ``count``
+                 (0: all converged), ``nodes``, and ``first_step``, ``first_time``, ``first_node``,
+                 ``first_message`` of the first failure. The calculations of ``initNodes`` and ``setNodes``
+                 are not counted.
              )doc")
 
         .def_property_readonly("nNodes", &MassTransport::nNodes,

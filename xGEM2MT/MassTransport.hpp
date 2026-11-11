@@ -55,10 +55,12 @@ using Composition = std::variant<std::monostate, std::vector<double>, std::map<s
 
 /**
  * @brief GEM calculations in the nodes that failed or gave a result that is not trustful, in the last run.
+ *        The calculations of initNodes() and setNodes() are not counted.
  */
 struct GEMFailures
 {
-    long int count = 0;               ///< number of failed node calculations (0: all converged)
+    bool ran = false;                 ///< a run was done; without a run there are no results (count 0 does not mean converged)
+    long int count = 0;               ///< number of failed node calculations of the run (0: all converged)
     std::vector<size_t> nodes;        ///< nodes with at least one failure
     long int first_step = -1;         ///< time step of the first failure
     double first_time = 0.;           ///< time of the first failure

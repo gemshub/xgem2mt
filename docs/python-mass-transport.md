@@ -234,7 +234,16 @@ task.setNodes(range(60, 80), transport=TransportProperties(porosity=0.2))
 ```
 
 An error (`RuntimeError`) occurs if a node index, an element name or the length of the
-composition is not correct, or if the equilibrium calculation fails.
+composition is not correct, a transport value is not permitted (it must be a finite number; the velocity 0 or
+more, the porosity more than 0 and not more than 1, the tortuosity more than 0, the others 0 or more), or if
+the equilibrium calculation fails.
+
+A call changes all the nodes that you give or none: if one node fails, the nodes that the call already
+changed get their earlier transport values and inputs back, and are equilibrated again from these inputs.
+
+The transport properties of nodes exist only in the modes 'A', 'C' and 'W'. In the modes 'S', 'F' and 'B',
+`transport=` gives an error, and `pore_water` and `parts` use the initial porosity
+(`setInitialNodeEffectivePorosity`) of the task.
 
 ## 6. Monitor and run
 
@@ -336,8 +345,11 @@ Notes:
   with the other solver) and usually gets a result, but the run is slower (in the example 3 times) and
   `ipmlog.txt` and `xGEM2MT.log` show many errors.
 * After the run, `task.gemFailures()` gives the GEM calculations that failed also after these repeats
-  (the node keeps its previous result). Python gives a `RuntimeWarning` if there are such failures, and
-  `print(task)` shows them. The messages in `ipmlog.txt` give the node number (`Error Node:47`).
+  (the node keeps its previous speciation; its new bulk composition is used for the next time step). Python
+  gives a `RuntimeWarning` if there are such failures, and `print(task)` shows them. `gemFailures().ran` is
+  `False` before the first run: then there is no result, and `count` 0 does not mean that all calculations
+  converged. The calculations of `initNodes` and `setNodes` are not counted. The messages in `ipmlog.txt`
+  give the node number (`Error Node:47`).
 
 ## 8. From a column experiment to the model (mode 'A')
 

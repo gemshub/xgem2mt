@@ -701,11 +701,32 @@ public:
     /// keep, or when GEM fails; then the node keeps its previous inputs and is equilibrated again.
     void setNodeBulkComposition(size_t q, const std::vector<double>* b, double T, double P);
     /// Volume (L) of the equilibrium state of a material at T (K) and P (Pa), from a GEM calculation with the
-    /// models of the chemical system. b: element amounts in chemical-system (DCH) order. Throws TError if the
-    /// GEM calculation fails, or if the material has an element that the DBR does not keep.
+    /// models of the chemical system. b: element amounts in chemical-system (DCH) order. The bounds of the
+    /// species and the surface areas are those of node q; the bounds are amounts of the node, so they are
+    /// multiplied by limit_scale (the amount of the calculation / the amount of the node, for example
+    /// 1 / water_mass). Throws TError if the GEM calculation fails, or if the material has an element that the
+    /// DBR does not keep.
     /// A material without water (a solid, a gas) does not converge alone: give it with a pore water and take
     /// the difference (see MassTransport::setNodes).
-    double materialVolume(const std::vector<double>& b, double T, double P) const;
+    double materialVolume(size_t q, const std::vector<double>& b, double T, double P, double limit_scale = 1.) const;
+
+    /// The inputs of node q (bulk composition in DBR order, T, P), to restore the node after a failed setup.
+    struct NodeInputs {
+        std::vector<double> bIC;
+        double TK = 0., P = 0.;
+    };
+    NodeInputs saveNodeInputs(size_t q) const;
+    /// Gives node q its saved inputs and equilibrates it again from scratch (AIA); the node is then as
+    /// equilibrated again from the same inputs, not the exact earlier result.
+    void restoreNodeInputs(size_t q, const NodeInputs& in);
+
+    /// True in the modes with transport properties per node (HydP): 'A', 'C', 'W' (after initNodes).
+    bool hasNodeTransport() const { return mtp->HydP != nullptr; }
+    /// Porosity (transport) of node q: HydP, or the initial porosity in the modes without HydP.
+    double nodePorosity(size_t q) const
+    {  return (mtp->HydP && q < static_cast<size_t>(mtp->nC)) ? mtp->HydP[q][2] : mtp->eps_in; }
+    /// Mode of the task: S F B A C W
+    char mode() const { return mtp->PsMode; }
     /// Text summary of the task: mode, column, time step, initial systems, and the nodes grouped by
     /// equal setup, with the functions that change each value
     std::string summary(size_t width = 100, bool phases = false) const;

@@ -370,7 +370,7 @@ int TGEM2MT::gems3k_strings(const std::string& dch_json, const std::string& ipm_
 
 
 int TGEM2MT::MassTransInit(const std::string &ipm_lst_file, const std::string &dbr_lst_file)
-{
+{    gem_failures = GemFailures();     // the calculations of the initialization are not part of a run
     // get dbr file names first: their number decides how the nodes are initialized
     GEMS3KGenerator generator(ipm_lst_file);
     mtp->nIV = generator.load_dbr_lst_file(dbr_lst_file);
@@ -388,7 +388,7 @@ int TGEM2MT::MassTransInit(const std::string &ipm_lst_file, const std::string &d
 // Set up NodeArray and ParticleArray classes
 int TGEM2MT::MassTransStringInit(const std::string& dch_json, const std::string& ipm_json,
                                  const std::vector<std::string>& dbr_json)
-{
+{    gem_failures = GemFailures();
     if(gems3k_strings(dch_json, ipm_json, dbr_json)) {
         return 1;
     }
@@ -444,9 +444,11 @@ std::array<double, SIZE_HYDP> TGEM2MT::hydraulicParameters(size_t pndx) const
     return hp;
 }
 
-double TGEM2MT::materialVolume(const std::vector<double>& b, double T, double P) const
+double TGEM2MT::materialVolume(size_t q, const std::vector<double>& b, double T, double P, double limit_scale) const
 {
     ErrorIf(!na || !na->pNodT1() || !na->pNodT1()[0], GetName(), "Nodes are not initialized: call initNodes first");
+    ErrorIf(q >= static_cast<size_t>(mtp->nC), GetName(),
+            "Node index "+std::to_string(q)+" out of range (nodes: "+std::to_string(mtp->nC)+")");
     const DATACH* ch = na->pCSD();
     ErrorIf(static_cast<long int>(b.size()) != ch->nIC, GetName(), "Wrong number of element amounts");
     std::vector<bool> kept(ch->nIC, false);
@@ -460,15 +462,49 @@ double TGEM2MT::materialVolume(const std::vector<double>& b, double T, double P)
         ErrorIf(!kept[i] && b[i] != 0., GetName(),
                 "Element "+ch->ICNL[i]+" is not kept in the node data (DBR); its amount must be 0");
 
-    // A copy of the work node, with the bounds and surface areas of node 0
+    // A copy of the work node, with the bounds of the species (scaled to the amounts of this calculation)
+    // and the surface areas of node q
+    const DATABR* nq = na->pNodT1()[q];
+    std::vector<double> dul(nq->dul, nq->dul + ch->nDCb), dll(nq->dll, nq->dll + ch->nDCb);
+    for(auto& x: dul) x *= limit_scale;
+    for(auto& x: dll) x *= limit_scale;
     TNode work(*na->getCalcNode());
-    const DATABR* n0 = na->pNodT1()[0];
-    work.GEM_from_MT(0, NEED_GEM_AIA, T, P, 0., 0., b_dbr.data(), n0->dul, n0->dll, n0->aPH);
+    work.GEM_from_MT(0, NEED_GEM_AIA, T, P, 0., 0., b_dbr.data(), dul.data(), dll.data(), nq->aPH);
     const long int st = work.GEM_run(false);
     ErrorIf(!(st == OK_GEM_AIA || st == OK_GEM_SIA), GetName(),
             "GEM calculation failed for the volume of a part of the node (status "+std::to_string(st)+"): "+
             work.ipmLogError());
     return work.cVs() * 1e3;     // m3 -> L
+}
+
+TGEM2MT::NodeInputs TGEM2MT::saveNodeInputs(size_t q) const
+{
+    ErrorIf(!na || !na->pNodT1() || !na->pNodT1()[0], GetName(), "Nodes are not initialized: call initNodes first");
+    ErrorIf(q >= static_cast<size_t>(mtp->nC), GetName(),
+            "Node index "+std::to_string(q)+" out of range (nodes: "+std::to_string(mtp->nC)+")");
+    const DATABR* n = na->pNodT1()[q];
+    NodeInputs in;
+    in.bIC.assign(n->bIC, n->bIC + na->pCSD()->nICb);
+    in.TK = n->TK;
+    in.P = n->P;
+    return in;
+}
+
+void TGEM2MT::restoreNodeInputs(size_t q, const NodeInputs& in)
+{
+    ErrorIf(!na || !na->pNodT0() || !na->pNodT1() || !na->pNodT0()[0], GetName(),
+            "Nodes are not initialized: call initNodes first");
+    ErrorIf(q >= static_cast<size_t>(mtp->nC) || static_cast<long int>(in.bIC.size()) != na->pCSD()->nICb, GetName(),
+            "Cannot restore node "+std::to_string(q));
+    DATABRPTR* C0 = na->pNodT0();
+    DATABRPTR* C1 = na->pNodT1();
+    std::copy(in.bIC.begin(), in.bIC.end(), C0[q]->bIC);
+    std::copy(in.bIC.begin(), in.bIC.end(), C1[q]->bIC);
+    C0[q]->TK = C1[q]->TK = in.TK;
+    C0[q]->P = C1[q]->P = in.P;
+    TestModeGEMParam mode(NEED_GEM_AIA, S_OFF, mtp->ct, mtp->cdv, mtp->cez);
+    na->CalcIPM_One(mode, static_cast<long int>(q), nullptr);                 // the earlier inputs again
+    na->CopyNodeFromTo(static_cast<long int>(q), mtp->nC, C1, C0);
 }
 
 void TGEM2MT::setNodeBulkComposition(size_t q, const std::vector<double>* b, double T, double P)
@@ -500,8 +536,7 @@ void TGEM2MT::setNodeBulkComposition(size_t q, const std::vector<double>* b, dou
     DATABRPTR* C0 = na->pNodT0();
     DATABRPTR* C1 = na->pNodT1();
     // The previous inputs, to restore them if the calculation fails
-    const std::vector<double> old0(C0[q]->bIC, C0[q]->bIC+nICb), old1(C1[q]->bIC, C1[q]->bIC+nICb);
-    const double T0 = C0[q]->TK, P0 = C0[q]->P, T1 = C1[q]->TK, P1 = C1[q]->P;
+    const NodeInputs previous = saveNodeInputs(q);
 
     if(b)
         for(long int j=0; j<nICb; ++j)
@@ -513,23 +548,16 @@ void TGEM2MT::setNodeBulkComposition(size_t q, const std::vector<double>* b, dou
 
     // Equilibrate the node from scratch into C1, then make C0 the same
     TestModeGEMParam mode(NEED_GEM_AIA, S_OFF, mtp->ct, mtp->cdv, mtp->cez);
-    auto restore = [&]() {
-        std::copy(old0.begin(), old0.end(), C0[q]->bIC);
-        std::copy(old1.begin(), old1.end(), C1[q]->bIC);
-        C0[q]->TK = T0;  C0[q]->P = P0;  C1[q]->TK = T1;  C1[q]->P = P1;
-        try { na->CalcIPM_One(mode, static_cast<long int>(q), nullptr); }  // the previous equilibrium again
-        catch(...) {}
-    };
     bool ok = false;
     try {
         ok = na->CalcIPM_One(mode, static_cast<long int>(q), nullptr);
     }
     catch(...) {
-        restore();
+        restoreNodeInputs(q, previous);
         throw;
     }
     if(!ok) {
-        restore();
+        restoreNodeInputs(q, previous);
         Error(GetName(), "GEM calculation failed for the new composition of node "+std::to_string(q)+
                          "; the node keeps its previous composition");
     }
@@ -1337,7 +1365,7 @@ std::string TGEM2MT::summary(size_t width, bool phases) const
     const double tau0 = mtp->Tau[START_], tau1 = mtp->Tau[STOP_], tau_step = mtp->Tau[STEP_];
 
     std::ostringstream o;
-    std::string title = mtp->name;
+    std::string title = name();       // bounded: the name array may have no terminating NUL
     while(!title.empty() && (title.back() == ' ' || title.back() == '`')) title.pop_back();
     o << "MassTransport" << (title.empty() ? std::string() : " \"" + title + "\"") << "\n";
     auto mt = mode_text.find(mode);
@@ -1592,7 +1620,8 @@ std::string TGEM2MT::summary(size_t width, bool phases) const
                 std::vector<std::string> rest{mtp->FDLid ? id(mtp->FDLid[i]) : "", mtp->FDLmp ? id(mtp->FDLmp[i]) : "",
                                               num(mtp->FDLf[i][0]), num(mtp->FDLf[i][1]), num(mtp->FDLf[i][2])};
                 if(!fl.empty() && fl.back().rest == rest && fl.back().i1 == i-1 &&
-                   from >= 0 && to >= 0 && fl.back().from1 == from-1 && fl.back().to1 == to-1) {
+                   from >= 0 && to >= 0 && fl.back().from1 >= 0 && fl.back().to1 >= 0 &&
+                   fl.back().from1 == from-1 && fl.back().to1 == to-1) {
                     fl.back().i1 = i; fl.back().from1 = from; fl.back().to1 = to;
                 }
                 else
@@ -1642,7 +1671,7 @@ std::string TGEM2MT::summary(size_t width, bool phases) const
         how.push_back({"porosity, dispersivity,", "before initNodes:", "setInitialNodeEffectivePorosity(v), setInitialDispersivity(v), ... (all nodes)"});
         how.push_back({"diffusivity, tortuosity", "after initNodes:", "setSystem/setNodes(..., transport=TransportProperties(porosity=..., ...))"});
     }
-    how.push_back({"node type", fixed_ends ? "not used in this mode" : "", "setNodeType(node, type), setNodesType(nodes, type)"});
+    how.push_back({"node type", fixed_ends ? "not used in this mode" : "", "setNodeType(node, type) (Python also setNodesType(nodes, type))"});
     o << "\nHow to change:\n" << table(how, "  ", width);
     if(fixed_ends)
         o << wrap(std::string("Mode ")+mode+": nodes 0 and 1 (inflow) and the last node (outlet) keep their composition during the run.",
