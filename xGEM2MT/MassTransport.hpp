@@ -17,12 +17,52 @@
 
 #pragma once
 
+#include <array>
+#include <limits>
+#include <map>
 #include <memory>
+#include <optional>
+#include <variant>
+#include <vector>
 #include <string>
 #include <functional>
 #include <xGEM2MT/ChemicalEngineArray.hpp>
 
 namespace xGEM2MT {
+
+/**
+ * @brief Physical transport properties of a node. A field that is not set is not changed.
+ *
+ * In GEM2MT these values are kept as the "hydraulic parameters" (HydP) of a node.
+ * In mode 'A': velocity changes only the dispersion of the node (advection uses
+ * MassTransport::setFluidAdvectionVelocity()); volume and permeability are not used.
+ * Dispersion coefficient: D = dispersivity * velocity + diffusivity * porosity / tortuosity.
+ */
+struct TransportProperties
+{
+    std::optional<double> volume;        ///< Vt: total node volume, m3
+    std::optional<double> velocity;      ///< vp: fluid advection velocity, m/s
+    std::optional<double> porosity;      ///< eps: effective porosity, 0..1
+    std::optional<double> permeability;  ///< Km: effective permeability, m2
+    std::optional<double> dispersivity;  ///< al: longitudinal dispersivity, m
+    std::optional<double> diffusivity;   ///< Dif: diffusion coefficient in water, m2/s
+    std::optional<double> tortuosity;    ///< nto: tortuosity factor, 1..10
+};
+
+/// Bulk composition of a node: element amounts (mol) in element order, or by element name.
+/// Elements not in a map get 0. std::monostate means: do not change the composition.
+using Composition = std::variant<std::monostate, std::vector<double>, std::map<std::string, double>>;
+
+/**
+ * @brief Setup of a node or a group of nodes. A part that is not set is not changed.
+ */
+struct NodeSetup
+{
+    Composition composition;             ///< bulk composition (chemical state)
+    std::optional<double> temperature;   ///< K
+    std::optional<double> pressure;      ///< Pa
+    TransportProperties transport;       ///< physical transport properties
+};
 
 /**
  * @brief Callback function for monitoring simulations and updating nodes/boxes over time.
@@ -145,6 +185,23 @@ public:
      * @endcode
      */
     void initNodes(const std::string& ipm_filename, const std::string& dbr_filename);
+
+    /**
+     * @brief Initializes all nodes from one GEMS3K "*-dat.lst" file.
+     *
+     * The initial systems are the dbr files listed in the "*-dat.lst" file (after the dch and ipm
+     * files, separated by commas), in their order: the first file is system 0. A "*-dbr.lst" file
+     * is not necessary.
+     *
+     * @note GEMS3K reads the initial systems only from a list file. This function writes a
+     *       temporary hidden list file in the folder of ipm_filename and removes it after reading.
+     *       The folder must be writable; if it is not, use the two-file form.
+     *
+     * @code
+     * task.initNodes("my-system-dat.lst");
+     * @endcode
+     */
+    void initNodes(const std::string& ipm_filename);
 
     /**
      * @brief Initializes all nodes (boxes) using JSON strings.
@@ -640,6 +697,44 @@ public:
      * @endcode
      */
     void setHydraulicParameters(size_t node_ndx, double Vt, double vp, double eps, double Km, double al, double Dif, double nto);
+
+    /// Index of the initial system (dbr file in the dbr list) that node node_ndx was set up from.
+    long int nodeSystem(size_t node_ndx) const;
+
+    /// Node type of node node_ndx (see setNodeType()).
+    long int nodeType(size_t node_ndx) const;
+
+    /// Indices of all nodes that were set up from initial system system_ndx.
+    std::vector<size_t> nodesOfSystem(size_t system_ndx) const;
+
+    /// Indices of all nodes of the given node type (see setNodeType()).
+    std::vector<size_t> nodesOfType(long int type) const;
+
+    /**
+     * @brief Gets the transport properties of a node (all fields set). Available after initNodes().
+     */
+    TransportProperties transportProperties(size_t node_ndx) const;
+
+    /**
+     * @brief Sets up nodes: composition, temperature, pressure and transport properties.
+     *
+     * Call after initNodes() and before runMassTransport(). Only the parts of `setup` that are set
+     * are changed. The transport properties are set first. If the composition, T or P is set, each
+     * node is then equilibrated again from scratch.
+     *
+     * @code
+     * NodeSetup column;
+     * column.composition = std::map<std::string, double>{{"H", 111.0}, {"O", 55.51}, {"Ca", 3.4e-4}, {"C", 3.4e-4}};
+     * column.transport.porosity = 0.32;
+     * task.setNodes(task.nodesOfSystem(1), column);
+     * @endcode
+     * @throws std::runtime_error For a bad node index, a wrong size of the composition, an unknown
+     *         element, or when the GEM calculation fails.
+     */
+    void setNodes(const std::vector<size_t>& nodes, const NodeSetup& setup);
+
+    /// As setNodes(), for all nodes set up from initial system system_ndx.
+    void setSystem(size_t system_ndx, const NodeSetup& setup);
 
     /**
      * @brief Gets the number of MGP fluxes defined in the megasystem.

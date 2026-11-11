@@ -16,6 +16,7 @@
 //
 
 #include <array>
+#include <cmath>
 #include "m_gem2mt.h"
 #include "GEMS3K/nodearray.h"
 #include "GEMS3K/io_keyvalue.h"
@@ -410,6 +411,53 @@ void TGEM2MT::setParticle(size_t pndx, long int pmean, long int pmin, long int p
         mtp->nPmax[pndx] = pmax;
         std::copy(pparam.begin(), pparam.end(), mtp->ParTD[pndx]);
     }
+}
+
+std::array<double, SIZE_HYDP> TGEM2MT::hydraulicParameters(size_t pndx) const
+{
+    ErrorIf(!mtp->HydP, GetName(), "Hydraulic parameters are not allocated: call initNodes first");
+    ErrorIf(pndx >= static_cast<size_t>(mtp->nC), GetName(),
+            "Node index "+std::to_string(pndx)+" out of range (nodes: "+std::to_string(mtp->nC)+")");
+    std::array<double, SIZE_HYDP> hp;
+    for(size_t i=0; i<SIZE_HYDP; ++i)
+        hp[i] = mtp->HydP[pndx][i];
+    return hp;
+}
+
+std::vector<double> TGEM2MT::nodeBulkComposition(size_t q) const
+{
+    ErrorIf(!na || !na->pNodT0() || !na->pNodT0()[0], GetName(),
+            "Nodes are not initialized: call initNodes first");
+    ErrorIf(q >= static_cast<size_t>(mtp->nC), GetName(),
+            "Node index "+std::to_string(q)+" out of range (nodes: "+std::to_string(mtp->nC)+")");
+    const DATABR* node = na->pNodT0()[q];
+    return std::vector<double>(node->bIC, node->bIC + na->pCSD()->nICb);
+}
+
+void TGEM2MT::setNodeBulkComposition(size_t q, const std::vector<double>& b, double T, double P)
+{
+    ErrorIf(!na || !na->pNodT0() || !na->pNodT1() || !na->pNodT0()[0], GetName(),
+            "Nodes are not initialized: call initNodes first");
+    ErrorIf(q >= static_cast<size_t>(mtp->nC), GetName(),
+            "Node index "+std::to_string(q)+" out of range (nodes: "+std::to_string(mtp->nC)+")");
+    const long int nIC = na->pCSD()->nICb;
+    ErrorIf(static_cast<long int>(b.size()) != nIC, GetName(),
+            "Bulk composition has "+std::to_string(b.size())+" values, the system has "+std::to_string(nIC)+" elements");
+
+    DATABRPTR* C0 = na->pNodT0();
+    DATABRPTR* C1 = na->pNodT1();
+    for(long int i=0; i<nIC; ++i)
+        C0[q]->bIC[i] = C1[q]->bIC[i] = b[i];
+    if(std::isfinite(T))
+        C0[q]->TK = C1[q]->TK = T;
+    if(std::isfinite(P))
+        C0[q]->P = C1[q]->P = P;
+
+    // Equilibrate the node from scratch into C1, then make C0 the same
+    TestModeGEMParam mode(NEED_GEM_AIA, S_OFF, mtp->ct, mtp->cdv, mtp->cez);
+    ErrorIf(!na->CalcIPM_One(mode, static_cast<long int>(q), nullptr), GetName(),
+            "GEM calculation failed for the new composition of node "+std::to_string(q));
+    na->CopyNodeFromTo(static_cast<long int>(q), mtp->nC, C1, C0);
 }
 
 void TGEM2MT::setHydraulicParameters(size_t pndx, double Vt, double vp, double eps, double Km, double al, double Dif, double nto)

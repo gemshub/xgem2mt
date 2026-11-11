@@ -18,6 +18,8 @@
 #ifndef _m_gem2mt_h_
 #define _m_gem2mt_h_
 
+#include <array>
+#include <vector>
 #include <functional>
 #include "particlearray.h"
 
@@ -680,6 +682,22 @@ public:
     /// @param Dif: initial general diffusivity
     /// @param nto: initial tortuosity factor
     void setHydraulicParameters(size_t pndx, double Vt, double vp, double eps, double Km, double al, double Dif, double nto);
+    /// HydP: the hydraulic parameters of node pndx (Vt, vp, eps, Km, al, Dif, nto); after MassTransInit
+    std::array<double, SIZE_HYDP> hydraulicParameters(size_t pndx) const;
+
+    /// DiCp[q][0]: index of the initial system node q was set up from
+    long int nodeSystem(size_t q) const
+    {  return (mtp->DiCp && q<static_cast<size_t>(mtp->nC) ? mtp->DiCp[q][0] : -1); }
+    /// DiCp[q][1]: node type of node q (see setNodeType)
+    long int nodeType(size_t q) const
+    {  return (mtp->DiCp && q<static_cast<size_t>(mtp->nC) ? mtp->DiCp[q][1] : 0); }
+
+    /// Sets the bulk composition (moles of elements, DCH order) of node q in both node arrays and
+    /// re-equilibrates the node from scratch (AIA). T in K and P in Pa are changed only if finite.
+    /// Must be called after MassTransInit. Throws TError on a bad index or size, or when GEM fails.
+    void setNodeBulkComposition(size_t q, const std::vector<double>& b, double T, double P);
+    /// Bulk composition (moles of elements) of node q at the current time level (C0)
+    std::vector<double> nodeBulkComposition(size_t q) const;
 
     // Use phase groups definitions
     /// MGPid: ID list of mobile phase groups

@@ -21,6 +21,10 @@
 
 // GEMS3K includes
 #include <GEMS3K/io_simdjson.h>
+#include <GEMS3K/gems3k_impex.h>
+#include <chrono>
+#include <filesystem>
+#include <fstream>
 
 namespace xGEM2MT {
 
@@ -82,6 +86,46 @@ void MassTransport::initNodes(const std::string& ipm_filename, const std::string
                                  "Could not initialize the MassTransport TNodeArray data.\n"+err.mess);
     }
     pimpl->chem_array = std::shared_ptr<ChemicalEngineArray>(new ChemicalEngineArray(*this));
+}
+
+void MassTransport::initNodes(const std::string& ipm_filename)
+{
+    namespace fs = std::filesystem;
+    std::vector<std::string> dbr_names;
+    try {
+        GEMS3KGenerator generator(ipm_filename);   // reads the file names in the *-dat.lst file
+        dbr_names = generator.dbr_names();
+    }
+    catch(TError& err) {
+        throw std::runtime_error("\n*** ERROR ***\n"
+                                 "Could not read "+ipm_filename+"\n"+err.mess);
+    }
+    if(dbr_names.empty())
+        throw std::runtime_error("\n*** ERROR ***\n"
+                                 "No dbr files are listed in "+ipm_filename+
+                                 " (list them after the dch and ipm files, separated by commas).");
+
+    // GEMS3K reads the node array only from a list file, with names relative to the folder of that file.
+    // Write the names to a temporary hidden list file in the folder of the *-dat.lst file.
+    const fs::path dat_path(ipm_filename);
+    const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
+    const fs::path lst_path = dat_path.parent_path() /
+            ("." + dat_path.stem().string() + "-dbr-" + std::to_string(stamp) + ".lst");
+    {
+        std::ofstream lst(lst_path);
+        if(!lst.good())
+            throw std::runtime_error("\n*** ERROR ***\n"
+                                     "Could not write the temporary file "+lst_path.string()+
+                                     "\nUse initNodes(dat_lst, dbr_lst) with a *-dbr.lst file.");
+        for(size_t i=0; i<dbr_names.size(); ++i)
+            lst << (i ? ", " : "") << '"' << dbr_names[i] << '"';
+    }
+    struct RemoveFile {
+        fs::path path;
+        ~RemoveFile() { std::error_code ec; fs::remove(path, ec); }
+    } remove_lst{lst_path};
+
+    initNodes(ipm_filename, lst_path.string());
 }
 
 void MassTransport::initNodesFromStrings(const std::string& dch_json,
@@ -250,6 +294,101 @@ size_t MassTransport::nComponents() const
 void MassTransport::setHydraulicParameters(size_t node_ndx, double Vt, double vp, double eps, double Km, double al, double Dif, double nto)
 {
     pimpl->gem2mt_task->setHydraulicParameters(node_ndx, Vt, vp, eps, Km, al, Dif, nto);
+}
+
+long int MassTransport::nodeSystem(size_t node_ndx) const
+{
+    return pimpl->gem2mt_task->nodeSystem(node_ndx);
+}
+
+long int MassTransport::nodeType(size_t node_ndx) const
+{
+    return pimpl->gem2mt_task->nodeType(node_ndx);
+}
+
+std::vector<size_t> MassTransport::nodesOfSystem(size_t system_ndx) const
+{
+    std::vector<size_t> nodes;
+    for(size_t q=0; q<nNodes(); ++q)
+        if(nodeSystem(q) == static_cast<long int>(system_ndx))
+            nodes.push_back(q);
+    return nodes;
+}
+
+std::vector<size_t> MassTransport::nodesOfType(long int type) const
+{
+    std::vector<size_t> nodes;
+    for(size_t q=0; q<nNodes(); ++q)
+        if(nodeType(q) == type)
+            nodes.push_back(q);
+    return nodes;
+}
+
+TransportProperties MassTransport::transportProperties(size_t node_ndx) const
+{
+    try {
+        auto h = pimpl->gem2mt_task->hydraulicParameters(node_ndx);
+        TransportProperties tp;
+        tp.volume = h[0];  tp.velocity = h[1];  tp.porosity = h[2];  tp.permeability = h[3];
+        tp.dispersivity = h[4];  tp.diffusivity = h[5];  tp.tortuosity = h[6];
+        return tp;
+    }
+    catch(TError& err) {
+        throw std::runtime_error(err.mess);
+    }
+}
+
+void MassTransport::setNodes(const std::vector<size_t>& nodes, const NodeSetup& setup)
+{
+    const auto& t = setup.transport;
+    const bool set_transport = t.volume || t.velocity || t.porosity || t.permeability ||
+                               t.dispersivity || t.diffusivity || t.tortuosity;
+    const bool set_chemistry = !std::holds_alternative<std::monostate>(setup.composition) ||
+                               setup.temperature || setup.pressure;
+
+    // Element amounts in element order (empty: keep the composition of each node)
+    std::vector<double> b;
+    if(const auto* v = std::get_if<std::vector<double>>(&setup.composition)) {
+        b = *v;
+    }
+    else if(const auto* m = std::get_if<std::map<std::string, double>>(&setup.composition)) {
+        if(!pimpl->chem_array)
+            throw std::runtime_error("Nodes are not initialized: call initNodes first");
+        const auto& engine = *pimpl->chem_array;
+        b.assign(engine.numElements(), 0.);
+        for(const auto& [name, amount]: *m) {
+            auto i = engine.indexElement(name);
+            if(i >= engine.numElements())
+                throw std::runtime_error("Element "+name+" is not in the chemical system");
+            b[i] = amount;
+        }
+    }
+
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    try {
+        for(auto q: nodes) {
+            if(set_transport) {
+                auto h = pimpl->gem2mt_task->hydraulicParameters(q);
+                pimpl->gem2mt_task->setHydraulicParameters(q,
+                    t.volume.value_or(h[0]), t.velocity.value_or(h[1]), t.porosity.value_or(h[2]),
+                    t.permeability.value_or(h[3]), t.dispersivity.value_or(h[4]),
+                    t.diffusivity.value_or(h[5]), t.tortuosity.value_or(h[6]));
+            }
+            if(set_chemistry) {
+                pimpl->gem2mt_task->setNodeBulkComposition(q,
+                    b.empty() ? pimpl->gem2mt_task->nodeBulkComposition(q) : b,
+                    setup.temperature.value_or(nan), setup.pressure.value_or(nan));
+            }
+        }
+    }
+    catch(TError& err) {
+        throw std::runtime_error(err.mess);
+    }
+}
+
+void MassTransport::setSystem(size_t system_ndx, const NodeSetup& setup)
+{
+    setNodes(nodesOfSystem(system_ndx), setup);
 }
 
 size_t MassTransport::nMGPfluxes() const

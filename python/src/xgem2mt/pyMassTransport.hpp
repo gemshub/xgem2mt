@@ -23,6 +23,9 @@
 #include <vector>
 #include <array>
 #include <utility>
+#include <limits>
+#include <map>
+#include <optional>
 
 #include "xGEM2MT/MassTransport.hpp"
 
@@ -30,8 +33,86 @@ namespace py = pybind11;
 using namespace xGEM2MT;
 
 
+// Node index or list of node indices
+inline std::vector<size_t> toNodes(py::object nodes)
+{
+    if(py::isinstance<py::int_>(nodes))
+        return {nodes.cast<size_t>()};
+    return nodes.cast<std::vector<size_t>>();
+}
+
+// None, an xGEMS Material (anything with b_dict()), a dict or a sequence of element amounts
+inline NodeSetup toSetup(py::object composition, std::optional<double> T, std::optional<double> P,
+                         std::optional<TransportProperties> transport)
+{
+    NodeSetup setup;
+    if(!composition.is_none()) {
+        if(py::hasattr(composition, "b_dict"))
+            composition = composition.attr("b_dict")();
+        if(py::isinstance<py::dict>(composition))
+            setup.composition = composition.cast<std::map<std::string, double>>();
+        else
+            setup.composition = composition.cast<std::vector<double>>();
+    }
+    setup.temperature = T;
+    setup.pressure = P;
+    if(transport)
+        setup.transport = *transport;
+    return setup;
+}
+
+void exportTransportProperties(py::module& m)
+{
+    py::class_<TransportProperties>(m, "TransportProperties",
+        R"doc(
+        Physical transport properties of a node. A property that is None is not changed.
+
+        In mode 'A', ``velocity`` changes only the dispersion of the node (advection uses
+        ``setFluidAdvectionVelocity``); ``volume`` and ``permeability`` are not used.
+        Dispersion coefficient: D = dispersivity * velocity + diffusivity * porosity / tortuosity.
+
+        :param float volume: total node volume, m³
+        :param float velocity: fluid advection velocity, m/s
+        :param float porosity: effective porosity, 0 to 1
+        :param float permeability: effective permeability, m²
+        :param float dispersivity: longitudinal dispersivity, m
+        :param float diffusivity: diffusion coefficient in water, m²/s
+        :param float tortuosity: tortuosity factor, 1 to 10
+        )doc")
+        .def(py::init([](std::optional<double> volume, std::optional<double> velocity,
+                         std::optional<double> porosity, std::optional<double> permeability,
+                         std::optional<double> dispersivity, std::optional<double> diffusivity,
+                         std::optional<double> tortuosity) {
+                 return TransportProperties{volume, velocity, porosity, permeability,
+                                            dispersivity, diffusivity, tortuosity};
+             }),
+             py::kw_only(), py::arg("volume") = py::none(), py::arg("velocity") = py::none(),
+             py::arg("porosity") = py::none(), py::arg("permeability") = py::none(),
+             py::arg("dispersivity") = py::none(), py::arg("diffusivity") = py::none(),
+             py::arg("tortuosity") = py::none())
+        .def_readwrite("volume", &TransportProperties::volume)
+        .def_readwrite("velocity", &TransportProperties::velocity)
+        .def_readwrite("porosity", &TransportProperties::porosity)
+        .def_readwrite("permeability", &TransportProperties::permeability)
+        .def_readwrite("dispersivity", &TransportProperties::dispersivity)
+        .def_readwrite("diffusivity", &TransportProperties::diffusivity)
+        .def_readwrite("tortuosity", &TransportProperties::tortuosity)
+        .def("__repr__", [](const TransportProperties& t) {
+            std::string r = "TransportProperties(";
+            const std::pair<const char*, const std::optional<double>*> f[] = {
+                {"volume", &t.volume}, {"velocity", &t.velocity}, {"porosity", &t.porosity},
+                {"permeability", &t.permeability}, {"dispersivity", &t.dispersivity},
+                {"diffusivity", &t.diffusivity}, {"tortuosity", &t.tortuosity}};
+            bool first = true;
+            for(const auto& [name, v]: f)
+                if(*v) { r += (first ? "" : ", ") + std::string(name) + "=" + py::repr(py::float_(**v)).cast<std::string>(); first = false; }
+            return r + ")";
+        });
+}
+
 void exportMassTransport(py::module& m)
 {
+    exportTransportProperties(m);
     py::class_<MassTransport>(m, "MassTransport",
                               R"doc(
         Mass Transport simulator for simple reactive mass transport models coupled with GEM
@@ -111,7 +192,31 @@ void exportMassTransport(py::module& m)
              :param str ipm_filename: The path where the IPM work structure file will be saved (optional).
              )doc")
 
-        .def("initNodes", &MassTransport::initNodes,
+        .def("initNodes", py::overload_cast<const std::string&>(&MassTransport::initNodes),
+             py::arg("ipm_filename"),
+             R"doc(
+             Initializes all nodes from one GEMS3K ``*-dat.lst`` file.
+
+             The initial systems are the dbr files listed in the ``*-dat.lst`` file (after the dch and ipm
+             files, separated by commas), in their order: the first file is system 0. A ``*-dbr.lst`` file is
+             not necessary.
+
+             .. note::
+                 GEMS3K reads the initial systems only from a list file. This function writes a temporary
+                 hidden list file in the folder of ``ipm_filename`` and removes it after reading. The folder
+                 must be writable; if it is not, use the two-file form.
+
+             :param str ipm_filename: Path to the ``*-dat.lst`` file.
+             :raises RuntimeError: If a file cannot be read, or if no dbr files are listed.
+
+             **Example:**
+
+             .. code-block:: python
+
+                 task.initNodes("my-system-dat.lst")
+             )doc")
+
+        .def("initNodes", py::overload_cast<const std::string&, const std::string&>(&MassTransport::initNodes),
              py::arg("ipm_filename"),
              py::arg("dbr_filename"),
              R"doc(
@@ -718,6 +823,77 @@ void exportMassTransport(py::module& m)
 
                  # Set hydraulic parameters for node 0
                  task.setHydraulicParameters(0, 1.0, 1e-4, 0.3, 1e-12, 0.1, 2e-9, 1.5)
+             )doc")
+
+        .def("nodeSystem", &MassTransport::nodeSystem, py::arg("node_ndx"),
+             "Index of the initial system (dbr file) the node was set up from.")
+        .def("nodeType", &MassTransport::nodeType, py::arg("node_ndx"),
+             "Node type of the node (see setNodeType).")
+        .def("nodesOfSystem", &MassTransport::nodesOfSystem, py::arg("system_ndx"),
+             R"doc(
+             Indices of all nodes set up from initial system ``system_ndx``.
+
+             In 'A' and 'C' modes nodes 0 and 1 get system 0 (inflowing fluid) and all other nodes system 1.
+             )doc")
+        .def("nodesOfType", &MassTransport::nodesOfType, py::arg("type"),
+             "Indices of all nodes of the given node type (see setNodeType).")
+        .def("setNodesType",
+             [](MassTransport& self, const std::vector<size_t>& nodes, long int type) {
+                 for(auto q: nodes) self.setNodeType(q, type);
+             },
+             py::arg("nodes"), py::arg("type"), "As setNodeType(node_ndx, type), for a list of nodes.")
+
+        .def("transportProperties", &MassTransport::transportProperties, py::arg("node_ndx"),
+             "Transport properties of a node (all fields set). Available after initNodes().")
+
+        .def("setNodes",
+             [](MassTransport& self, py::object nodes, py::object composition,
+                std::optional<double> T, std::optional<double> P, std::optional<TransportProperties> transport) {
+                 self.setNodes(toNodes(nodes), toSetup(composition, T, P, transport));
+             },
+             py::arg("nodes"), py::kw_only(), py::arg("composition") = py::none(),
+             py::arg("T") = py::none(), py::arg("P") = py::none(), py::arg("transport") = py::none(),
+             R"doc(
+             Sets up nodes: composition, temperature, pressure and transport properties.
+
+             Call after initNodes() and before runMassTransport(). Only the arguments that are given are
+             changed. The transport properties are set first. If ``composition``, ``T`` or ``P`` is given,
+             each node is then equilibrated again from scratch.
+
+             :param nodes: A node index or a list of node indices (see nodesOfSystem, nodesOfType).
+             :param composition: Element amounts in mol: an xGEMS ``Material`` (its ``b_dict()`` is used),
+                 a dict ``{element: amount}`` (elements not listed get 0), or a sequence in element order.
+             :param T: Temperature in K.
+             :param P: Pressure in Pa.
+             :param TransportProperties transport: Physical transport properties; fields not set are not changed.
+             :raises RuntimeError: For a bad node index, a wrong size or an unknown element, or when the
+                 GEM calculation fails.
+
+             **Example:**
+
+             .. code-block:: python
+
+                 task.setNodes(range(40, 80), transport=TransportProperties(porosity=0.25))
+             )doc")
+
+        .def("setSystem",
+             [](MassTransport& self, size_t system, py::object composition,
+                std::optional<double> T, std::optional<double> P, std::optional<TransportProperties> transport) {
+                 self.setSystem(system, toSetup(composition, T, P, transport));
+             },
+             py::arg("system_ndx"), py::kw_only(), py::arg("composition") = py::none(),
+             py::arg("T") = py::none(), py::arg("P") = py::none(), py::arg("transport") = py::none(),
+             R"doc(
+             Sets up all nodes of initial system ``system_ndx``. The same as
+             ``setNodes(task.nodesOfSystem(system_ndx), ...)``.
+
+             **Example:**
+
+             .. code-block:: python
+
+                 task.setSystem(0, composition=fluid)     # inflowing fluid, nodes 0 and 1 in mode 'A'
+                 task.setSystem(1, composition=column,
+                                transport=TransportProperties(porosity=0.32, dispersivity=0.0067))
              )doc")
 
         .def_property_readonly("nMGPfluxes", &MassTransport::nMGPfluxes,
