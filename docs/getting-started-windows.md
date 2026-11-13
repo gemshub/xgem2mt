@@ -87,12 +87,12 @@ Open one of the folders:
 | Folder | What it shows |
 |---|---|
 | `calcite-dolomite-1d-advection/calcite-dolomite-1d-advection.ipynb` | 'A' mode, the model set up from the GEMS3K files and the node functions |
-| `calcite-dolomite-1d-advection/calcite-dolomite-1d-advection-nodes.ipynb` | the same, with a `Material` for each node group |
-| `calcite-dolomite-1d-advection/calcite-dolomite-1d-advection-material.ipynb` | the model from a column experiment: pore water and solids, scaled by the program |
+| `calcite-dolomite-1d-advection/calcite-dolomite-1d-advection-material.ipynb` | the same, with a `Material` for each node group |
+| `calcite-dolomite-1d-advection/calcite-dolomite-1d-advection-material-parts.ipynb` | the model from a column experiment: pore solution and solid parts, scaled by the program |
 | `calcite-dolomite-column/calcite-dolomite-column.ipynb` | 'F' mode, flow-through reactors |
 
 In each notebook choose the kernel **Python 3 (ipykernel)** and use "Run > Run All Cells".
-Start with `calcite-dolomite-1d-advection-nodes.ipynb`.
+Start with `calcite-dolomite-1d-advection-material.ipynb`.
 
 ## 6. Make your own model
 

@@ -60,7 +60,10 @@ using Composition = std::variant<std::monostate, std::vector<double>, std::map<s
 struct GEMFailures
 {
     bool ran = false;                 ///< a run was done; without a run there are no results (count 0 does not mean converged)
-    long int count = 0;               ///< number of failed node calculations of the run (0: all converged)
+    long int count = 0;               ///< number of failed node calculations of the run, after the rescue (0: all converged)
+    long int retried = 0;             ///< BAD/ERR results replaced by a GEM run (SIA) from the last converged result of the node
+    long int kept = 0;                ///< BAD/ERR results replaced by the last converged result of the node (input changed by
+                                      ///< no more than the relative mass balance tolerance of GEM, pa_DHB)
     std::vector<size_t> nodes;        ///< nodes with at least one failure
     long int first_step = -1;         ///< time step of the first failure
     double first_time = 0.;           ///< time of the first failure
@@ -74,7 +77,16 @@ struct GEMFailures
             return {};
         return std::to_string(count) + " GEM calculations failed or are not trustful in " + std::to_string(nodes.size()) +
                " nodes (first: step " + std::to_string(first_step) + ", node " + std::to_string(first_node) + ": " +
-               first_message + "). See gemFailures() and xGEM2MT.log.";
+               first_message + ")" + rescues() + ". See gemFailures() and xGEM2MT.log.";
+    }
+
+    /// A text about the rescued calculations, for example ", 3 rescued (2 by SIA, 1 kept)"; empty if none.
+    std::string rescues() const
+    {
+        if(retried + kept == 0)
+            return {};
+        return ", " + std::to_string(retried + kept) + " rescued (" + std::to_string(retried) + " by SIA from the last converged result, " +
+               std::to_string(kept) + " kept the last converged result)";
     }
 };
 
@@ -83,7 +95,7 @@ struct GEMFailures
  *
  * `of` says which volume the part fills: "pore" (a gas, another liquid) or "solid". Give either a fraction
  * of that volume or a mass. The material can have any amount: it is scaled. The volume of the part comes
- * from a GEM calculation at the T and P of the node (the volume that it adds to the pore water), unless a
+ * from a GEM calculation at the T and P of the node (the volume that it adds to the pore solution), unless a
  * density is given. A part given by mass also takes its volume from its `of` volume.
  */
 struct Part
@@ -101,9 +113,9 @@ struct Part
  *
  * The chemistry is given in one of two ways:
  * - `composition`: the amounts of the node, as given (no scaling);
- * - scaled: `pore_water` (the reference: water_mass kg of water per node) and `parts` (and/or the short
- *   form `solids` = one part with fraction 1 of "solid" and density grain_density). For each node:
- *   pore volume = volume of the pore water / water_saturation, solid volume = pore volume * (1 - porosity)
+ * - scaled: `pore_solution` (the reference: any amount, scaled to water_mass kg of liquid water per node) and
+ *   `parts` (and/or the short form `solids` = one part with fraction 1 of "solid" and density grain_density).
+ *   For each node: pore volume = volume of the pore solution / water_saturation, solid volume = pore volume * (1 - porosity)
  *   / porosity (transport porosity of the node); each part fills its share of these volumes.
  */
 struct NodeSetup
@@ -113,9 +125,11 @@ struct NodeSetup
     std::optional<double> pressure;      ///< Pa
     TransportProperties transport;       ///< physical transport properties
 
-    Composition pore_water;              ///< solution per kg of water (it contains 1 kg of H2O)
-    std::optional<double> water_mass;    ///< kg of pore water in the node; default 1
-    std::optional<double> water_saturation; ///< share of the pore volume with pore water; default 1
+    Composition pore_solution;           ///< the pore solution (aqueous phase), any amount
+    std::optional<double> water_mass;    ///< kg of liquid water (H2O solvent) in the node; default: the water
+                                         ///< in pore_solution as given (from a GEM calculation), or in the modes
+                                         ///< 'A', 'C', 'W' the water of the nodes set up before (same in all nodes)
+    std::optional<double> water_saturation; ///< share of the pore volume with pore solution; default 1
     std::vector<Part> parts;             ///< other phases and solids of the node
     Composition solids;                  ///< short form: the dry solid, one part (fraction 1 of "solid")
     std::optional<double> grain_density; ///< short form: kg/L of the solid grains; if not set, from GEM
@@ -304,9 +318,12 @@ public:
     /**
      * @brief The GEM calculations that failed or were not trustful in the last run of runMassTransport().
      *
-     * The run goes on after such a failure; the node keeps the previous result. runMassTransport() writes
-     * GEMFailures::message() to the log, and Python also gives a RuntimeWarning. Details for each failure
-     * are in xGEM2MT.log.
+     * After a BAD or ERR result, the node is calculated again from its last converged result (GEM SIA), or
+     * keeps that result if no element amount changed by more than pa_DHB (the relative mass balance tolerance
+     * of GEM); GEMFailures::retried and GEMFailures::kept count these rescues. The run goes on after a failure
+     * without a rescue (an ERR node keeps its speciation from before the step, a BAD node the BAD result).
+     * runMassTransport() writes GEMFailures::message() to the log, and Python also gives a RuntimeWarning.
+     * Details for each failure and rescue are in xGEM2MT.log.
      */
     GEMFailures gemFailures() const;
 
@@ -823,6 +840,15 @@ public:
      *         element, or when the GEM calculation fails.
      */
     void setNodes(const std::vector<size_t>& nodes, const NodeSetup& setup);
+
+    /**
+     * @brief Switches the progress text of setNodes() and setSystem() on or off (default on).
+     *
+     * The text goes to std::cout: one line for each node with GEM calculations (with the time), one line for the
+     * nodes that get the state of an equal node, and the total time. The GEM calculations of a node can take
+     * minutes, so the text shows that the setup is not stuck.
+     */
+    void setProgressMessages(bool enable);
 
     /// As setNodes(), for all nodes set up from initial system system_ndx.
     void setSystem(size_t system_ndx, const NodeSetup& setup);

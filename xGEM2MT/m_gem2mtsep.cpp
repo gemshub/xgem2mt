@@ -83,6 +83,8 @@ void TGEM2MT::RecCalc()
 
         gem_failures = GemFailures();
         gem_failures.ran = true;
+        last_converged.assign(static_cast<size_t>(mtp->nC), NodeResult());
+        mass_balance_tolerance = -1.;
 
         // internal calc
         auto iret = internalCalc();
@@ -444,7 +446,8 @@ std::array<double, SIZE_HYDP> TGEM2MT::hydraulicParameters(size_t pndx) const
     return hp;
 }
 
-double TGEM2MT::materialVolume(size_t q, const std::vector<double>& b, double T, double P, double limit_scale) const
+double TGEM2MT::materialVolume(size_t q, const std::vector<double>& b, double T, double P, double limit_scale,
+                               double* water_kg, bool with_gas) const
 {
     ErrorIf(!na || !na->pNodT1() || !na->pNodT1()[0], GetName(), "Nodes are not initialized: call initNodes first");
     ErrorIf(q >= static_cast<size_t>(mtp->nC), GetName(),
@@ -474,7 +477,173 @@ double TGEM2MT::materialVolume(size_t q, const std::vector<double>& b, double T,
     ErrorIf(!(st == OK_GEM_AIA || st == OK_GEM_SIA), GetName(),
             "GEM calculation failed for the volume of a part of the node (status "+std::to_string(st)+"): "+
             work.ipmLogError());
-    return work.cVs() * 1e3;     // m3 -> L
+    if(water_kg) {
+        // xPA[0]: mol of the solvent (H2O) of the aqueous phase, if the first phase of the DBR is aqueous
+        const bool aqueous = ch->nPSb > 0 && ch->xph[0] == 0 && ch->ccPH[0] == 'a';
+        *water_kg = aqueous ? work.pCNode()->xPA[0] * 18.0153e-3 : 0.;
+    }
+    double volume = work.cVs();     // m3
+    // Gas and fluid phases out (only those kept in the DBR can be taken out; GEMS3K exports keep all phases by default)
+    if(!with_gas)
+        for(long int k=0; k<ch->nPSb; ++k) {
+            const char c = ch->ccPH[ch->xph[k]];
+            if(c == PH_GASMIX || c == PH_FLUID)
+                volume -= work.pCNode()->vPS[k];
+        }
+    return volume * 1e3;     // m3 -> L
+}
+
+bool TGEM2MT::sameNodeLimits(size_t q1, size_t q2) const
+{
+    ErrorIf(!na || !na->pNodT1() || !na->pNodT1()[0], GetName(), "Nodes are not initialized: call initNodes first");
+    ErrorIf(q1 >= static_cast<size_t>(mtp->nC) || q2 >= static_cast<size_t>(mtp->nC), GetName(),
+            "Node index out of range (nodes: "+std::to_string(mtp->nC)+")");
+    if(q1 == q2)
+        return true;
+    const DATACH* ch = na->pCSD();
+    const DATABR* n1 = na->pNodT1()[q1];
+    const DATABR* n2 = na->pNodT1()[q2];
+    if(!std::equal(n1->dul, n1->dul + ch->nDCb, n2->dul) || !std::equal(n1->dll, n1->dll + ch->nDCb, n2->dll))
+        return false;
+    if(ch->nAalp > 0 && n1->aPH && n2->aPH && !std::equal(n1->aPH, n1->aPH + ch->nPHb, n2->aPH))
+        return false;
+    if(!std::equal(n1->amru, n1->amru + ch->nPSb, n2->amru) || !std::equal(n1->amrl, n1->amrl + ch->nPSb, n2->amrl))
+        return false;
+    return true;
+}
+
+void TGEM2MT::saveNodeResult(const DATABR* n, NodeResult& r) const
+{
+    const DATACH* ch = na->pCSD();
+    auto cp = [](const double* from, std::vector<double>& to, long int size) {
+        if(from) to.assign(from, from + size); else to.clear(); };
+    r.valid = true;
+    r.status = n->NodeStatusCH; r.iterations = n->IterDone;
+    r.TK = n->TK; r.P = n->P;
+    r.Vs = n->Vs; r.Vi = n->Vi; r.Ms = n->Ms; r.Mi = n->Mi; r.Gs = n->Gs; r.Hs = n->Hs; r.Hi = n->Hi;
+    r.IC = n->IC; r.pH = n->pH; r.pe = n->pe; r.Eh = n->Eh;
+    cp(n->bIC, r.bIC, ch->nICb);
+    cp(n->rMB, r.rMB, ch->nICb);
+    cp(n->uIC, r.uIC, ch->nICb);
+    cp(n->bSP, r.bSP, ch->nICb);
+    cp(n->xDC, r.xDC, ch->nDCb);
+    cp(n->gam, r.gam, ch->nDCb);
+    cp(n->xPH, r.xPH, ch->nPHb);
+    cp(n->omPH, r.omPH, ch->nPHb);
+    cp(n->vPS, r.vPS, ch->nPSb);
+    cp(n->mPS, r.mPS, ch->nPSb);
+    cp(n->xPA, r.xPA, ch->nPSb);
+    cp(n->bPS, r.bPS, ch->nPSb * ch->nICb);
+}
+
+void TGEM2MT::loadNodeResult(const NodeResult& r, DATABR* n, bool with_inputs) const
+{
+    auto cp = [](const std::vector<double>& from, double* to) { if(to) std::copy(from.begin(), from.end(), to); };
+    if(with_inputs) {
+        cp(r.bIC, n->bIC);
+        n->TK = r.TK; n->P = r.P;
+    }
+    n->NodeStatusCH = r.status; n->IterDone = r.iterations;
+    n->Vs = r.Vs; n->Vi = r.Vi; n->Ms = r.Ms; n->Mi = r.Mi; n->Gs = r.Gs; n->Hs = r.Hs; n->Hi = r.Hi;
+    n->IC = r.IC; n->pH = r.pH; n->pe = r.pe; n->Eh = r.Eh;
+    cp(r.rMB, n->rMB);
+    cp(r.uIC, n->uIC);
+    cp(r.bSP, n->bSP);
+    cp(r.xDC, n->xDC);
+    cp(r.gam, n->gam);
+    cp(r.xPH, n->xPH);
+    cp(r.omPH, n->omPH);
+    cp(r.vPS, n->vPS);
+    cp(r.mPS, n->mPS);
+    cp(r.xPA, n->xPA);
+    cp(r.bPS, n->bPS);
+}
+
+void TGEM2MT::copyNodeEquilibrium(size_t q, size_t ref)
+{
+    ErrorIf(!na || !na->pNodT0() || !na->pNodT1() || !na->pNodT0()[0], GetName(),
+            "Nodes are not initialized: call initNodes first");
+    ErrorIf(q >= static_cast<size_t>(mtp->nC) || ref >= static_cast<size_t>(mtp->nC), GetName(),
+            "Node index out of range (nodes: "+std::to_string(mtp->nC)+")");
+    if(q == ref)
+        return;
+    DATABRPTR* C0 = na->pNodT0();
+    DATABRPTR* C1 = na->pNodT1();
+    // The inputs and the equilibrium state (primal and dual solution) of ref; not the node handle, the node
+    // type and the transport values of q
+    NodeResult r;
+    saveNodeResult(C1[ref], r);
+    r.iterations = 0;
+    loadNodeResult(r, C1[q], true);
+    // The same state as input (C0): no GEM run is needed for this node
+    na->CopyNodeFromTo(static_cast<long int>(q), mtp->nC, C1, C0);
+}
+
+int TGEM2MT::rescueNode(long int ii, const TestModeGEMParam& mode_param, std::string& message)
+{
+    if(ii < 0 || static_cast<size_t>(ii) >= last_converged.size() || !last_converged[ii].valid)
+        return 0;
+    const NodeResult& last = last_converged[ii];
+    DATABR* n = na->pNodT1()[ii];
+    auto ok = [](long int st) { return st == OK_GEM_AIA || st == OK_GEM_SIA; };
+    NodeResult first;                     // the result of the failed calculation, kept if there is no rescue
+    saveNodeResult(n, first);
+    const long int first_status = n->NodeStatusCH;
+
+    // 1. GEM SIA from the last converged state of this node, with the new inputs (bIC, T, P)
+    {
+        loadNodeResult(last, n, false);
+        TNode* work = const_cast<TNode*>(na->getCalcNode());
+        long int st = T_ERROR_GEM;
+        try {
+            st = na->RunGEM(work, ii, -NEED_GEM_SIA, na->pNodT1());
+        }
+        catch(...) {
+            st = T_ERROR_GEM;
+        }
+        if(ok(st)) {
+            message = "status " + std::to_string(first_status) + ", converged again by SIA from the last converged state";
+            return 1;
+        }
+    }
+
+    // 2. The last converged result, if the input is the same within the mass balance tolerance of GEM
+    // pa_DHB: the relative mass balance tolerance of GEM (relative for all elements with the default pa_DT 0).
+    // GEMS3K has no public getter for the settings: read it once from the settings text of the work node.
+    if(mass_balance_tolerance <= 0.) {
+        mass_balance_tolerance = 1e-13;
+        const std::string ipm = const_cast<TNode*>(na->getCalcNode())->gemipm_to_string(false, false, false);
+        const auto k = ipm.find("\"pa_DHB\"");
+        if(k != std::string::npos) {
+            const auto c = ipm.find(':', k);
+            if(c != std::string::npos) {
+                const double v = std::strtod(ipm.c_str() + c + 1, nullptr);
+                if(v > 0.)
+                    mass_balance_tolerance = v;
+            }
+        }
+    }
+    const double tol = mass_balance_tolerance;
+    const DATACH* ch = na->pCSD();
+    double worst = 0.;
+    for(long int ic = 0; ic < ch->nICb; ic++) {
+        if(ch->ccIC[ic] == IC_CHARGE)
+            continue;
+        const double d = std::fabs(first.bIC[ic] - last.bIC[ic]);
+        const double ref = std::max(std::fabs(last.bIC[ic]), mode_param.cez);
+        worst = std::max(worst, d / ref);
+    }
+    if(last.TK == first.TK && last.P == first.P && worst <= tol) {
+        loadNodeResult(last, n, false);       // keeps the new bIC (equal within tol)
+        n->IterDone = 0;
+        message = "status " + std::to_string(first_status) + ", kept the last converged result (input change " +
+                  std::to_string(worst) + " <= pa_DHB)";
+        return 2;
+    }
+
+    // No rescue: the node keeps the result of the first calculation
+    loadNodeResult(first, n, true);
+    return 0;
 }
 
 TGEM2MT::NodeInputs TGEM2MT::saveNodeInputs(size_t q) const
@@ -1647,8 +1816,11 @@ std::string TGEM2MT::summary(size_t width, bool phases) const
     if(gem_failures.ran) {
         const auto& f = gem_failures;
         o << "\n";
+        const std::string rescued = (f.retried + f.kept == 0) ? std::string() :
+            " " + std::to_string(f.retried + f.kept) + " BAD/ERR results were rescued (" + std::to_string(f.retried) +
+            " by SIA from the last converged result of the node, " + std::to_string(f.kept) + " kept that result).";
         if(f.count == 0)
-            o << "Last run: all GEM calculations in the nodes converged.\n";
+            o << wrap("Last run: all GEM calculations in the nodes converged." + rescued, width, "", "  ");
         else {
             std::string nodes;
             long int a = -2, b = -2;
@@ -1660,7 +1832,7 @@ std::string TGEM2MT::summary(size_t width, bool phases) const
             flush();
             o << wrap("WARNING: last run: " + std::to_string(f.count) + " GEM calculations failed or are not trustful, in nodes " +
                       nodes + ". First: step " + std::to_string(f.first_step) + ", t = " + num(f.first_time) + ", node " +
-                      std::to_string(f.first_node) + ": " + f.first_message + "  [gemFailures(); see xGEM2MT.log]", width, "", "         ");
+                      std::to_string(f.first_node) + ": " + f.first_message + "." + rescued + "  [gemFailures(); see xGEM2MT.log]", width, "", "         ");
         }
     }
 

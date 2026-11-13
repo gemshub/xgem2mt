@@ -23,7 +23,11 @@
 #include <GEMS3K/io_simdjson.h>
 #include <GEMS3K/gems3k_impex.h>
 #include <GEMS3K/verror.h>
+#include <algorithm>
 #include <chrono>
+#include <iostream>
+#include <iomanip>
+#include <map>
 #include <sstream>
 #include <cmath>
 #include <filesystem>
@@ -89,6 +93,7 @@ void MassTransport::initNodes(const std::string& ipm_filename, const std::string
                                  "Could not initialize the MassTransport TNodeArray data.\n"+err.mess);
     }
     pimpl->chem_array = std::shared_ptr<ChemicalEngineArray>(new ChemicalEngineArray(*this));
+    pimpl->node_water_mass.reset();
 }
 
 void MassTransport::initNodes(const std::string& ipm_filename)
@@ -151,6 +156,7 @@ void MassTransport::initNodesFromStrings(const std::string& dch_json,
                                  "Could not initialize the MassTransport TNodeArray object from JSON strings.\n"+err.mess);
     }
     pimpl->chem_array = std::shared_ptr<ChemicalEngineArray>(new ChemicalEngineArray(*this));
+    pimpl->node_water_mass.reset();
 }
 
 void MassTransport::runMassTransport()
@@ -166,6 +172,8 @@ void MassTransport::runMassTransport()
     const auto failures = gemFailures();
     if(failures.count > 0)
         gems_logger->warn("{}", failures.message());
+    else if(failures.retried + failures.kept > 0)
+        gems_logger->warn("All GEM calculations converged{}.", failures.rescues());
 }
 
 GEMFailures MassTransport::gemFailures() const
@@ -174,6 +182,8 @@ GEMFailures MassTransport::gemFailures() const
     GEMFailures r;
     r.ran = f.ran;
     r.count = f.count;
+    r.retried = f.retried;
+    r.kept = f.kept;
     r.nodes.assign(f.nodes.begin(), f.nodes.end());
     r.first_step = f.first_step;
     r.first_time = f.first_time;
@@ -374,15 +384,43 @@ TransportProperties MassTransport::transportProperties(size_t node_ndx) const
     }
 }
 
+namespace {
+/// The nodes as a short text, for example "2-5, 7, 9-29"
+std::string nodeList(std::vector<size_t> nodes)
+{
+    std::sort(nodes.begin(), nodes.end());
+    std::string text;
+    for(size_t i=0; i<nodes.size(); ) {
+        size_t j = i;
+        while(j+1 < nodes.size() && nodes[j+1] == nodes[j]+1) ++j;
+        text += (text.empty() ? "" : ", ") + std::to_string(nodes[i]) + (j > i ? "-" + std::to_string(nodes[j]) : "");
+        i = j+1;
+    }
+    return text;
+}
+
+std::string seconds(std::chrono::steady_clock::time_point t0)
+{
+    std::ostringstream o;
+    o << std::fixed << std::setprecision(1) << std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count() << " s";
+    return o.str();
+}
+}
+
+void MassTransport::setProgressMessages(bool enable)
+{
+    pimpl->progress = enable;
+}
+
 void MassTransport::setNodes(const std::vector<size_t>& nodes, const NodeSetup& setup)
 {
     const auto& t = setup.transport;
     const bool set_transport = t.volume || t.velocity || t.porosity || t.permeability ||
                                t.dispersivity || t.diffusivity || t.tortuosity;
     const bool has_composition = !std::holds_alternative<std::monostate>(setup.composition);
-    const bool has_pore_water = !std::holds_alternative<std::monostate>(setup.pore_water);
+    const bool has_solution = !std::holds_alternative<std::monostate>(setup.pore_solution);
     const bool has_solids = !std::holds_alternative<std::monostate>(setup.solids);
-    const bool scaled = has_pore_water || has_solids || !setup.parts.empty();
+    const bool scaled = has_solution || has_solids || !setup.parts.empty();
     const bool set_chemistry = has_composition || scaled || setup.temperature || setup.pressure;
 
     // Check everything before a node is changed
@@ -438,16 +476,16 @@ void MassTransport::setNodes(const std::vector<size_t>& nodes, const NodeSetup& 
         return v;
     };
     if(has_composition && scaled)
-        throw std::runtime_error("Give either composition, or pore_water and parts (solids), not both");
-    if(scaled && !has_pore_water)
-        throw std::runtime_error("pore_water is needed: it is the reference of the node (water_mass kg of water)");
+        throw std::runtime_error("Give either composition, or pore_solution and parts (solids), not both");
+    if(scaled && !has_solution)
+        throw std::runtime_error("pore_solution is needed: it is the reference of the node (water_mass kg of water)");
     if(setup.water_mass && !(*setup.water_mass > 0.))
         throw std::runtime_error("water_mass must be > 0");
     const double water_saturation = setup.water_saturation.value_or(1.);
     if(!(water_saturation > 0. && water_saturation <= 1.))
         throw std::runtime_error("water_saturation must be > 0 and <= 1");
     const auto b = to_vector(setup.composition, "composition");             // as given (no scaling)
-    const auto b_water = to_vector(setup.pore_water, "pore water");         // per kg of water
+    const auto b_given = to_vector(setup.pore_solution, "pore solution");   // any amount
 
     // The parts, each normalised to 1 kg (element molar masses in kg/mol)
     struct PartIn { std::vector<double> b; bool solid; bool by_mass; double value; std::optional<double> density; };
@@ -496,7 +534,6 @@ void MassTransport::setNodes(const std::vector<size_t>& nodes, const NodeSetup& 
         throw std::runtime_error("water_saturation and the pore fractions add up to more than 1");
     if(any_solid_fraction && std::fabs(solid_sum - 1.) > 1e-6)
         throw std::runtime_error("The solid fractions must add up to 1");
-    const double water_mass = setup.water_mass.value_or(1.);
 
     // All the nodes are changed or none: if a node fails, all nodes that this call changed (also the failing
     // node) get their earlier transport values and their earlier inputs back (and are equilibrated again).
@@ -515,6 +552,23 @@ void MassTransport::setNodes(const std::vector<size_t>& nodes, const NodeSetup& 
         }
     };
     const double nan = std::numeric_limits<double>::quiet_NaN();
+    // Modes with node transport: all nodes get the same water (see Impl::node_water_mass)
+    const bool same_water = pimpl->gem2mt_task->hasNodeTransport();
+    const auto saved_water_mass = pimpl->node_water_mass;
+    // Scaled composition: nodes with the same T, P, porosity, saturation and species limits get the same
+    // composition. It is calculated once (the GEM volume calculations) and used again for these nodes; each
+    // node is then equilibrated once.
+    struct Scaled { size_t q; double T, P, porosity; std::vector<double> b; };
+    std::vector<Scaled> scaled_done;
+    std::vector<Scaled> plain_done;     // nodes equilibrated with the composition as given (b)
+    // Progress text: the GEM calculations of a node can take minutes
+    const bool talk = pimpl->progress && set_chemistry && !nodes.empty();
+    const auto t_start = std::chrono::steady_clock::now();
+    std::map<size_t, std::vector<size_t>> copied;   // node -> the nodes that got its state
+    bool line_open = false;
+    if(talk)
+        std::cout << "Setting up " << nodes.size() << (nodes.size() == 1 ? " node" : " nodes") << " (" << nodeList(nodes)
+                  << "): composition and equilibrium (GEM)" << std::endl;
     try {
         for(auto q: nodes) {
             Saved sv{q, set_transport, {}, set_chemistry, {}};
@@ -532,102 +586,177 @@ void MassTransport::setNodes(const std::vector<size_t>& nodes, const NodeSetup& 
                     t.diffusivity.value_or(h[5]), t.tortuosity.value_or(h[6]));
             }
             if(set_chemistry) {
+                auto t_node = std::chrono::steady_clock::now();
+                auto begin_node = [&]() {
+                    if(!talk || line_open) return;
+                    std::cout << "  node " << q << " ..." << std::flush;
+                    line_open = true;
+                    t_node = std::chrono::steady_clock::now();
+                };
                 {
                     // Scaled composition from the porosity of this node (after its transport values are set)
                     std::optional<std::vector<double>> b_node = b;
                     bool equilibrated = false;     // the node is already equilibrated with b_node, T and P
+                    std::optional<size_t> same_as;  // a node of this call with the same inputs (its state is copied)
                     if(scaled) {
-                        // Volumes from GEM at the T and P of the node (L per kg; the pore water per kg of water)
+                        // Volumes from GEM at the T and P of the node (L per kg; the pore solution per kg of water)
                         const double T = setup.temperature.value_or(pimpl->chem_array->temperature(q));
                         const double P = setup.pressure.value_or(pimpl->chem_array->pressure(q));
-                        // The limits of the species are amounts of the node: the calculation has 1 / water_mass of them
-                        const double limit_scale = 1. / water_mass;
-                        // Volume per kg of a part: the volume that 1 kg of it adds to the pore water (1 kg of
-                        // water), at the T and P of the node. A solid or a gas does not converge alone.
-                        const double pore_water_volume = pimpl->gem2mt_task->materialVolume(q, *b_water, T, P, limit_scale);   // L per kg of water
-                        auto volume_per_kg = [&](const std::vector<double>& bk) {
-                            std::vector<double> mix(*b_water);
-                            for(size_t i=0; i<mix.size(); ++i) mix[i] += bk[i];
-                            const double v = pimpl->gem2mt_task->materialVolume(q, mix, T, P, limit_scale) - pore_water_volume;
-                            if(!(v > 0.))
-                                throw std::runtime_error("A part adds no volume to the pore water (it dissolves?): give its density");
-                            return v;
-                        };
                         const double porosity = pimpl->gem2mt_task->nodePorosity(q);
-                        const double water_volume = water_mass * pore_water_volume;                // L
-                        const double pore_volume = water_volume / water_saturation;
-                        const double solid_volume = pore_volume * (1. - porosity) / porosity;
-                        // Mass (kg) of each part. Parts given by mass take their volume from their `of` volume;
-                        // the solid fractions are shares of the solid volume that is left.
-                        std::vector<double> kg(parts.size(), 0.), target(parts.size(), 0.), vpk(parts.size(), 0.);
-                        double mass_pore = 0., mass_solid = 0.;
-                        for(size_t k=0; k<parts.size(); ++k) {
-                            const auto& pt = parts[k];
-                            vpk[k] = pt.density ? 1. / *pt.density : volume_per_kg(pt.b);         // L/kg
-                            if(pt.by_mass) {
-                                kg[k] = pt.value;
-                                (pt.solid ? mass_solid : mass_pore) += kg[k] * vpk[k];
+                        const Scaled* same = nullptr;
+                        for(const auto& d: scaled_done)
+                            if(d.T == T && d.P == P && d.porosity == porosity &&
+                               pimpl->gem2mt_task->sameNodeLimits(d.q, q)) { same = &d; break; }
+                        if(same) {
+                            b_node = same->b;
+                            same_as = same->q;
+                        }
+                        else {
+                            begin_node();
+                            // The liquid water of the pore solution as given (GEM at the T and P of the node; the
+                            // limits of the species as in the node: exact if water_mass is not given)
+                            double given_water = 0.;   // kg
+                            const double given_volume = pimpl->gem2mt_task->materialVolume(q, *b_given, T, P, 1., &given_water, false);
+                            if(!(given_water > 0.))
+                                throw std::runtime_error("The pore solution has no liquid water (no aqueous phase at the "
+                                                         "T and P of node "+std::to_string(q)+")");
+                            // kg of water in the node: water_mass, or the water of the nodes set up before (modes
+                            // with node transport), or the water of the pore solution as given
+                            double water_mass = given_water;
+                            if(setup.water_mass)
+                                water_mass = *setup.water_mass;
+                            else if(same_water && pimpl->node_water_mass)
+                                water_mass = *pimpl->node_water_mass;
+                            if(same_water && !pimpl->node_water_mass)
+                                pimpl->node_water_mass = water_mass;
+                            const bool as_given = (water_mass == given_water);
+                            // The pore solution for 1 kg of water
+                            std::vector<double> b_solution(*b_given);
+                            for(auto& x: b_solution) x /= given_water;
+                            // The limits of the species are amounts of the node: the calculation has 1 / water_mass of them
+                            const double limit_scale = 1. / water_mass;
+                            // Volume per kg of a part: the volume that 1 kg of it adds to the pore solution (1 kg of
+                            // water), at the T and P of the node. A solid or a gas does not converge alone.
+                            const double solution_volume = as_given
+                                ? given_volume / given_water
+                                : pimpl->gem2mt_task->materialVolume(q, b_solution, T, P, limit_scale, nullptr, false);   // L per kg of water
+                            // Without gas phases for the pore solution and the solid parts: GEMS gives a gas the volume of
+                            // a free gas, so a trace of gas would add much volume. A pore part (a gas) keeps its gas volume.
+                            auto volume_per_kg = [&](const std::vector<double>& bk, bool with_gas) {
+                                std::vector<double> mix(b_solution);
+                                for(size_t i=0; i<mix.size(); ++i) mix[i] += bk[i];
+                                const double v = pimpl->gem2mt_task->materialVolume(q, mix, T, P, limit_scale, nullptr, with_gas) - solution_volume;
+                                if(!(v > 0.))
+                                    throw std::runtime_error("A part adds no volume to the pore solution (it dissolves?): give its density");
+                                return v;
+                            };
+                            const double node_solution_volume = water_mass * solution_volume;           // L
+                            const double pore_volume = node_solution_volume / water_saturation;
+                            const double solid_volume = pore_volume * (1. - porosity) / porosity;
+                            // Mass (kg) of each part. Parts given by mass take their volume from their `of` volume;
+                            // the solid fractions are shares of the solid volume that is left.
+                            std::vector<double> kg(parts.size(), 0.), target(parts.size(), 0.), vpk(parts.size(), 0.);
+                            double mass_pore = 0., mass_solid = 0.;
+                            for(size_t k=0; k<parts.size(); ++k) {
+                                const auto& pt = parts[k];
+                                vpk[k] = pt.density ? 1. / *pt.density : volume_per_kg(pt.b, !pt.solid);   // L/kg
+                                if(pt.by_mass) {
+                                    kg[k] = pt.value;
+                                    (pt.solid ? mass_solid : mass_pore) += kg[k] * vpk[k];
+                                }
                             }
-                        }
-                        if(any_solid_fraction && mass_solid > solid_volume * (1. + 1e-9))
-                            throw std::runtime_error("The solid parts given by mass need more than the solid volume of node "+
-                                                     std::to_string(q));
-                        if(pore_sum + mass_pore / pore_volume > 1. + 1e-9)
-                            throw std::runtime_error("The pore parts need more than the pore volume of node "+std::to_string(q));
-                        for(size_t k=0; k<parts.size(); ++k) {
-                            const auto& pt = parts[k];
-                            if(pt.by_mass) continue;
-                            target[k] = pt.solid ? (solid_volume - mass_solid) * pt.value : pore_volume * pt.value;  // L
-                            kg[k] = target[k] / vpk[k];
-                        }
-                        auto compose = [&]() {
-                            std::vector<double> bn(pimpl->chem_array->numElements(), 0.);
-                            for(size_t i=0; i<bn.size(); ++i)
-                                bn[i] = (*b_water)[i] * water_mass;
-                            for(size_t k=0; k<parts.size(); ++k)
+                            if(any_solid_fraction && mass_solid > solid_volume * (1. + 1e-9))
+                                throw std::runtime_error("The solid parts given by mass need more than the solid volume of node "+
+                                                         std::to_string(q));
+                            if(pore_sum + mass_pore / pore_volume > 1. + 1e-9)
+                                throw std::runtime_error("The pore parts need more than the pore volume of node "+std::to_string(q));
+                            for(size_t k=0; k<parts.size(); ++k) {
+                                const auto& pt = parts[k];
+                                if(pt.by_mass) continue;
+                                target[k] = pt.solid ? (solid_volume - mass_solid) * pt.value : pore_volume * pt.value;  // L
+                                kg[k] = target[k] / vpk[k];
+                            }
+                            auto compose = [&]() {
+                                std::vector<double> bn(pimpl->chem_array->numElements(), 0.);
                                 for(size_t i=0; i<bn.size(); ++i)
-                                    bn[i] += parts[k].b[i] * kg[k];
-                            return bn;
-                        };
-                        b_node = compose();
-
-                        // A gas (or another fluid) can dissolve in part in the pore water, so that its volume in
-                        // the node is smaller than planned. Then add the missing volume to the fluid parts and
-                        // calculate again, until the node volume is pore volume + solid volume.
-                        double fluid_target = 0.;
-                        for(size_t k=0; k<parts.size(); ++k)
-                            if(!parts[k].solid && !parts[k].by_mass && !parts[k].density) fluid_target += target[k];
-                        if(fluid_target > 0.) {
-                            const double node_target = pore_volume + solid_volume;     // L
-                            bool converged = false;
-                            for(int it=0; it<30 && !converged; ++it) {
-                                pimpl->gem2mt_task->setNodeBulkComposition(q, &*b_node,
-                                    setup.temperature.value_or(nan), setup.pressure.value_or(nan));
-                                const double missing = node_target - pimpl->chem_array->systemVolume(q) * 1e3;
-                                if(std::fabs(missing) <= 1e-5 * node_target) { converged = true; equilibrated = true; break; }
+                                    bn[i] = b_solution[i] * water_mass;
                                 for(size_t k=0; k<parts.size(); ++k)
-                                    if(!parts[k].solid && !parts[k].by_mass && !parts[k].density)
-                                        kg[k] = std::max(0., kg[k] + missing * (target[k] / fluid_target) / vpk[k]);
-                                b_node = compose();
+                                    for(size_t i=0; i<bn.size(); ++i)
+                                        bn[i] += parts[k].b[i] * kg[k];
+                                return bn;
+                            };
+                            b_node = compose();
+
+                            // A gas (or another fluid) can dissolve in part in the pore solution, so that its volume in
+                            // the node is smaller than planned. Then add the missing volume to the fluid parts and
+                            // calculate again, until the node volume is pore volume + solid volume.
+                            double fluid_target = 0.;
+                            for(size_t k=0; k<parts.size(); ++k)
+                                if(!parts[k].solid && !parts[k].by_mass && !parts[k].density) fluid_target += target[k];
+                            if(fluid_target > 0.) {
+                                const double node_target = pore_volume + solid_volume;     // L
+                                bool converged = false;
+                                for(int it=0; it<30 && !converged; ++it) {
+                                    pimpl->gem2mt_task->setNodeBulkComposition(q, &*b_node,
+                                        setup.temperature.value_or(nan), setup.pressure.value_or(nan));
+                                    const double missing = node_target - pimpl->chem_array->systemVolume(q) * 1e3;
+                                    if(std::fabs(missing) <= 1e-5 * node_target) { converged = true; equilibrated = true; break; }
+                                    for(size_t k=0; k<parts.size(); ++k)
+                                        if(!parts[k].solid && !parts[k].by_mass && !parts[k].density)
+                                            kg[k] = std::max(0., kg[k] + missing * (target[k] / fluid_target) / vpk[k]);
+                                    b_node = compose();
+                                }
+                                if(!converged)
+                                    throw std::runtime_error("The volume of the fluid parts of node "+std::to_string(q)+
+                                                             " did not converge (does the gas dissolve completely?)");
                             }
-                            if(!converged)
-                                throw std::runtime_error("The volume of the fluid parts of node "+std::to_string(q)+
-                                                         " did not converge (does the gas dissolve completely?)");
+                            scaled_done.push_back({q, T, P, porosity, *b_node});
                         }
                     }
-                    if(!equilibrated)
-                        pimpl->gem2mt_task->setNodeBulkComposition(q, b_node ? &*b_node : nullptr,
-                            setup.temperature.value_or(nan), setup.pressure.value_or(nan));
+                    else if(b) {
+                        // The same composition for all nodes of the call: a node with the same T, P and limits as a
+                        // node done before gets its state (no GEM)
+                        const double T = setup.temperature.value_or(pimpl->chem_array->temperature(q));
+                        const double P = setup.pressure.value_or(pimpl->chem_array->pressure(q));
+                        for(const auto& d: plain_done)
+                            if(d.T == T && d.P == P && pimpl->gem2mt_task->sameNodeLimits(d.q, q)) { same_as = d.q; break; }
+                        if(!same_as)
+                            plain_done.push_back({q, T, P, 0., {}});
+                    }
+                    if(same_as) {
+                        pimpl->gem2mt_task->copyNodeEquilibrium(q, *same_as);
+                        copied[*same_as].push_back(q);
+                    }
+                    else {
+                        begin_node();
+                        if(!equilibrated)
+                            pimpl->gem2mt_task->setNodeBulkComposition(q, b_node ? &*b_node : nullptr,
+                                setup.temperature.value_or(nan), setup.pressure.value_or(nan));
+                    }
+                }
+                if(line_open) {
+                    std::cout << " " << seconds(t_node) << std::endl;
+                    line_open = false;
                 }
             }
         }
+        if(talk) {
+            for(const auto& [ref, qs]: copied)
+                std::cout << "  " << (qs.size() == 1 ? "node " : "nodes ") << nodeList(qs) << ": the same inputs as node " << ref
+                          << ", state copied (no GEM)" << std::endl;
+            std::cout << "  done in " << seconds(t_start) << std::endl;
+        }
     }
     catch(TError& err) {
+        if(line_open) std::cout << " failed" << std::endl;
         rollback();
+        pimpl->node_water_mass = saved_water_mass;
         throw std::runtime_error(err.mess);
     }
     catch(...) {
+        if(line_open) std::cout << " failed" << std::endl;
         rollback();
+        pimpl->node_water_mass = saved_water_mass;
         throw;
     }
 }

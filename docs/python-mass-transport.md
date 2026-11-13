@@ -178,7 +178,9 @@ list of indices. A node setup has two parts:
 Parameters of `setSystem` and `setNodes`. Give only the parts that you want to change:
 
 * `composition`: the element amounts in mol. Use one of these:
-  * an xGEMS `Material` (the program uses its `b_dict()`),
+  * an xGEMS `Material` (the program uses its `b_dict()`). An element of the system with a longer name, such as
+    `Inert` (an inert solid) or `N_atm`, can be used in its formulas with xgems from 2026-11-12 (`1f9b319`) or later:
+    `sand.add("Inert", 70, "g")`. With older xgems, give it as an element amount: `add({"Inert": 1.0}, 70, "g")`,
   * a dict, for example `{"Ca": 3.4e-4, "C": 3.4e-4, "H": 111.0, "O": 55.51}`. Elements that are
     not in the dict get 0,
   * an array in the element order of the chemical system.
@@ -188,10 +190,13 @@ Parameters of `setSystem` and `setNodes`. Give only the parts that you want to c
 In place of `composition`, you can give the node as parts, as measured in a column experiment. The program
 then calculates the composition of each node (see section 8):
 
-* `pore_water`: the solution per kg of water (a `Material` with 1 kg of H2O, a dict or an array). It is the
-  reference of each node.
-* `water_mass`: kg of pore water in each node. Default 1. Use the same value in all nodes.
-* `water_saturation`: the share of the pore volume that the pore water fills. Default 1.
+* `pore_solution`: the pore solution (the aqueous phase): a `Material`, a dict or an array, any amount. It is
+  the reference of each node.
+* `water_mass`: kg of liquid water (the H2O solvent) in each node. The program scales `pore_solution` to this
+  water. Default: the water in `pore_solution` as given (from a GEM calculation at the T and P of the node).
+  In the modes 'A', 'C' and 'W', all nodes need the same water mass. The first call with `pore_solution` sets
+  it; later calls without `water_mass` scale their pore solution to it. `initNodes` resets it.
+* `water_saturation`: the share of the pore volume that the pore solution fills. Default 1.
 * `parts`: a list of `Part` objects, the other phases and solids of the node. `of` says which volume the part
   fills: `"pore"` (a gas, another liquid) or `"solid"`. Then give a share of that volume or a mass:
   * `Part(material, fraction=f, of="pore")`: the share f of the pore volume;
@@ -205,7 +210,7 @@ then calculates the composition of each node (see section 8):
 * `solids`, `grain_density`: a short form for one solid part: `parts=[Part(solids, fraction=1, of="solid",
   density=grain_density)]`. `grain_density` is optional.
 
-Give either `composition`, or `pore_water` and the parts, not both.
+Give either `composition`, or `pore_solution` and the parts, not both.
 
 If you give a composition, `T` or `P`, the program equilibrates each node again from the start.
 
@@ -241,8 +246,20 @@ the equilibrium calculation fails.
 A call changes all the nodes that you give or none: if one node fails, the nodes that the call already
 changed get their earlier transport values and inputs back, and are equilibrated again from these inputs.
 
+A call that changes the chemistry writes a short progress text. It has one line for each node with GEM
+calculations, with the time, and one line for the nodes that get the state of an equal node. The GEM
+calculations of one node can take minutes, so this text shows that the setup is not stuck.
+`task.setProgressMessages(False)` hides the text.
+
+```text
+Setting up 28 nodes (2-29): composition and equilibrium (GEM)
+  node 2 ... 2.3 s
+  nodes 3-29: the same inputs as node 2, state copied (no GEM)
+  done in 2.3 s
+```
+
 The transport properties of nodes exist only in the modes 'A', 'C' and 'W'. In the modes 'S', 'F' and 'B',
-`transport=` gives an error, and `pore_water` and `parts` use the initial porosity
+`transport=` gives an error, and `pore_solution` and `parts` use the initial porosity
 (`setInitialNodeEffectivePorosity`) of the task.
 
 ## 6. Monitor and run
@@ -344,8 +361,14 @@ Notes:
   attempt: GEMS3K repeats them (from the previous result, with a small change of the composition, or
   with the other solver) and usually gets a result, but the run is slower (in the example 3 times) and
   `ipmlog.txt` and `xGEM2MT.log` show many errors.
-* After the run, `task.gemFailures()` gives the GEM calculations that failed also after these repeats
-  (the node keeps its previous speciation; its new bulk composition is used for the next time step). Python
+* If a GEM calculation of a node gives a failure (ERR) or a result that is not trustful (BAD), xGEM2MT tries
+  two rescues. First, it calculates the node again from the last converged result of this node (SIA, with
+  the new bulk composition). If this also fails, and no element amount changed by more than the mass balance
+  tolerance of GEM (`pa_DHB`, 1e-13 relative) since that result, the node keeps that result. `gemFailures().retried`
+  and `gemFailures().kept` count these rescues; `xGEM2MT.log` has a line for each.
+* After the run, `task.gemFailures()` gives the GEM calculations that failed also after these repeats and
+  rescues (an ERR node keeps its speciation from before the step, a BAD node keeps the BAD result; the new
+  bulk composition is used for the next time step). Python
   gives a `RuntimeWarning` if there are such failures, and `print(task)` shows them. `gemFailures().ran` is
   `False` before the first run: then there is no result, and `count` 0 does not mean that all calculations
   converged. The calculations of `initNodes` and `setNodes` are not counted. The messages in `ipmlog.txt`
@@ -378,16 +401,16 @@ What each node needs:
 
 Two ways to give the compositions:
 
-1. **Scaled by the program** (`pore_water`, `water_saturation`, `parts`). For each node:
-   * pore volume = volume of the pore water (water mass, with its solutes) / water saturation;
+1. **Scaled by the program** (`pore_solution`, `water_mass`, `water_saturation`, `parts`). For each node:
+   * pore volume = volume of the pore solution (water mass, with its solutes) / water saturation;
    * solid volume = pore volume · (1 − porosity) / porosity, with the transport porosity of the node;
    * the parts given by mass take their volume from their `of` volume; the parts given by a fraction fill their
      share of the pore volume, or of the solid volume that is left; mass = volume / (volume per kg).
 
    The volume per kg of a part comes from GEM at the T and P of the node, with the models of the chemical
-   system (for example a non-ideal gas): the volume that 1 kg of the part adds to the pore water. A part
+   system (for example a non-ideal gas): the volume that 1 kg of the part adds to the pore solution. A part
    without water, such as a dry solid or a gas, does not converge alone. If you give a `density`, the program
-   uses it. A gas that dissolves in part in the pore water fills less volume than planned: the program then
+   uses it. A gas that dissolves in part in the pore solution fills less volume than planned: the program then
    increases the fluid parts and calculates again, until the node volume is pore volume + solid volume.
 
    Thus a zone with a different porosity or saturation gets the correct amounts, and you give the porosity
@@ -400,8 +423,8 @@ Two ways to give the compositions:
    quartz = Material(gems, "quartz");   quartz.add("SiO2", 1.0, "mol")      # Si must be in the system
    calcite = Material(gems, "calcite"); calcite.add("CaCO3", 1.0, "mol")
    air = Material(gems, "air");         air.add("O2", 0.21, "mol"); air.add("N2", 0.79, "mol")  # N must be in the system
-   task.setSystem(0, pore_water=inflow)                                     # inflow: only the solution
-   task.setSystem(1, pore_water=pore, water_saturation=0.9,
+   task.setSystem(0, pore_solution=inflow)                                  # inflow: only the solution
+   task.setSystem(1, pore_solution=pore, water_saturation=0.9,
                   parts=[Part(air, fraction=0.1, of="pore"),
                          Part(quartz, fraction=0.99, of="solid"),
                          Part(calcite, fraction=0.01, of="solid", density=2.71)])

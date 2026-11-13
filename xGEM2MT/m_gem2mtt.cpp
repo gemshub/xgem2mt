@@ -275,27 +275,49 @@ bool TGEM2MT::CalcIPM( char mode, long int start_node, long int end_node)
         f.count++;
         f.nodes.insert( ii );
     };
+    // After a calculation of node ii: keep a converged result, or try to rescue a BAD/ERR result (rescueNode)
+    if( last_converged.size() != static_cast<size_t>( mtp->nC ) )
+        last_converged.assign( static_cast<size_t>( mtp->nC ), NodeResult() );
+    auto after_gem = [&]( long int ii, bool ok, const std::string& error ) -> bool {
+        const DATABR* n = na->pNodT1()[ii];
+        if( ok ) {
+            if( n->IterDone > 0 )            // a GEM run, not a node skipped as unchanged (NeedGEMS)
+                saveNodeResult( n, last_converged[ii] );
+            return true;
+        }
+        std::string how;
+        const int rescue = rescueNode( ii, mode_param, how );
+        gems_logger->warn( "GEM in node {} step {}: {}", ii, mtp->ct, rescue ? how : "failed, no rescue: " + error );
+        if( rescue == 1 ) {
+            if( gem_failures.ran ) gem_failures.retried++;
+            saveNodeResult( n, last_converged[ii] );
+            return true;
+        }
+        if( rescue == 2 ) {
+            if( gem_failures.ran ) gem_failures.kept++;
+            return true;
+        }
+        record_failure( ii, error );
+        return false;
+    };
 #ifdef useOMP
     // In parallel, as TNodeArray::CalcIPM_List (each thread has its own work node). The failed nodes are
     // the nodes with an error or bad status after the calculation.
-    if( !na->CalcIPM_List( mode_param, start_node, end_node, diffile ) )
+    na->CalcIPM_List( mode_param, start_node, end_node, diffile );
+    for( long int ii = start_node; ii<= end_node; ii++)
     {
-        iRet = false;
-        for( long int ii = start_node; ii<= end_node; ii++)
-        {
-            const long int st = na->pNodT1()[ii]->NodeStatusCH;
-            if( st == BAD_GEM_AIA || st == ERR_GEM_AIA || st == BAD_GEM_SIA || st == ERR_GEM_SIA || st == T_ERROR_GEM )
-                record_failure( ii, "" );
-        }
+        const long int st = na->pNodT1()[ii]->NodeStatusCH;
+        const bool failed = st == BAD_GEM_AIA || st == ERR_GEM_AIA || st == BAD_GEM_SIA || st == ERR_GEM_SIA || st == T_ERROR_GEM;
+        if( !after_gem( ii, !failed, "" ) )
+            iRet = false;
     }
 #else
     // Node by node (as TNodeArray::CalcIPM_List without OpenMP), to record the message of each failure
     for( long int ii = start_node; ii<= end_node; ii++)
     {
-        if( na->CalcIPM_One( mode_param, ii, diffile ) )
-            continue;
-        iRet = false;
-        record_failure( ii, na->getCalcNode()->ipmLogError() );
+        const bool ok = na->CalcIPM_One( mode_param, ii, diffile );
+        if( !after_gem( ii, ok, ok ? std::string() : na->getCalcNode()->ipmLogError() ) )
+            iRet = false;
     }
 #endif
 
