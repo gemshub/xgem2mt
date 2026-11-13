@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.16...4.2)
 
 # Set the name of the project
-project(xGEM2MT VERSION 1.0.4 LANGUAGES CXX)
+project(xGEM2MT VERSION 1.0.5 LANGUAGES CXX)
 
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

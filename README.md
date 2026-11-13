@@ -106,12 +106,16 @@ conda create -n xgem2mt -c https://gemshub.github.io/xgem2mt/stable -c conda-for
 conda activate xgem2mt
 ```
 
-The `stable` channel has an older release (1.0.4). For the node setup functions, `print(task)` and the Quick
-start above, use the test build and add the xGEMS channel for `Material`:
+The `stable` channel has the releases; 1.0.5 and later have the node setup functions, `print(task)` and the
+Quick start above. The `prerelease` channel has the newest test build. For the examples, add the xGEMS channel
+for `Material`:
 
 ```bash
-conda create -n xgem2mt -c https://gemshub.github.io/xgem2mt/prerelease -c https://gemshub.github.io/xgems/prerelease -c conda-forge python=3.12 xgem2mt xgems jupyter matplotlib pandas
+conda create -n xgem2mt -c https://gemshub.github.io/xgem2mt/stable -c https://gemshub.github.io/xgems/prerelease -c conda-forge python=3.12 xgem2mt xgems jupyter matplotlib pandas
 ```
+
+For the test build, write `.../xgem2mt/prerelease` instead of `.../xgem2mt/stable`. To update later, see
+"Update to a new version" in the Windows guide below (the commands are the same on Linux and macOS).
 
 A step-by-step guide for a new Windows PC (Miniforge, examples, notebooks, problems):
 [docs/getting-started-windows.md](docs/getting-started-windows.md).

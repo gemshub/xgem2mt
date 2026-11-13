@@ -25,8 +25,10 @@ conda --version
 
 ## 2. Create the environment
 
-xGEM2MT is not yet on conda-forge. The packages come from two channels of the gemshub project
-(the `prerelease` channels carry the newest build, with the node setup functions in this guide).
+xGEM2MT is not yet on conda-forge. The packages come from two channels of the gemshub project.
+The xGEM2MT channel `stable` has the releases (1.0.5 and later have the node setup functions in this guide);
+the channel `prerelease` has the newest test build. The commands below use `prerelease`; for the releases,
+write `.../xgem2mt/stable` instead of `.../xgem2mt/prerelease`.
 
 ```bat
 conda create -n xgem2mt -c https://gemshub.github.io/xgem2mt/prerelease -c https://gemshub.github.io/xgems/prerelease -c conda-forge python=3.12 xgem2mt xgems jupyter matplotlib pandas
@@ -104,6 +106,48 @@ Start with `calcite-dolomite-1d-advection-material.ipynb`.
 3. Call `print(task)` before `runMassTransport()`. It shows what the program will do, the time step, the
    role and the values of each node, and the function that changes each value.
 4. All functions, parameters and units: [python-mass-transport.md](python-mass-transport.md).
+
+## 7. Update to a new version
+
+Use the channel that you installed from (section 2): `prerelease` (newest test build) or `stable` (releases).
+`conda list xgem2mt` shows it in the last column.
+
+Close the notebooks, then update the program:
+
+```bat
+conda activate xgem2mt
+conda clean --index-cache
+conda update -c https://gemshub.github.io/xgem2mt/prerelease -c https://gemshub.github.io/xgems/prerelease -c conda-forge xgem2mt xgems
+conda list xgem2mt
+```
+
+For the stable channel, write `.../xgem2mt/stable` instead of `.../xgem2mt/prerelease`.
+The last command shows the version and the build. The number at the end of the build (for example `_102601`)
+gets larger with each new build. Compare the version with the announcement.
+
+If `conda update` says "All requested packages already installed", but a newer build exists, an earlier command
+asked for one fixed build (for example `"xgem2mt=*=*_102101"`), and Conda keeps it. Remove the program and
+install it again (this also changes to the other channel, if you give the other channel):
+
+```bat
+conda remove xgem2mt
+conda install -c https://gemshub.github.io/xgem2mt/prerelease -c https://gemshub.github.io/xgems/prerelease -c conda-forge xgem2mt
+```
+
+Then update the examples:
+
+```bat
+cd C:\work\xgems-jupyter
+git pull
+cd C:\work\xgem2mt
+git pull
+```
+
+If `git pull` says that your local changes would be overwritten, you changed a notebook, or ran it and saved it.
+Keep your own work first: copy those notebooks to another folder or give them another name. Then run
+`git stash` and `git pull` again.
+
+Open the notebooks again. In a notebook that was open during the update, select **Kernel > Restart**.
 
 ## Problems
 
