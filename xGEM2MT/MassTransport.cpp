@@ -536,7 +536,7 @@ void MassTransport::setNodes(const std::vector<size_t>& nodes, const NodeSetup& 
         throw std::runtime_error("The solid fractions must add up to 1");
 
     // All the nodes are changed or none: if a node fails, all nodes that this call changed (also the failing
-    // node) get their earlier transport values and their earlier inputs back (and are equilibrated again).
+    // node) get their earlier transport values and their exact earlier state back (TGEM2MT::restoreNodeInputs).
     struct Saved { size_t q; bool has_h; std::array<double, 7> h; bool has_in; TGEM2MT::NodeInputs in; };
     std::vector<Saved> saved;
     auto rollback = [&]() {
@@ -694,7 +694,12 @@ void MassTransport::setNodes(const std::vector<size_t>& nodes, const NodeSetup& 
                             for(size_t k=0; k<parts.size(); ++k)
                                 if(!parts[k].solid && !parts[k].by_mass && !parts[k].density) fluid_target += target[k];
                             if(fluid_target > 0.) {
-                                const double node_target = pore_volume + solid_volume;     // L
+                                // The volume that the node must fill: the occupied solid and pore volumes. Space left
+                                // empty on purpose (water_saturation and pore fractions below 1, solids only by mass)
+                                // is not filled with gas.
+                                const double occupied_solid = any_solid_fraction ? solid_volume : mass_solid;
+                                const double occupied_pore = std::min(pore_volume, pore_volume * pore_sum + mass_pore);
+                                const double node_target = occupied_solid + occupied_pore;     // L
                                 bool converged = false;
                                 for(int it=0; it<30 && !converged; ++it) {
                                     pimpl->gem2mt_task->setNodeBulkComposition(q, &*b_node,

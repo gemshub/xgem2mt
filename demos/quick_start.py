@@ -33,3 +33,4 @@ task.setNodes(range(40, 60),                      # a zone with other transport 
 
 print(task)                                       # the setup at a glance
 task.runMassTransport()
+print("Run finished:", task.gemFailures())         # count=0: all GEM calculations converged

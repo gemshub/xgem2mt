@@ -19,6 +19,7 @@
 #include <pybind11/functional.h>
 #include <pybind11/stl.h>
 #include <pybind11/iostream.h>
+#include <mutex>
 #include <memory>
 #include <string>
 #include <vector>
@@ -35,6 +36,24 @@ using namespace xGEM2MT;
 
 
 // Node index or list of node indices
+/// Runs f (a native setup call) without the GIL, with std::cout sent to sys.stdout, so that Jupyter shows the progress
+/// text while f runs. One call at a time in the process: the native task data are global, and the redirect of
+/// std::cout must not change while a call writes to it. The lock is taken without the GIL (no deadlock with a thread
+/// that needs the GIL), the redirect is made with the GIL.
+template<class F>
+void callWithProgress(F&& f)
+{
+    static std::mutex native_call;
+    std::unique_lock<std::mutex> lock(native_call, std::defer_lock);
+    {
+        py::gil_scoped_release release;
+        lock.lock();
+    }
+    py::scoped_ostream_redirect out(std::cout, py::module_::import("sys").attr("stdout"));
+    py::gil_scoped_release release;
+    f();
+}
+
 inline std::vector<size_t> toNodes(py::object nodes)
 {
     if(py::isinstance<py::int_>(nodes))
@@ -978,10 +997,7 @@ void exportMassTransport(py::module& m)
                 std::optional<double> water_saturation, std::vector<Part> parts) {
                  const auto q = toNodes(nodes);
                  const auto setup = toSetup(composition, T, P, transport, pore_solution, solids, grain_density, water_mass, water_saturation, std::move(parts));
-                 // The progress text (std::cout) goes to sys.stdout; without the GIL, Jupyter shows it while the setup runs
-                 py::scoped_ostream_redirect out(std::cout, py::module_::import("sys").attr("stdout"));
-                 py::gil_scoped_release release;
-                 self.setNodes(q, setup);
+                 callWithProgress([&]() { self.setNodes(q, setup); });   // progress text shown live
              },
              py::arg("nodes"), py::kw_only(), py::arg("composition") = py::none(),
              py::arg("T") = py::none(), py::arg("P") = py::none(), py::arg("transport") = py::none(),
@@ -1047,9 +1063,7 @@ void exportMassTransport(py::module& m)
                 py::object pore_solution, py::object solids, std::optional<double> grain_density, std::optional<double> water_mass,
                 std::optional<double> water_saturation, std::vector<Part> parts) {
                  const auto setup = toSetup(composition, T, P, transport, pore_solution, solids, grain_density, water_mass, water_saturation, std::move(parts));
-                 py::scoped_ostream_redirect out(std::cout, py::module_::import("sys").attr("stdout"));
-                 py::gil_scoped_release release;
-                 self.setSystem(system, setup);
+                 callWithProgress([&]() { self.setSystem(system, setup); });
              },
              py::arg("system_ndx"), py::kw_only(), py::arg("composition") = py::none(),
              py::arg("T") = py::none(), py::arg("P") = py::none(), py::arg("transport") = py::none(),

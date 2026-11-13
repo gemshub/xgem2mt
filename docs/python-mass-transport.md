@@ -244,7 +244,7 @@ more, the porosity more than 0 and not more than 1, the tortuosity more than 0, 
 the equilibrium calculation fails.
 
 A call changes all the nodes that you give or none: if one node fails, the nodes that the call already
-changed get their earlier transport values and inputs back, and are equilibrated again from these inputs.
+changed get their earlier transport values and their exact earlier state back.
 
 A call that changes the chemistry writes a short progress text. It has one line for each node with GEM
 calculations, with the time, and one line for the nodes that get the state of an equal node. The GEM

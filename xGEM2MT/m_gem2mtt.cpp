@@ -266,7 +266,7 @@ bool TGEM2MT::CalcIPM( char mode, long int start_node, long int end_node)
         if( !gem_failures.ran )
             return;
         auto& f = gem_failures;
-        if( f.count == 0 || ii < f.first_node ) {
+        if( f.count == 0 ) {    // the nodes of a step come in increasing order
             f.first_step = mtp->ct;
             f.first_time = mtp->cTau;
             f.first_node = ii;
@@ -283,6 +283,13 @@ bool TGEM2MT::CalcIPM( char mode, long int start_node, long int end_node)
         if( ok ) {
             if( n->IterDone > 0 )            // a GEM run, not a node skipped as unchanged (NeedGEMS)
                 saveNodeResult( n, last_converged[ii] );
+            else if( !last_converged[ii].valid ) {
+                // Skipped (SIA, input unchanged within cdv): C0 holds the last GEM result of the node with its own
+                // bIC (copyNodeArrays, setNodes), a consistent state for a later rescue
+                const DATABR* c0 = na->pNodT0()[ii];
+                if( c0 && ( c0->NodeStatusCH == OK_GEM_AIA || c0->NodeStatusCH == OK_GEM_SIA ) )
+                    saveNodeResult( c0, last_converged[ii] );
+            }
             return true;
         }
         std::string how;

@@ -750,13 +750,15 @@ public:
     int rescueNode(long int ii, const TestModeGEMParam& mode_param, std::string& message);
 
     /// The inputs of node q (bulk composition in DBR order, T, P), to restore the node after a failed setup.
+    /// state1, state0: the chemistry fields of the node in C1 and C0 (for an exact restore).
     struct NodeInputs {
         std::vector<double> bIC;
         double TK = 0., P = 0.;
+        NodeResult state1, state0;
     };
     NodeInputs saveNodeInputs(size_t q) const;
-    /// Gives node q its saved inputs and equilibrates it again from scratch (AIA); the node is then as
-    /// equilibrated again from the same inputs, not the exact earlier result.
+    /// Gives node q its saved state back: the exact chemistry fields of C1 and C0, without a GEM calculation
+    /// (if only bIC, T, P were saved: these inputs, equilibrated again from scratch, AIA).
     void restoreNodeInputs(size_t q, const NodeInputs& in);
 
     /// True in the modes with transport properties per node (HydP): 'A', 'C', 'W' (after initNodes).

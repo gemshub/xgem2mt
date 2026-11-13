@@ -373,6 +373,8 @@ int TGEM2MT::gems3k_strings(const std::string& dch_json, const std::string& ipm_
 
 int TGEM2MT::MassTransInit(const std::string &ipm_lst_file, const std::string &dbr_lst_file)
 {    gem_failures = GemFailures();     // the calculations of the initialization are not part of a run
+    last_converged.clear();            // results and settings of an earlier system must not be used for the new one
+    mass_balance_tolerance = -1.;
     // get dbr file names first: their number decides how the nodes are initialized
     GEMS3KGenerator generator(ipm_lst_file);
     mtp->nIV = generator.load_dbr_lst_file(dbr_lst_file);
@@ -391,6 +393,8 @@ int TGEM2MT::MassTransInit(const std::string &ipm_lst_file, const std::string &d
 int TGEM2MT::MassTransStringInit(const std::string& dch_json, const std::string& ipm_json,
                                  const std::vector<std::string>& dbr_json)
 {    gem_failures = GemFailures();
+    last_converged.clear();
+    mass_balance_tolerance = -1.;
     if(gems3k_strings(dch_json, ipm_json, dbr_json)) {
         return 1;
     }
@@ -633,7 +637,14 @@ int TGEM2MT::rescueNode(long int ii, const TestModeGEMParam& mode_param, std::st
         const double ref = std::max(std::fabs(last.bIC[ic]), mode_param.cez);
         worst = std::max(worst, d / ref);
     }
-    if(last.TK == first.TK && last.P == first.P && worst <= tol) {
+    // ... and only if the old amounts of the species are within the current limits of the node (dll, dul)
+    bool within_limits = true;
+    for(long int j = 0; j < ch->nDCb && within_limits; j++) {
+        const double x = last.xDC[j];
+        if(x > n->dul[j] * (1. + 1e-9) + mode_param.cez || x < n->dll[j] * (1. - 1e-9) - mode_param.cez)
+            within_limits = false;
+    }
+    if(last.TK == first.TK && last.P == first.P && worst <= tol && within_limits) {
         loadNodeResult(last, n, false);       // keeps the new bIC (equal within tol)
         n->IterDone = 0;
         message = "status " + std::to_string(first_status) + ", kept the last converged result (input change " +
@@ -656,6 +667,9 @@ TGEM2MT::NodeInputs TGEM2MT::saveNodeInputs(size_t q) const
     in.bIC.assign(n->bIC, n->bIC + na->pCSD()->nICb);
     in.TK = n->TK;
     in.P = n->P;
+    saveNodeResult(na->pNodT1()[q], in.state1);
+    if(na->pNodT0() && na->pNodT0()[q])
+        saveNodeResult(na->pNodT0()[q], in.state0);
     return in;
 }
 
@@ -667,6 +681,12 @@ void TGEM2MT::restoreNodeInputs(size_t q, const NodeInputs& in)
             "Cannot restore node "+std::to_string(q));
     DATABRPTR* C0 = na->pNodT0();
     DATABRPTR* C1 = na->pNodT1();
+    if(in.state1.valid && in.state0.valid) {
+        // The exact earlier state of the node (C1 and C0), without a GEM calculation
+        loadNodeResult(in.state1, C1[q], true);
+        loadNodeResult(in.state0, C0[q], true);
+        return;
+    }
     std::copy(in.bIC.begin(), in.bIC.end(), C0[q]->bIC);
     std::copy(in.bIC.begin(), in.bIC.end(), C1[q]->bIC);
     C0[q]->TK = C1[q]->TK = in.TK;

@@ -71,8 +71,8 @@ cd C:\work\xgem2mt
 python demos\quick_start.py
 ```
 
-It prints the model setup (`print(task)`), then runs the model. This takes about 5 seconds.
-If the last line of the output starts with `Mode A:`, the installation works. Files `xGEM2MT.log` and `ipmlog.txt` appear in the current folder.
+It prints the progress of the setup and the model setup (`print(task)`), then runs the model. This takes about 5 seconds.
+If the last line of the output starts with `Run finished`, the installation works. Files `xGEM2MT.log` and `ipmlog.txt` appear in the current folder.
 They list GEM calculations that failed or needed a second try. Delete them at any time.
 
 ## 5. Run the notebooks
@@ -118,7 +118,7 @@ Start with `calcite-dolomite-1d-advection-material.ipynb`.
 | The notebook cannot find `demos/...` or the `CalciteColumn` folder | Start Jupyter from the folder of the notebook, or give the full path. |
 | Many error lines in `ipmlog.txt` but `0 failed` after the run | The GEM solver tried again and then succeeded. This is normal. Only the message after the run counts. |
 
-Report problems to the maintainer with: the output of `conda list xgem2mt gems3k xgems`, the full error text,
+Report problems to the maintainer with: the output of `conda list "xgem2mt|gems3k|xgems"`, the full error text,
 and the `xGEM2MT.log` file.
 
 ## Build from source (not needed to use the program)
