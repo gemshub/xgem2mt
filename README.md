@@ -10,6 +10,86 @@ The **xGEM2MT** module can simulate reactive transport in three main modes:
 * Flow-through and box-flux sequence ('F', 'B');
 * One-dimensional reactive transport with advection/dispersion/diffusion ('A', 'C', 'W')
 
+### Quick start (Python)
+
+Export one chemical system from [GEM-Selektor](https://gems.web.psi.ch) as GEMS3K files, give each part of
+the column its composition with an xGEMS `Material`, check the setup, and run. The example uses the
+calcite-dolomite system in `demos/TestAD` (run it from the repository root; it takes a few seconds):
+
+```python
+from xgems import ChemicalEngine, Material
+from xgem2mt import MassTransport, TransportProperties
+
+system = "demos/TestAD/CalcColumn-dat.lst"        # one exported GEMS3K system
+
+task = MassTransport("A", 80)                     # 1-D advection-dispersion, 80 nodes
+task.setTau(0.0, 21000.0, 10.0)                   # time: start, stop, step (s)
+task.setSpatialDimensions(0.5)                    # column length (m)
+task.setFluidAdvectionVelocity(9.375e-6)          # m/s
+task.setInitialNodeEffectivePorosity(0.32)        # transport values for all nodes
+task.setInitialDispersivity(0.0067)               # m
+task.setInitialDiffusivity(2e-9)                  # m2/s
+task.setInitialTortuosityFactor(1.0)
+task.initNodes(system)                            # one dbr file: all nodes start from it
+
+gems = ChemicalEngine(system)                     # gives Material the elements and molar masses
+fluid = Material(gems, "MgCl2 solution")
+fluid.add("H2O", 1.0, "kg")
+fluid.add("MgCl2", 1e-3, "mol")
+fluid.add("O2", 1e-5, "mol")                      # a little O2 keeps the system oxidizing (faster)
+rock = Material(gems, "calcite rock")
+rock.add("H2O", 1.0, "kg")
+rock.add("CaCO3", 1e-3, "mol")
+rock.add("O2", 1e-4, "mol")
+
+task.setSystem(0, composition=fluid)              # inflow: nodes 0 and 1
+task.setSystem(1, composition=rock)               # the column
+task.setNodes(range(40, 60),                      # a zone with other transport values
+              transport=TransportProperties(porosity=0.2))
+
+print(task)                                       # the setup at a glance
+task.runMassTransport()
+```
+
+`print(task)` shows the column, the time step that the program uses, the roles and values of the nodes,
+and which function changes each value (shortened):
+
+```
+Mode A: 1-D advection + dispersion, explicit finite differences
+Column           0.5 m, 80 nodes, node length 0.00625 m
+                 [setSpatialDimensions(x), MassTransport(mode, nnodes)]
+Time step        153.9 s (dispersion; advection limit 333.3 s, dispersion limit 153.9 s),
+                 reduction factor 1
+                 [set by the program; divided by setTimeStepReductionFactor(factor)]
+Steps            about 137, to t = 21084.916  [stop time and setTau step]
+
+  flow ->
+  nodes   | 0-1            | 2-39    | 40-59   | 60-78   | 79             |
+  role    | inflow, fixed  | column  | column  | column  | outlet, fixed  |
+  system  | 0              | 1       | 1       | 1       | 1              |
+
+  nodes  system  role           type  porosity  dispersivity m  diffusivity m2/s  tortuosity
+  0-1    0       inflow, fixed  3     0.32      0.0067          2e-09             1
+  2-39   1       column         0     0.32      0.0067          2e-09             1
+  40-59  1       column         0     0.2       0.0067          2e-09             1
+  ...
+How to change:
+  composition, T, P        after initNodes        setSystem(system, composition=..., T=..., P=...),
+                                                  setNodes(nodes, ...)
+  ...
+```
+
+After the run, calcite has dissolved in nodes 2 to 14 and dolomite has formed there
+(`task.summary(phases=True)` shows the amounts in each node).
+
+To set up a model of a column experiment (flow rate, porosity, mineral content, inflowing solution, effluent),
+see section 8 of [docs/python-mass-transport.md](docs/python-mass-transport.md).
+
+`Material` comes from [xGEMS](https://github.com/gemshub/xgems); `composition=` also takes a dict
+`{element: mol}`. All functions, parameters and defaults, and a longer example:
+[docs/python-mass-transport.md](docs/python-mass-transport.md). Notebooks:
+[xgems-jupyter](https://github.com/gemshub/xgems-jupyter).
+
 ### License
 * xGEM2MT is free software: you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 * xGEM2MT is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more details.
@@ -26,7 +106,19 @@ conda create -n xgem2mt -c https://gemshub.github.io/xgem2mt/stable -c conda-for
 conda activate xgem2mt
 ```
 
-For the latest test build, use `https://gemshub.github.io/xgem2mt/prerelease` instead of `.../stable`.
+The `stable` channel has the releases; 1.0.5 and later have the node setup functions, `print(task)` and the
+Quick start above. The `prerelease` channel has the newest test build. For the examples, add the xGEMS channel
+for `Material`:
+
+```bash
+conda create -n xgem2mt -c https://gemshub.github.io/xgem2mt/stable -c https://gemshub.github.io/xgems/prerelease -c conda-forge python=3.12 xgem2mt xgems jupyter matplotlib pandas
+```
+
+For the test build, write `.../xgem2mt/prerelease` instead of `.../xgem2mt/stable`. To update later, see
+"Update to a new version" in the Windows guide below (the commands are the same on Linux and macOS).
+
+A step-by-step guide for a new Windows PC (Miniforge, examples, notebooks, problems):
+[docs/getting-started-windows.md](docs/getting-started-windows.md).
 
 Packages are available for Linux, macOS on Apple Silicon and Windows (not for Intel Macs).
 
@@ -65,6 +157,9 @@ sudo make install
 ### Code Examples
 
 For detailed information about how to use this project through its C++ and Python interface [View Documentation](https://xgems.readthedocs.io)
+
+The Python functions, their parameters and defaults are in [docs/python-mass-transport.md](docs/python-mass-transport.md).
+
 
 #### C++ API example.
 
@@ -129,7 +224,8 @@ int task_S(size_t nnodes, const std::string& ipm_lst, const std::string& dbr_lst
 > [!NOTE]
 > You can generate GEMS system files using the print command in the GEM2MT module in the GUI, or prepare them in any other way.
 >
-> The file containing the list of system definition files must contain more than one file.
+> The initial systems are the dbr files in the `*-dat.lst` file (or in a `*-dbr.lst` file). One file is
+> enough: then all nodes start from it, and you set the composition of each group of nodes in Python.
 
 ##### Python API example
 

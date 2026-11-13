@@ -16,6 +16,13 @@
 //
 
 #include <array>
+#include <algorithm>
+#include <cstring>
+#include <limits>
+#include <sstream>
+#include <map>
+#include <iomanip>
+#include <cmath>
 #include "m_gem2mt.h"
 #include "GEMS3K/nodearray.h"
 #include "GEMS3K/io_keyvalue.h"
@@ -73,6 +80,11 @@ void TGEM2MT::RecCalc()
             mt_reset();
             mtp->gStat = GS_DONE;
         }
+
+        gem_failures = GemFailures();
+        gem_failures.ran = true;
+        last_converged.assign(static_cast<size_t>(mtp->nC), NodeResult());
+        mass_balance_tolerance = -1.;
 
         // internal calc
         auto iret = internalCalc();
@@ -268,10 +280,11 @@ int TGEM2MT::gem3k_files_read(const std::string& ipm_lst_file, const std::string
     // define name of vtk file
     default_VTK(ipm_lst_file);
 
-    // Prepare the array for initial conditions allocation
+    // Prepare the array for initial conditions allocation.
+    // With only one initial system (dbr file) all nodes start from it; DiCp[q][0] stays as a group label
     std::vector<long int> nodeType;
     for(int ii=0; ii<mtp->nC; ++ii) {
-        nodeType.push_back(mtp->DiCp[ii][0]);
+        nodeType.push_back(mtp->nIV == 1 ? 0 : mtp->DiCp[ii][0]);
     }
 
     // Here we read the MULTI structure, DATACH and DATABR files prepared from GEMS
@@ -287,6 +300,12 @@ int TGEM2MT::gem3k_files_read(const std::string& ipm_lst_file, const std::string
 int TGEM2MT::restore_data_from_gems3k(const std::vector<std::string>& dbr_names)
 {
     int ii;
+    // Node identification: the node index (GEMS3K sets the index of the initial system), so that
+    // GEMS3K messages ("Error Node:...") name the node
+    for(long int q=0; q<mtp->nC; ++q) {
+        if(na->pNodT0()[q]) na->pNodT0()[q]->NodeHandle = q;
+        if(na->pNodT1()[q]) na->pNodT1()[q]->NodeHandle = q;
+    }
     CalcIPM(NEED_GEM_AIA, 0, mtp->nC); //recalc all nodes ?
 
     // realloc gem2mt memory  (if not read exported gem2mt)
@@ -337,10 +356,10 @@ int TGEM2MT::gems3k_strings(const std::string& dch_json, const std::string& ipm_
     // define name of vtk file
     default_VTK("");
 
-    // Prepare the array for initial conditions allocation
+    // Prepare the array for initial conditions allocation (one dbr: all nodes start from it)
     std::vector<long int> nodeType;
     for(int ii=0; ii<mtp->nC; ++ii) {
-        nodeType.push_back(mtp->DiCp[ii][0]);
+        nodeType.push_back(dbr_json.size() == 1 ? 0 : mtp->DiCp[ii][0]);
     }
 
     // Here we read the MULTI structure, DATACH and DATABR files prepared from GEMS
@@ -353,14 +372,17 @@ int TGEM2MT::gems3k_strings(const std::string& dch_json, const std::string& ipm_
 
 
 int TGEM2MT::MassTransInit(const std::string &ipm_lst_file, const std::string &dbr_lst_file)
-{
+{    gem_failures = GemFailures();     // the calculations of the initialization are not part of a run
+    last_converged.clear();            // results and settings of an earlier system must not be used for the new one
+    mass_balance_tolerance = -1.;
+    // get dbr file names first: their number decides how the nodes are initialized
+    GEMS3KGenerator generator(ipm_lst_file);
+    mtp->nIV = generator.load_dbr_lst_file(dbr_lst_file);
+    dbr_file_names = generator.dbr_names();
+
     if(gem3k_files_read(ipm_lst_file, dbr_lst_file)) {
         return 1;
     }
-
-    // get dbr file names
-    GEMS3KGenerator generator(ipm_lst_file);
-    mtp->nIV = generator.load_dbr_lst_file(dbr_lst_file);
 
     restore_data_from_gems3k(generator.dbr_names());
     return 0;
@@ -370,12 +392,17 @@ int TGEM2MT::MassTransInit(const std::string &ipm_lst_file, const std::string &d
 // Set up NodeArray and ParticleArray classes
 int TGEM2MT::MassTransStringInit(const std::string& dch_json, const std::string& ipm_json,
                                  const std::vector<std::string>& dbr_json)
-{
+{    gem_failures = GemFailures();
+    last_converged.clear();
+    mass_balance_tolerance = -1.;
     if(gems3k_strings(dch_json, ipm_json, dbr_json)) {
         return 1;
     }
 
     mtp->nIV = dbr_json.size();
+    dbr_file_names.clear();
+    for(size_t i=0; i<dbr_json.size(); ++i)
+        dbr_file_names.push_back("dbr string "+std::to_string(i));
     restore_data_from_gems3k({});
     return 0;
 }
@@ -410,6 +437,320 @@ void TGEM2MT::setParticle(size_t pndx, long int pmean, long int pmin, long int p
         mtp->nPmax[pndx] = pmax;
         std::copy(pparam.begin(), pparam.end(), mtp->ParTD[pndx]);
     }
+}
+
+std::array<double, SIZE_HYDP> TGEM2MT::hydraulicParameters(size_t pndx) const
+{
+    ErrorIf(!mtp->HydP, GetName(), "Hydraulic parameters are not allocated: call initNodes first");
+    ErrorIf(pndx >= static_cast<size_t>(mtp->nC), GetName(),
+            "Node index "+std::to_string(pndx)+" out of range (nodes: "+std::to_string(mtp->nC)+")");
+    std::array<double, SIZE_HYDP> hp;
+    for(size_t i=0; i<SIZE_HYDP; ++i)
+        hp[i] = mtp->HydP[pndx][i];
+    return hp;
+}
+
+double TGEM2MT::materialVolume(size_t q, const std::vector<double>& b, double T, double P, double limit_scale,
+                               double* water_kg, bool with_gas) const
+{
+    ErrorIf(!na || !na->pNodT1() || !na->pNodT1()[0], GetName(), "Nodes are not initialized: call initNodes first");
+    ErrorIf(q >= static_cast<size_t>(mtp->nC), GetName(),
+            "Node index "+std::to_string(q)+" out of range (nodes: "+std::to_string(mtp->nC)+")");
+    const DATACH* ch = na->pCSD();
+    ErrorIf(static_cast<long int>(b.size()) != ch->nIC, GetName(), "Wrong number of element amounts");
+    std::vector<bool> kept(ch->nIC, false);
+    std::vector<double> b_dbr(ch->nICb);
+    for(long int j=0; j<ch->nICb; ++j) {
+        // elements that are not in the material get the minimal amount (as in the node calculations)
+        b_dbr[j] = std::max(b[ch->xic[j]], mtp->cez);
+        kept[ch->xic[j]] = true;
+    }
+    for(long int i=0; i<ch->nIC; ++i)
+        ErrorIf(!kept[i] && b[i] != 0., GetName(),
+                "Element "+ch->ICNL[i]+" is not kept in the node data (DBR); its amount must be 0");
+
+    // A copy of the work node, with the bounds of the species (scaled to the amounts of this calculation)
+    // and the surface areas of node q
+    const DATABR* nq = na->pNodT1()[q];
+    std::vector<double> dul(nq->dul, nq->dul + ch->nDCb), dll(nq->dll, nq->dll + ch->nDCb);
+    for(auto& x: dul) x *= limit_scale;
+    for(auto& x: dll) x *= limit_scale;
+    TNode work(*na->getCalcNode());
+    work.GEM_from_MT(0, NEED_GEM_AIA, T, P, 0., 0., b_dbr.data(), dul.data(), dll.data(), nq->aPH);
+    const long int st = work.GEM_run(false);
+    ErrorIf(!(st == OK_GEM_AIA || st == OK_GEM_SIA), GetName(),
+            "GEM calculation failed for the volume of a part of the node (status "+std::to_string(st)+"): "+
+            work.ipmLogError());
+    if(water_kg) {
+        // xPA[0]: mol of the solvent (H2O) of the aqueous phase, if the first phase of the DBR is aqueous
+        const bool aqueous = ch->nPSb > 0 && ch->xph[0] == 0 && ch->ccPH[0] == 'a';
+        *water_kg = aqueous ? work.pCNode()->xPA[0] * 18.0153e-3 : 0.;
+    }
+    double volume = work.cVs();     // m3
+    // Gas and fluid phases out (only those kept in the DBR can be taken out; GEMS3K exports keep all phases by default)
+    if(!with_gas)
+        for(long int k=0; k<ch->nPSb; ++k) {
+            const char c = ch->ccPH[ch->xph[k]];
+            if(c == PH_GASMIX || c == PH_FLUID)
+                volume -= work.pCNode()->vPS[k];
+        }
+    return volume * 1e3;     // m3 -> L
+}
+
+bool TGEM2MT::sameNodeLimits(size_t q1, size_t q2) const
+{
+    ErrorIf(!na || !na->pNodT1() || !na->pNodT1()[0], GetName(), "Nodes are not initialized: call initNodes first");
+    ErrorIf(q1 >= static_cast<size_t>(mtp->nC) || q2 >= static_cast<size_t>(mtp->nC), GetName(),
+            "Node index out of range (nodes: "+std::to_string(mtp->nC)+")");
+    if(q1 == q2)
+        return true;
+    const DATACH* ch = na->pCSD();
+    const DATABR* n1 = na->pNodT1()[q1];
+    const DATABR* n2 = na->pNodT1()[q2];
+    if(!std::equal(n1->dul, n1->dul + ch->nDCb, n2->dul) || !std::equal(n1->dll, n1->dll + ch->nDCb, n2->dll))
+        return false;
+    if(ch->nAalp > 0 && n1->aPH && n2->aPH && !std::equal(n1->aPH, n1->aPH + ch->nPHb, n2->aPH))
+        return false;
+    if(!std::equal(n1->amru, n1->amru + ch->nPSb, n2->amru) || !std::equal(n1->amrl, n1->amrl + ch->nPSb, n2->amrl))
+        return false;
+    return true;
+}
+
+void TGEM2MT::saveNodeResult(const DATABR* n, NodeResult& r) const
+{
+    const DATACH* ch = na->pCSD();
+    auto cp = [](const double* from, std::vector<double>& to, long int size) {
+        if(from) to.assign(from, from + size); else to.clear(); };
+    r.valid = true;
+    r.status = n->NodeStatusCH; r.iterations = n->IterDone;
+    r.TK = n->TK; r.P = n->P;
+    r.Vs = n->Vs; r.Vi = n->Vi; r.Ms = n->Ms; r.Mi = n->Mi; r.Gs = n->Gs; r.Hs = n->Hs; r.Hi = n->Hi;
+    r.IC = n->IC; r.pH = n->pH; r.pe = n->pe; r.Eh = n->Eh;
+    cp(n->bIC, r.bIC, ch->nICb);
+    cp(n->rMB, r.rMB, ch->nICb);
+    cp(n->uIC, r.uIC, ch->nICb);
+    cp(n->bSP, r.bSP, ch->nICb);
+    cp(n->xDC, r.xDC, ch->nDCb);
+    cp(n->gam, r.gam, ch->nDCb);
+    cp(n->xPH, r.xPH, ch->nPHb);
+    cp(n->omPH, r.omPH, ch->nPHb);
+    cp(n->vPS, r.vPS, ch->nPSb);
+    cp(n->mPS, r.mPS, ch->nPSb);
+    cp(n->xPA, r.xPA, ch->nPSb);
+    cp(n->bPS, r.bPS, ch->nPSb * ch->nICb);
+}
+
+void TGEM2MT::loadNodeResult(const NodeResult& r, DATABR* n, bool with_inputs) const
+{
+    auto cp = [](const std::vector<double>& from, double* to) { if(to) std::copy(from.begin(), from.end(), to); };
+    if(with_inputs) {
+        cp(r.bIC, n->bIC);
+        n->TK = r.TK; n->P = r.P;
+    }
+    n->NodeStatusCH = r.status; n->IterDone = r.iterations;
+    n->Vs = r.Vs; n->Vi = r.Vi; n->Ms = r.Ms; n->Mi = r.Mi; n->Gs = r.Gs; n->Hs = r.Hs; n->Hi = r.Hi;
+    n->IC = r.IC; n->pH = r.pH; n->pe = r.pe; n->Eh = r.Eh;
+    cp(r.rMB, n->rMB);
+    cp(r.uIC, n->uIC);
+    cp(r.bSP, n->bSP);
+    cp(r.xDC, n->xDC);
+    cp(r.gam, n->gam);
+    cp(r.xPH, n->xPH);
+    cp(r.omPH, n->omPH);
+    cp(r.vPS, n->vPS);
+    cp(r.mPS, n->mPS);
+    cp(r.xPA, n->xPA);
+    cp(r.bPS, n->bPS);
+}
+
+void TGEM2MT::copyNodeEquilibrium(size_t q, size_t ref)
+{
+    ErrorIf(!na || !na->pNodT0() || !na->pNodT1() || !na->pNodT0()[0], GetName(),
+            "Nodes are not initialized: call initNodes first");
+    ErrorIf(q >= static_cast<size_t>(mtp->nC) || ref >= static_cast<size_t>(mtp->nC), GetName(),
+            "Node index out of range (nodes: "+std::to_string(mtp->nC)+")");
+    if(q == ref)
+        return;
+    DATABRPTR* C0 = na->pNodT0();
+    DATABRPTR* C1 = na->pNodT1();
+    // The inputs and the equilibrium state (primal and dual solution) of ref; not the node handle, the node
+    // type and the transport values of q
+    NodeResult r;
+    saveNodeResult(C1[ref], r);
+    r.iterations = 0;
+    loadNodeResult(r, C1[q], true);
+    // The same state as input (C0): no GEM run is needed for this node
+    na->CopyNodeFromTo(static_cast<long int>(q), mtp->nC, C1, C0);
+}
+
+int TGEM2MT::rescueNode(long int ii, const TestModeGEMParam& mode_param, std::string& message)
+{
+    if(ii < 0 || static_cast<size_t>(ii) >= last_converged.size() || !last_converged[ii].valid)
+        return 0;
+    const NodeResult& last = last_converged[ii];
+    DATABR* n = na->pNodT1()[ii];
+    auto ok = [](long int st) { return st == OK_GEM_AIA || st == OK_GEM_SIA; };
+    NodeResult first;                     // the result of the failed calculation, kept if there is no rescue
+    saveNodeResult(n, first);
+    const long int first_status = n->NodeStatusCH;
+
+    // 1. GEM SIA from the last converged state of this node, with the new inputs (bIC, T, P)
+    {
+        loadNodeResult(last, n, false);
+        TNode* work = const_cast<TNode*>(na->getCalcNode());
+        long int st = T_ERROR_GEM;
+        try {
+            st = na->RunGEM(work, ii, -NEED_GEM_SIA, na->pNodT1());
+        }
+        catch(...) {
+            st = T_ERROR_GEM;
+        }
+        if(ok(st)) {
+            message = "status " + std::to_string(first_status) + ", converged again by SIA from the last converged state";
+            return 1;
+        }
+    }
+
+    // 2. The last converged result, if the input is the same within the mass balance tolerance of GEM
+    // pa_DHB: the relative mass balance tolerance of GEM (relative for all elements with the default pa_DT 0).
+    // GEMS3K has no public getter for the settings: read it once from the settings text of the work node.
+    if(mass_balance_tolerance <= 0.) {
+        mass_balance_tolerance = 1e-13;
+        const std::string ipm = const_cast<TNode*>(na->getCalcNode())->gemipm_to_string(false, false, false);
+        const auto k = ipm.find("\"pa_DHB\"");
+        if(k != std::string::npos) {
+            const auto c = ipm.find(':', k);
+            if(c != std::string::npos) {
+                const double v = std::strtod(ipm.c_str() + c + 1, nullptr);
+                if(v > 0.)
+                    mass_balance_tolerance = v;
+            }
+        }
+    }
+    const double tol = mass_balance_tolerance;
+    const DATACH* ch = na->pCSD();
+    double worst = 0.;
+    for(long int ic = 0; ic < ch->nICb; ic++) {
+        if(ch->ccIC[ic] == IC_CHARGE)
+            continue;
+        const double d = std::fabs(first.bIC[ic] - last.bIC[ic]);
+        const double ref = std::max(std::fabs(last.bIC[ic]), mode_param.cez);
+        worst = std::max(worst, d / ref);
+    }
+    // ... and only if the old amounts of the species are within the current limits of the node (dll, dul)
+    bool within_limits = true;
+    for(long int j = 0; j < ch->nDCb && within_limits; j++) {
+        const double x = last.xDC[j];
+        if(x > n->dul[j] * (1. + 1e-9) + mode_param.cez || x < n->dll[j] * (1. - 1e-9) - mode_param.cez)
+            within_limits = false;
+    }
+    if(last.TK == first.TK && last.P == first.P && worst <= tol && within_limits) {
+        loadNodeResult(last, n, false);       // keeps the new bIC (equal within tol)
+        n->IterDone = 0;
+        message = "status " + std::to_string(first_status) + ", kept the last converged result (input change " +
+                  std::to_string(worst) + " <= pa_DHB)";
+        return 2;
+    }
+
+    // No rescue: the node keeps the result of the first calculation
+    loadNodeResult(first, n, true);
+    return 0;
+}
+
+TGEM2MT::NodeInputs TGEM2MT::saveNodeInputs(size_t q) const
+{
+    ErrorIf(!na || !na->pNodT1() || !na->pNodT1()[0], GetName(), "Nodes are not initialized: call initNodes first");
+    ErrorIf(q >= static_cast<size_t>(mtp->nC), GetName(),
+            "Node index "+std::to_string(q)+" out of range (nodes: "+std::to_string(mtp->nC)+")");
+    const DATABR* n = na->pNodT1()[q];
+    NodeInputs in;
+    in.bIC.assign(n->bIC, n->bIC + na->pCSD()->nICb);
+    in.TK = n->TK;
+    in.P = n->P;
+    saveNodeResult(na->pNodT1()[q], in.state1);
+    if(na->pNodT0() && na->pNodT0()[q])
+        saveNodeResult(na->pNodT0()[q], in.state0);
+    return in;
+}
+
+void TGEM2MT::restoreNodeInputs(size_t q, const NodeInputs& in)
+{
+    ErrorIf(!na || !na->pNodT0() || !na->pNodT1() || !na->pNodT0()[0], GetName(),
+            "Nodes are not initialized: call initNodes first");
+    ErrorIf(q >= static_cast<size_t>(mtp->nC) || static_cast<long int>(in.bIC.size()) != na->pCSD()->nICb, GetName(),
+            "Cannot restore node "+std::to_string(q));
+    DATABRPTR* C0 = na->pNodT0();
+    DATABRPTR* C1 = na->pNodT1();
+    if(in.state1.valid && in.state0.valid) {
+        // The exact earlier state of the node (C1 and C0), without a GEM calculation
+        loadNodeResult(in.state1, C1[q], true);
+        loadNodeResult(in.state0, C0[q], true);
+        return;
+    }
+    std::copy(in.bIC.begin(), in.bIC.end(), C0[q]->bIC);
+    std::copy(in.bIC.begin(), in.bIC.end(), C1[q]->bIC);
+    C0[q]->TK = C1[q]->TK = in.TK;
+    C0[q]->P = C1[q]->P = in.P;
+    TestModeGEMParam mode(NEED_GEM_AIA, S_OFF, mtp->ct, mtp->cdv, mtp->cez);
+    na->CalcIPM_One(mode, static_cast<long int>(q), nullptr);                 // the earlier inputs again
+    na->CopyNodeFromTo(static_cast<long int>(q), mtp->nC, C1, C0);
+}
+
+void TGEM2MT::setNodeBulkComposition(size_t q, const std::vector<double>* b, double T, double P)
+{
+    ErrorIf(!na || !na->pNodT0() || !na->pNodT1() || !na->pNodT0()[0], GetName(),
+            "Nodes are not initialized: call initNodes first");
+    ErrorIf(q >= static_cast<size_t>(mtp->nC), GetName(),
+            "Node index "+std::to_string(q)+" out of range (nodes: "+std::to_string(mtp->nC)+")");
+    const DATACH* ch = na->pCSD();
+    const long int nICb = ch->nICb;
+
+    // New element amounts in DBR order: the DBR keeps nICb of the nIC elements (index list xic)
+    std::vector<double> b_dbr;
+    if(b) {
+        ErrorIf(static_cast<long int>(b->size()) != ch->nIC, GetName(),
+                "Bulk composition has "+std::to_string(b->size())+" values, the chemical system has "+
+                std::to_string(ch->nIC)+" elements");
+        std::vector<bool> kept(ch->nIC, false);
+        b_dbr.resize(nICb);
+        for(long int j=0; j<nICb; ++j) {
+            b_dbr[j] = (*b)[ch->xic[j]];
+            kept[ch->xic[j]] = true;
+        }
+        for(long int i=0; i<ch->nIC; ++i)
+            ErrorIf(!kept[i] && (*b)[i] != 0., GetName(),
+                    "Element "+ch->ICNL[i]+" is not kept in the node data (DBR); its amount must be 0");
+    }
+
+    DATABRPTR* C0 = na->pNodT0();
+    DATABRPTR* C1 = na->pNodT1();
+    // The previous inputs, to restore them if the calculation fails
+    const NodeInputs previous = saveNodeInputs(q);
+
+    if(b)
+        for(long int j=0; j<nICb; ++j)
+            C0[q]->bIC[j] = C1[q]->bIC[j] = b_dbr[j];
+    if(std::isfinite(T))
+        C0[q]->TK = C1[q]->TK = T;
+    if(std::isfinite(P))
+        C0[q]->P = C1[q]->P = P;
+
+    // Equilibrate the node from scratch into C1, then make C0 the same
+    TestModeGEMParam mode(NEED_GEM_AIA, S_OFF, mtp->ct, mtp->cdv, mtp->cez);
+    bool ok = false;
+    try {
+        ok = na->CalcIPM_One(mode, static_cast<long int>(q), nullptr);
+    }
+    catch(...) {
+        restoreNodeInputs(q, previous);
+        throw;
+    }
+    if(!ok) {
+        restoreNodeInputs(q, previous);
+        Error(GetName(), "GEM calculation failed for the new composition of node "+std::to_string(q)+
+                         "; the node keeps its previous composition");
+    }
+    na->CopyNodeFromTo(static_cast<long int>(q), mtp->nC, C1, C0);
 }
 
 void TGEM2MT::setHydraulicParameters(size_t pndx, double Vt, double vp, double eps, double Km, double al, double Dif, double nto)
@@ -1071,3 +1412,463 @@ FINISH:
 
 //---------------------------------------------------------------------------
 
+
+// ------------------------------------------------------------------------------------------------
+// Text summary of the task setup
+
+namespace {
+
+std::string num(double v, int prec = 4)
+{
+    std::ostringstream s;
+    s << std::setprecision(prec) << v;
+    return s.str();
+}
+
+// Split text into lines of at most `width` characters, breaking after ", " or at a space
+std::vector<std::string> wrapLines(const std::string& text, size_t width)
+{
+    width = std::max<size_t>(width, 20);
+    std::vector<std::string> lines;
+    std::string rest = text;
+    while(rest.size() > width) {
+        size_t pos = rest.rfind(", ", width-1);
+        if(pos != std::string::npos && pos > width/3)
+            pos += 1;                                   // keep the comma on this line
+        else {
+            pos = rest.rfind(' ', width);
+            if(pos == std::string::npos || pos < width/3) {
+                // no break before width: do not cut a word, break at the next space instead
+                pos = rest.find(' ', width);
+                if(pos == std::string::npos)
+                    break;
+            }
+        }
+        std::string line = rest.substr(0, pos);
+        while(!line.empty() && line.back() == ' ') line.pop_back();
+        lines.push_back(line);
+        rest = rest.substr(pos);
+        rest.erase(0, rest.find_first_not_of(' ') == std::string::npos ? rest.size() : rest.find_first_not_of(' '));
+    }
+    if(!rest.empty() || lines.empty())
+        lines.push_back(rest);
+    return lines;
+}
+
+// Text wrapped to `width`; the first line starts with `indent`, the others with `cont`
+std::string wrap(const std::string& text, size_t width, const std::string& indent = "", const std::string& cont = "    ")
+{
+    std::ostringstream o;
+    const auto lines = wrapLines(text, width - std::max(indent.size(), cont.size()));
+    for(size_t i=0; i<lines.size(); ++i)
+        o << (i ? cont : indent) << lines[i] << "\n";
+    return o.str();
+}
+
+// Table with left-aligned columns. If a row is wider than `width` (0: no limit), its last
+// column continues on the next lines, below the start of that column
+std::string table(const std::vector<std::vector<std::string>>& rows, const std::string& indent = "  ",
+                  size_t width = 0)
+{
+    size_t ncol = 0;
+    for(const auto& r: rows) ncol = std::max(ncol, r.size());
+    std::vector<size_t> w(ncol, 0);
+    for(const auto& r: rows)
+        if(r.size() == ncol)                            // a shorter row ("... more groups") does not set widths
+            for(size_t c=0; c<r.size(); ++c)
+                w[c] = std::max(w[c], r[c].size());
+    size_t start = indent.size();                       // start of the last column
+    for(size_t c=0; c+1<ncol; ++c) start += w[c]+2;
+
+    std::ostringstream o;
+    for(const auto& r: rows) {
+        std::string line = indent;
+        for(size_t c=0; c+1<r.size(); ++c)
+            line += r[c] + std::string(w[c] > r[c].size() ? w[c]-r[c].size()+2 : 2, ' ');
+        const std::string last = r.empty() ? "" : r.back();
+        if(r.size() < ncol || width == 0 || line.size() + last.size() <= width) {
+            line += last;
+            while(!line.empty() && line.back() == ' ') line.pop_back();
+            o << line << "\n";
+        }
+        else if(width >= start + 40)                    // wrap the last column in its place
+        {
+            const auto lines = wrapLines(last, width - start);
+            for(size_t i=0; i<lines.size(); ++i)
+                o << (i ? std::string(start, ' ') : line) << lines[i] << "\n";
+        }
+        else {                                          // the last column below the row
+            while(!line.empty() && line.back() == ' ') line.pop_back();
+            o << line << "\n" << wrap(last, width, indent+"    ", indent+"    ");
+        }
+    }
+    return o.str();
+}
+
+// Header lines: label, value, and a hint in brackets on the same line if it fits, else below the value
+std::string headerBlock(const std::vector<std::vector<std::string>>& head, size_t width)
+{
+    size_t lw = 0;
+    for(const auto& h: head) lw = std::max(lw, h[0].size());
+    lw += 2;
+    const std::string pad(lw, ' ');
+    std::ostringstream o;
+    for(const auto& h: head) {
+        auto lines = wrapLines(h[1], width > lw + 20 ? width - lw : 40);
+        for(size_t i=0; i<lines.size(); ++i)
+            o << (i ? pad : h[0] + std::string(lw - h[0].size(), ' ')) << lines[i]
+              << (i+1 < lines.size() ? "\n" : "");
+        const std::string& hint = h.size() > 2 ? h[2] : std::string();
+        if(hint.empty())
+            o << "\n";
+        else if(lw + lines.back().size() + 2 + hint.size() <= width)
+            o << "  " << hint << "\n";
+        else
+            o << "\n" << wrap(hint, width, pad, pad + "  ");
+    }
+    return o.str();
+}
+
+std::string nodeRange(long int a, long int b)
+{
+    return a == b ? std::to_string(a) : std::to_string(a)+"-"+std::to_string(b);
+}
+
+} // namespace
+
+std::string TGEM2MT::summary(size_t width, bool phases) const
+{
+    if(width < 60) width = 60;
+    static const std::map<char, std::string> mode_text = {
+        {RMT_MODE_S, "chain of reactors with waves of moving fluid or solids"},
+        {RMT_MODE_F, "chain of flow-through reactors (transport, then equilibrium)"},
+        {RMT_MODE_B, "box-flux system (fluxes of mobile phase groups between boxes)"},
+        {RMT_MODE_A, "1-D advection + dispersion, explicit finite differences"},
+        {RMT_MODE_C, "1-D advection with Courant number 1 (one node per step), no dispersion"},
+        {RMT_MODE_W, "1-D advection + diffusion with random-walk particles"} };
+    const char mode = mtp->PsMode;
+    const bool fixed_ends = (mode == RMT_MODE_A || mode == RMT_MODE_C);
+    const bool one_d = fixed_ends || mode == RMT_MODE_W;
+    const long int nC = mtp->nC;
+    const bool initialized = na && na->pNodT0() && nC > 0 && na->pNodT0()[0];
+    const double tau0 = mtp->Tau[START_], tau1 = mtp->Tau[STOP_], tau_step = mtp->Tau[STEP_];
+
+    std::ostringstream o;
+    std::string title = name();       // bounded: the name array may have no terminating NUL
+    while(!title.empty() && (title.back() == ' ' || title.back() == '`')) title.pop_back();
+    o << "MassTransport" << (title.empty() ? std::string() : " \"" + title + "\"") << "\n";
+    auto mt = mode_text.find(mode);
+    o << "Mode " << mode << ": " << (mt != mode_text.end() ? mt->second : "?") << "\n";
+
+    std::vector<std::vector<std::string>> head;
+    if(one_d) {
+        const double L = mtp->sizeLc[0];
+        head.push_back({"Column", num(L)+" m, "+std::to_string(nC)+" nodes, node length "+num(L/nC)+" m",
+                        "[setSpatialDimensions(x), MassTransport(mode, nnodes)]"});
+        head.push_back({"Velocity", num(mtp->fVel)+" m/s (pore velocity, all nodes)", "[setFluidAdvectionVelocity(velocity)]"});
+    }
+    else
+        head.push_back({"Nodes", std::to_string(nC), "[MassTransport(mode, nnodes)]"});
+    head.push_back({"Time", num(tau0, 8)+" .. "+num(tau1, 8)+", step "+num(tau_step, 8), "[setTau(start, stop, step)]"});
+
+    std::string warning;
+    if(fixed_ends) {
+        const double dx = mtp->sizeLc[0]/nC;
+        const double tf = (mode == RMT_MODE_A ? std::max(mtp->tf, 1.) : (mtp->tf > 0 ? mtp->tf : 1.));
+        double dt = std::numeric_limits<double>::infinity(), dt_adv = dt, dt_disp = dt;
+        std::string limit;
+        if(mode == RMT_MODE_A) {
+            if(mtp->fVel > 0.) dt_adv = 0.5*dx/mtp->fVel;
+            double Dmax = 0.;
+            for(long int q=0; q<nC; ++q) Dmax = std::max(Dmax, DispersionCoef(q));
+            if(Dmax > 0.) dt_disp = 0.25*dx*dx/Dmax;
+            dt = std::min(dt_adv, dt_disp);
+            limit = (dt_disp < dt_adv ? "dispersion" : "advection");
+            limit += "; advection limit " + (std::isfinite(dt_adv) ? num(dt_adv)+" s" : std::string("none")) +
+                     ", dispersion limit " + (std::isfinite(dt_disp) ? num(dt_disp)+" s" : std::string("none"));
+        }
+        else if(mtp->fVel > 0.) {
+            dt = dx/mtp->fVel;
+            limit = "node length / velocity";
+        }
+        if(std::isfinite(dt)) {
+            dt /= tf;
+            const double span = tau1 - tau0;
+            const long int steps = static_cast<long int>(std::ceil(span/dt - 1e-9));
+            const long int max_steps = static_cast<long int>(span/tau_step) + 1;
+            head.push_back({"Time step", num(dt)+" s ("+limit+"), reduction factor "+num(tf),
+                            "[set by the program; divided by setTimeStepReductionFactor(factor)]"});
+            head.push_back({"Steps", "about "+std::to_string(std::min(steps, max_steps))+", to t = "+
+                            num(tau0+std::min(steps, max_steps)*dt, 8), "[stop time and setTau step]"});
+            if(max_steps < steps)
+                warning = "WARNING: the run stops after " + std::to_string(max_steps) + " steps (t = " +
+                          num(tau0+max_steps*dt) + "), before the stop time. Make the setTau step smaller than the time step.\n";
+        }
+        else
+            warning = "WARNING: the velocity and the dispersion are 0: no time step (runMassTransport will fail).\n";
+    }
+
+    // Initial systems
+    std::string systems;
+    if(initialized) {
+        for(size_t i=0; i<dbr_file_names.size(); ++i)
+            systems += (i ? ",  " : "") + std::to_string(i) + " = " + dbr_file_names[i];
+        if(dbr_file_names.size() == 1)
+            systems += "  (one file: all nodes start from it; the system numbers below are groups)";
+    }
+    else
+        systems = "not read yet";
+    head.push_back({"Initial systems", systems, "[initNodes(dat_lst) reads the dbr files in their order]"});
+    o << headerBlock(head, width);
+    if(!warning.empty()) {
+        while(!warning.empty() && warning.back() == '\n') warning.pop_back();
+        o << wrap(warning, width, "", "         ");
+    }
+
+    // Per node description; consecutive nodes with an equal description form one group
+    auto role = [&](long int q) -> std::string {
+        if(fixed_ends) {
+            if(q <= 1) return "inflow, fixed";
+            if(q == nC-1) return "outlet, fixed";
+            return "column";
+        }
+        switch(mtp->DiCp[q][1]) {
+        case 0: return one_d ? "column" : "box";
+        case 1: case 2: case 3: return "source";
+        case -1: case -2: case -3: return "sink";
+        case 4: return "input function";
+        default: return "?";
+        }
+    };
+    auto transport = [&](long int q) {
+        double eps = mtp->eps_in, al = mtp->al_in, Dif = mtp->Dif_in, nto = mtp->nto_in, vp = mtp->fVel;
+        if(mtp->HydP) {
+            vp = mtp->HydP[q][1]; eps = mtp->HydP[q][2]; al = mtp->HydP[q][4];
+            Dif = mtp->HydP[q][5]; nto = mtp->HydP[q][6];
+        }
+        return std::vector<std::string>{num(eps), num(al), num(Dif), num(nto), num(vp)};
+    };
+    bool own_velocity = false;
+    if(mtp->HydP)
+        for(long int q=0; q<nC; ++q)
+            if(mtp->HydP[q][1] != mtp->fVel) own_velocity = true;
+
+    // Phases present in any node (DBR phase indices)
+    std::vector<long int> present;
+    if(initialized) {
+        const DATACH* ch = na->pCSD();
+        for(long int k=0; k<ch->nPHb; ++k)
+            for(long int q=0; q<nC; ++q)
+                if(na->pNodT1()[q]->xPH[k] > 1e-12) { present.push_back(k); break; }
+    }
+
+    auto describe = [&](long int q) {
+        std::vector<std::string> r{std::to_string(mtp->DiCp[q][0]), role(q), std::to_string(mtp->DiCp[q][1])};
+        if(one_d) {
+            auto t = transport(q);
+            r.insert(r.end(), t.begin(), t.begin()+4);
+            if(own_velocity) r.push_back(t[4]);
+        }
+        if(initialized) {
+            const DATABR* n = na->pNodT1()[q];   // equilibrated state (initNodes, setNodes, each step)
+            r.push_back(num(n->TK, 5));
+            r.push_back(num(n->P/1e5));
+            r.push_back(num(n->Ms));
+            r.push_back(num(n->Vs*1e3));
+            if(phases)                           // amounts only when asked: nodes then group by them too
+                for(auto k: present)
+                    r.push_back(n->xPH[k] > 1e-12 ? num(n->xPH[k]) : "-");
+        }
+        return r;
+    };
+
+    std::vector<std::string> hdr{"system", "role", "type"};
+    if(one_d) {
+        for(auto h: {"porosity", "dispersivity m", "diffusivity m2/s", "tortuosity"}) hdr.push_back(h);
+        if(own_velocity) hdr.push_back("velocity m/s");
+    }
+    const size_t n_setup = hdr.size();     // the columns before T, P, mass, volume
+    size_t n_chem = n_setup;               // the columns before the phase amounts
+    if(initialized) {
+        for(auto h: {"T K", "P bar", "mass kg", "volume L"}) hdr.push_back(h);
+        n_chem = hdr.size();
+        if(phases)
+            for(auto k: present) hdr.push_back(na->pCSD()->PHNL[na->pCSD()->xph[k]]);
+    }
+    std::vector<std::pair<std::pair<long int,long int>, std::vector<std::string>>> groups;
+    for(long int q=0; q<nC; ++q) {
+        auto d = describe(q);
+        if(!groups.empty() && groups.back().second == d)
+            groups.back().first.second = q;
+        else
+            groups.push_back({{q, q}, d});
+    }
+    // Two tables: the node setup, and the chemical state (if the nodes are read)
+    const size_t max_rows = 30;
+    auto one_table = [&](size_t c0, size_t c1) {
+        std::vector<std::vector<std::string>> t{{"nodes"}};
+        t[0].insert(t[0].end(), hdr.begin()+c0, hdr.begin()+c1);
+        for(size_t g=0; g<groups.size(); ++g) {
+            if(groups.size() > max_rows && g == max_rows-5) {
+                t.push_back({"...", "("+std::to_string(groups.size()-max_rows+1)+" more groups)"});
+                g = groups.size()-5;
+            }
+            std::vector<std::string> r{nodeRange(groups[g].first.first, groups[g].first.second)};
+            r.insert(r.end(), groups[g].second.begin()+c0, groups[g].second.begin()+c1);
+            t.push_back(r);
+        }
+        return t;
+    };
+    // Columns [c0, c1) as one or more tables that fit the width (the nodes column is repeated);
+    // a last text column (phases) may wrap
+    auto node_table = [&](size_t c0, size_t c1) {
+        auto full = one_table(c0, c1);
+        std::vector<size_t> w(c1-c0+1, 0);
+        for(const auto& r: full)
+            for(size_t c=0; c<r.size() && r.size() == w.size(); ++c)
+                w[c] = std::max(w[c], r[c].size());
+        std::string out;
+        size_t c = c0;
+        while(c < c1) {
+            size_t used = 2 + w[0] + 2, e = c;
+            while(e < c1 && (e == c || used + w[e-c0+1] <= width)) {
+                used += w[e-c0+1] + 2;
+                ++e;
+            }
+            if(!out.empty()) out += "\n";
+            out += table(one_table(c, e), "  ", width);
+            c = e;
+        }
+        return out;
+    };
+
+    // Simple picture of the column: the groups along the flow
+    if(one_d && groups.size() <= 8) {
+        std::vector<std::vector<std::string>> pic{{"flow ->"}, {"nodes"}, {"role"}, {"system"}};
+        for(const auto& gr: groups) {
+            pic[1].push_back("| "+nodeRange(gr.first.first, gr.first.second));
+            pic[2].push_back("| "+gr.second[1]);
+            pic[3].push_back("| "+gr.second[0]);
+        }
+        for(size_t i=1; i<pic.size(); ++i) pic[i].push_back("|");
+        o << "\n" << table(pic, "  ", width);
+    }
+    o << "\n" << node_table(0, n_setup);
+    if(initialized)
+    {
+        o << "\n" << node_table(n_setup, n_chem);
+        if(phases && !present.empty())
+            o << "\nPhases (mol), \"-\" = not present:\n" << node_table(n_chem, hdr.size());
+        else if(!present.empty()) {
+            std::string names;
+            for(auto k: present)
+                names += (names.empty() ? "" : ", ") + na->pCSD()->PHNL[na->pCSD()->xph[k]];
+            if(names.size() > width/2)
+                names = names.substr(0, names.rfind(", ", width/2)) + ", ...";
+            o << wrap("Phases present: " + std::to_string(present.size()) + " (" + names +
+                      ")  [amounts: summary(phases=True)]", width, "", "    ");
+        }
+    }
+
+    if(!one_d) {
+        auto id = [](const char* p) {
+            std::string t(p, strnlen(p, MAXSYMB));
+            while(!t.empty() && (t.back() == ' ' || t.back() == '`')) t.pop_back();
+            return t;
+        };
+        const DATACH* ch = initialized ? na->pCSD() : nullptr;
+        // Mobile phase groups: the phases (with quantities) that a flux moves
+        o << "\nMobile phase groups: " << mtp->nPG << "\n"
+          << wrap("[setNumberPhaseGroups(n), setPhaseGroupID(g, id), setPhaseGroupQuantities(g, phase, q), "
+                  "setUnitsPhaseQuantities(phase, unit)]", width, "  ", "   ");
+        if(mtp->nPG > 0 && mtp->MGPid && mtp->PGT) {
+            std::vector<std::vector<std::string>> g_rows{{"group", "id", "phases (quantity unit)"}};
+            for(long int g=0; g<mtp->nPG; ++g) {
+                std::string ph;
+                for(long int f=0; f<mtp->FIf; ++f) {
+                    const double qv = mtp->PGT[f*mtp->nPG+g];
+                    if(qv == 0.) continue;
+                    std::string name = (ch && f < ch->nPHb) ? ch->PHNL[ch->xph[f]] : "phase "+std::to_string(f);
+                    ph += (ph.empty() ? "" : ", ") + name + " " + num(qv) +
+                          (mtp->UMGP ? " " + std::string(1, mtp->UMGP[f]) : "");
+                }
+                g_rows.push_back({std::to_string(g), id(mtp->MGPid[g]), ph.empty() ? "-" : ph});
+            }
+            o << table(g_rows, "  ", width);
+        }
+        // Flux definitions
+        o << "Fluxes: " << mtp->nFD << "\n"
+          << wrap("[setNumberMGPfluxes(n), setFluxSourceReceive(i, from, to), setFluxDefinition(i, order, rate, "
+                  "quantity, value), setFluxMGPid(i, id), setFluxID(i, id)]", width, "  ", "   ");
+        if(mtp->nFD > 0 && mtp->FDLi && mtp->FDLf) {
+            // Consecutive fluxes along a chain (i -> i+1) with equal settings form one row
+            struct Flux { long int i0, i1, from0, from1, to0, to1; std::vector<std::string> rest; };
+            std::vector<Flux> fl;
+            for(long int i=0; i<mtp->nFD; ++i) {
+                const long int from = mtp->FDLi[i][0], to = mtp->FDLi[i][1];
+                std::vector<std::string> rest{mtp->FDLid ? id(mtp->FDLid[i]) : "", mtp->FDLmp ? id(mtp->FDLmp[i]) : "",
+                                              num(mtp->FDLf[i][0]), num(mtp->FDLf[i][1]), num(mtp->FDLf[i][2])};
+                if(!fl.empty() && fl.back().rest == rest && fl.back().i1 == i-1 &&
+                   from >= 0 && to >= 0 && fl.back().from1 >= 0 && fl.back().to1 >= 0 &&
+                   fl.back().from1 == from-1 && fl.back().to1 == to-1) {
+                    fl.back().i1 = i; fl.back().from1 = from; fl.back().to1 = to;
+                }
+                else
+                    fl.push_back({i, i, from, from, to, to, rest});
+            }
+            auto node = [](long int a, long int b) {
+                return a < 0 ? std::string("outside") : nodeRange(a, b);
+            };
+            std::vector<std::vector<std::string>> f_rows{{"fluxes", "id", "from node", "to node", "moves", "order", "rate", "quantity"}};
+            for(const auto& f: fl)
+                f_rows.push_back({nodeRange(f.i0, f.i1), f.rest[0], node(f.from0, f.from1), node(f.to0, f.to1),
+                                  f.rest[1], f.rest[2], f.rest[3], f.rest[4]});
+            o << table(f_rows, "  ", width);
+            if(fl.size() < static_cast<size_t>(mtp->nFD))
+                o << wrap("(a row \"1-49, from 1-49 to 2-50\" means: flux 1 goes from node 1 to 2, flux 2 from 2 to 3, ...)",
+                          width, "  ", "   ");
+        }
+        if(mtp->nSFD > 0)
+            o << "Elemental source fluxes: " << mtp->nSFD << "\n"
+              << wrap("[setNumberICsourceFluxes(n), setICsourceQuantities(i, element, q)]", width, "  ", "   ");
+    }
+
+    if(gem_failures.ran) {
+        const auto& f = gem_failures;
+        o << "\n";
+        const std::string rescued = (f.retried + f.kept == 0) ? std::string() :
+            " " + std::to_string(f.retried + f.kept) + " BAD/ERR results were rescued (" + std::to_string(f.retried) +
+            " by SIA from the last converged result of the node, " + std::to_string(f.kept) + " kept that result).";
+        if(f.count == 0)
+            o << wrap("Last run: all GEM calculations in the nodes converged." + rescued, width, "", "  ");
+        else {
+            std::string nodes;
+            long int a = -2, b = -2;
+            auto flush = [&]() { if(a >= 0) nodes += (nodes.empty() ? "" : ", ") + nodeRange(a, b); };
+            for(auto q: f.nodes) {
+                if(q == b+1) { b = q; continue; }
+                flush(); a = b = q;
+            }
+            flush();
+            o << wrap("WARNING: last run: " + std::to_string(f.count) + " GEM calculations failed or are not trustful, in nodes " +
+                      nodes + ". First: step " + std::to_string(f.first_step) + ", t = " + num(f.first_time) + ", node " +
+                      std::to_string(f.first_node) + ": " + f.first_message + "." + rescued + "  [gemFailures(); see xGEM2MT.log]", width, "", "         ");
+        }
+    }
+
+    std::vector<std::vector<std::string>> how{
+        {"system of a node", "before initNodes", "setDistributing(node, system)"},
+        {"composition, T, P", "after initNodes", "setSystem(system, composition=..., T=..., P=...), setNodes(nodes, ...)"}};
+    if(one_d) {
+        how.push_back({"porosity, dispersivity,", "before initNodes:", "setInitialNodeEffectivePorosity(v), setInitialDispersivity(v), ... (all nodes)"});
+        how.push_back({"diffusivity, tortuosity", "after initNodes:", "setSystem/setNodes(..., transport=TransportProperties(porosity=..., ...))"});
+    }
+    how.push_back({"node type", fixed_ends ? "not used in this mode" : "", "setNodeType(node, type), setNodesType(nodes, type)"});
+    o << "\nHow to change:\n" << table(how, "  ", width);
+    if(fixed_ends)
+        o << wrap(std::string("Mode ")+mode+": nodes 0 and 1 (inflow) and the last node (outlet) keep their composition during the run.",
+                  width);
+    if(!initialized)
+        o << "Compositions are shown after initNodes.\n";
+    return o.str();
+}

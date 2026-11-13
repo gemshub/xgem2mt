@@ -17,12 +17,123 @@
 
 #pragma once
 
+#include <array>
+#include <limits>
+#include <map>
 #include <memory>
+#include <optional>
+#include <variant>
+#include <vector>
 #include <string>
 #include <functional>
 #include <xGEM2MT/ChemicalEngineArray.hpp>
 
 namespace xGEM2MT {
+
+/**
+ * @brief Physical transport properties of a node. A field that is not set is not changed.
+ *
+ * In GEM2MT these values are kept as the "hydraulic parameters" (HydP) of a node.
+ * In mode 'A': velocity changes only the dispersion of the node (advection uses
+ * MassTransport::setFluidAdvectionVelocity()); volume and permeability are not used.
+ * Dispersion coefficient: D = dispersivity * velocity + diffusivity * porosity / tortuosity.
+ */
+struct TransportProperties
+{
+    std::optional<double> volume;        ///< Vt: total node volume, m3
+    std::optional<double> velocity;      ///< vp: fluid advection velocity, m/s
+    std::optional<double> porosity;      ///< eps: effective porosity, 0..1
+    std::optional<double> permeability;  ///< Km: effective permeability, m2
+    std::optional<double> dispersivity;  ///< al: longitudinal dispersivity, m
+    std::optional<double> diffusivity;   ///< Dif: diffusion coefficient in water, m2/s
+    std::optional<double> tortuosity;    ///< nto: tortuosity factor, 1..10
+};
+
+/// Bulk composition of a node: element amounts (mol) in element order, or by element name.
+/// Elements not in a map get 0. std::monostate means: do not change the composition.
+using Composition = std::variant<std::monostate, std::vector<double>, std::map<std::string, double>>;
+
+/**
+ * @brief GEM calculations in the nodes that failed or gave a result that is not trustful, in the last run.
+ *        The calculations of initNodes() and setNodes() are not counted.
+ */
+struct GEMFailures
+{
+    bool ran = false;                 ///< a run was done; without a run there are no results (count 0 does not mean converged)
+    long int count = 0;               ///< number of failed node calculations of the run, after the rescue (0: all converged)
+    long int retried = 0;             ///< BAD/ERR results replaced by a GEM run (SIA) from the last converged result of the node
+    long int kept = 0;                ///< BAD/ERR results replaced by the last converged result of the node (input changed by
+                                      ///< no more than the relative mass balance tolerance of GEM, pa_DHB)
+    std::vector<size_t> nodes;        ///< nodes with at least one failure
+    long int first_step = -1;         ///< time step of the first failure
+    double first_time = 0.;           ///< time of the first failure
+    long int first_node = -1;         ///< node of the first failure
+    std::string first_message;        ///< GEMS3K message of the first failure
+
+    /// A text for a log or a warning; empty if there is no failure.
+    std::string message() const
+    {
+        if(count == 0)
+            return {};
+        return std::to_string(count) + " GEM calculations failed or are not trustful in " + std::to_string(nodes.size()) +
+               " nodes (first: step " + std::to_string(first_step) + ", node " + std::to_string(first_node) + ": " +
+               first_message + ")" + rescues() + ". See gemFailures() and xGEM2MT.log.";
+    }
+
+    /// A text about the rescued calculations, for example ", 3 rescued (2 by SIA, 1 kept)"; empty if none.
+    std::string rescues() const
+    {
+        if(retried + kept == 0)
+            return {};
+        return ", " + std::to_string(retried + kept) + " rescued (" + std::to_string(retried) + " by SIA from the last converged result, " +
+               std::to_string(kept) + " kept the last converged result)";
+    }
+};
+
+/**
+ * @brief A part of a node: a phase or a solid, given as a material and the share of the node that it fills.
+ *
+ * `of` says which volume the part fills: "pore" (a gas, another liquid) or "solid". Give either a fraction
+ * of that volume or a mass. The material can have any amount: it is scaled. The volume of the part comes
+ * from a GEM calculation at the T and P of the node (the volume that it adds to the pore solution), unless a
+ * density is given. A part given by mass also takes its volume from its `of` volume.
+ */
+struct Part
+{
+    Composition material;                ///< composition of the part (any amount)
+    std::optional<double> fraction;      ///< share of the `of` volume, 0..1 (solids: of the solid volume
+                                         ///< that the parts given by mass leave; the solid fractions add up to 1)
+    std::optional<double> mass;          ///< or: kg of the part in the node
+    std::string of;                      ///< "pore" or "solid"
+    std::optional<double> density;       ///< kg/L; if not set, from GEM at the T and P of the node
+};
+
+/**
+ * @brief Setup of a node or a group of nodes. A part that is not set is not changed.
+ *
+ * The chemistry is given in one of two ways:
+ * - `composition`: the amounts of the node, as given (no scaling);
+ * - scaled: `pore_solution` (the reference: any amount, scaled to water_mass kg of liquid water per node) and
+ *   `parts` (and/or the short form `solids` = one part with fraction 1 of "solid" and density grain_density).
+ *   For each node: pore volume = volume of the pore solution / water_saturation, solid volume = pore volume * (1 - porosity)
+ *   / porosity (transport porosity of the node); each part fills its share of these volumes.
+ */
+struct NodeSetup
+{
+    Composition composition;             ///< bulk composition of the node (chemical state), as given
+    std::optional<double> temperature;   ///< K
+    std::optional<double> pressure;      ///< Pa
+    TransportProperties transport;       ///< physical transport properties
+
+    Composition pore_solution;           ///< the pore solution (aqueous phase), any amount
+    std::optional<double> water_mass;    ///< kg of liquid water (H2O solvent) in the node; default: the water
+                                         ///< in pore_solution as given (from a GEM calculation), or in the modes
+                                         ///< 'A', 'C', 'W' the water of the nodes set up before (same in all nodes)
+    std::optional<double> water_saturation; ///< share of the pore volume with pore solution; default 1
+    std::vector<Part> parts;             ///< other phases and solids of the node
+    Composition solids;                  ///< short form: the dry solid, one part (fraction 1 of "solid")
+    std::optional<double> grain_density; ///< short form: kg/L of the solid grains; if not set, from GEM
+};
 
 /**
  * @brief Callback function for monitoring simulations and updating nodes/boxes over time.
@@ -147,6 +258,23 @@ public:
     void initNodes(const std::string& ipm_filename, const std::string& dbr_filename);
 
     /**
+     * @brief Initializes all nodes from one GEMS3K "*-dat.lst" file.
+     *
+     * The initial systems are the dbr files listed in the "*-dat.lst" file (after the dch and ipm
+     * files, separated by spaces), in their order: the first file is system 0. A "*-dbr.lst" file
+     * is not necessary.
+     *
+     * @note GEMS3K reads the initial systems only from a list file. This function writes a
+     *       temporary hidden list file in the folder of ipm_filename and removes it after reading.
+     *       The folder must be writable; if it is not, use the two-file form.
+     *
+     * @code
+     * task.initNodes("my-system-dat.lst");
+     * @endcode
+     */
+    void initNodes(const std::string& ipm_filename);
+
+    /**
      * @brief Initializes all nodes (boxes) using JSON strings.
      *
      * Configures the engine from three JSON inputs:
@@ -186,6 +314,18 @@ public:
      * @throws std::runtime_error If the simulation fails to converge or hits a numerical instability.
      */
     void runMassTransport();
+
+    /**
+     * @brief The GEM calculations that failed or were not trustful in the last run of runMassTransport().
+     *
+     * After a BAD or ERR result, the node is calculated again from its last converged result (GEM SIA), or
+     * keeps that result if no element amount changed by more than pa_DHB (the relative mass balance tolerance
+     * of GEM); GEMFailures::retried and GEMFailures::kept count these rescues. The run goes on after a failure
+     * without a rescue (an ERR node keeps its speciation from before the step, a BAD node the BAD result).
+     * runMassTransport() writes GEMFailures::message() to the log, and Python also gives a RuntimeWarning.
+     * Details for each failure and rescue are in xGEM2MT.log.
+     */
+    GEMFailures gemFailures() const;
 
     /**
      * @brief Gets the total number of nodes (boxes).
@@ -289,6 +429,22 @@ public:
      * @endcode
      */
     void setNodeType(size_t node_ndx, long int type);
+
+    /**
+     * @brief Changes the initialization type of several nodes (boxes); see setNodeType() for the types.
+     *
+     * All the indices are checked before a node is changed.
+     *
+     * @param nodes The indices of the target nodes.
+     * @param type  The boundary condition type to assign to the nodes.
+     * @throws std::runtime_error If a node index is out of range.
+     *
+     * @code
+     * // Set the nodes 0 and 1 as Cauchy sources (constant flux)
+     * task.setNodesType({0, 1}, 3);
+     * @endcode
+     */
+    void setNodesType(const std::vector<size_t>& nodes, long int type);
 
     /**
      * @brief Sets the initial approximation mode for the GEM IPM solver.
@@ -640,6 +796,62 @@ public:
      * @endcode
      */
     void setHydraulicParameters(size_t node_ndx, double Vt, double vp, double eps, double Km, double al, double Dif, double nto);
+
+    /**
+     * @brief Text summary of the task: mode, column, time step, initial systems, and the nodes grouped
+     *        by equal setup (system, role, type, transport properties, T, P, phases), with the
+     *        functions that change each value. Also used by operator<< and Python print().
+     * @param width  Maximum line length; long tables and texts continue on the next lines.
+     * @param phases Also show a table of the phase amounts (mol) in the node groups.
+     */
+    std::string summary(size_t width = 100, bool phases = false) const;
+
+    /// Index of the initial system (dbr file in the dbr list) that node node_ndx was set up from.
+    long int nodeSystem(size_t node_ndx) const;
+
+    /// Node type of node node_ndx (see setNodeType()).
+    long int nodeType(size_t node_ndx) const;
+
+    /// Indices of all nodes that were set up from initial system system_ndx.
+    std::vector<size_t> nodesOfSystem(size_t system_ndx) const;
+
+    /// Indices of all nodes of the given node type (see setNodeType()).
+    std::vector<size_t> nodesOfType(long int type) const;
+
+    /**
+     * @brief Gets the transport properties of a node (all fields set). Available after initNodes().
+     */
+    TransportProperties transportProperties(size_t node_ndx) const;
+
+    /**
+     * @brief Sets up nodes: composition, temperature, pressure and transport properties.
+     *
+     * Call after initNodes() and before runMassTransport(). Only the parts of `setup` that are set
+     * are changed. The transport properties are set first. If the composition, T or P is set, each
+     * node is then equilibrated again from scratch.
+     *
+     * @code
+     * NodeSetup column;
+     * column.composition = std::map<std::string, double>{{"H", 111.0}, {"O", 55.51}, {"Ca", 3.4e-4}, {"C", 3.4e-4}};
+     * column.transport.porosity = 0.32;
+     * task.setNodes(task.nodesOfSystem(1), column);
+     * @endcode
+     * @throws std::runtime_error For a bad node index, a wrong size of the composition, an unknown
+     *         element, or when the GEM calculation fails.
+     */
+    void setNodes(const std::vector<size_t>& nodes, const NodeSetup& setup);
+
+    /**
+     * @brief Switches the progress text of setNodes() and setSystem() on or off (default on).
+     *
+     * The text goes to std::cout: one line for each node with GEM calculations (with the time), one line for the
+     * nodes that get the state of an equal node, and the total time. The GEM calculations of a node can take
+     * minutes, so the text shows that the setup is not stuck.
+     */
+    void setProgressMessages(bool enable);
+
+    /// As setNodes(), for all nodes set up from initial system system_ndx.
+    void setSystem(size_t system_ndx, const NodeSetup& setup);
 
     /**
      * @brief Gets the number of MGP fluxes defined in the megasystem.

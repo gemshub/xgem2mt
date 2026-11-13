@@ -18,6 +18,10 @@
 #ifndef _m_gem2mt_h_
 #define _m_gem2mt_h_
 
+#include <array>
+#include <set>
+#include <string>
+#include <vector>
 #include <functional>
 #include "particlearray.h"
 
@@ -680,6 +684,108 @@ public:
     /// @param Dif: initial general diffusivity
     /// @param nto: initial tortuosity factor
     void setHydraulicParameters(size_t pndx, double Vt, double vp, double eps, double Km, double al, double Dif, double nto);
+    /// HydP: the hydraulic parameters of node pndx (Vt, vp, eps, Km, al, Dif, nto); after MassTransInit
+    std::array<double, SIZE_HYDP> hydraulicParameters(size_t pndx) const;
+
+    /// DiCp[q][0]: index of the initial system node q was set up from
+    long int nodeSystem(size_t q) const
+    {  return (mtp->DiCp && q<static_cast<size_t>(mtp->nC) ? mtp->DiCp[q][0] : -1); }
+    /// DiCp[q][1]: node type of node q (see setNodeType)
+    long int nodeType(size_t q) const
+    {  return (mtp->DiCp && q<static_cast<size_t>(mtp->nC) ? mtp->DiCp[q][1] : 0); }
+
+    /// Sets the bulk composition of node q in both node arrays and re-equilibrates the node from
+    /// scratch (AIA). b: moles of elements in chemical-system (DCH) order, nIC values; nullptr keeps
+    /// the composition. T in K and P in Pa are changed only if finite. Must be called after
+    /// MassTransInit. Throws TError on a bad index or size, for an element that the DBR does not
+    /// keep, or when GEM fails; then the node keeps its previous inputs and is equilibrated again.
+    void setNodeBulkComposition(size_t q, const std::vector<double>* b, double T, double P);
+    /// Volume (L) of the equilibrium state of a material at T (K) and P (Pa), from a GEM calculation with the
+    /// models of the chemical system. b: element amounts in chemical-system (DCH) order. The bounds of the
+    /// species and the surface areas are those of node q; the bounds are amounts of the node, so they are
+    /// multiplied by limit_scale (the amount of the calculation / the amount of the node, for example
+    /// the solution amount / the node amount). Throws TError if the GEM calculation fails, or if the material has an element that the
+    /// DBR does not keep.
+    /// A material without water (a solid, a gas) does not converge alone: give it with a pore solution and take
+    /// the difference (see MassTransport::setNodes).
+    /// water_kg (if not null): kg of liquid water (the solvent of the aqueous phase) in the equilibrium state, 0 if
+    /// there is no aqueous phase.
+    /// with_gas false: without the volume of gas and fluid phases (GEMS gives them the volume of a free gas, so a
+    /// trace of gas can add much volume); use it for the volume of a pore solution or of a solid.
+    double materialVolume(size_t q, const std::vector<double>& b, double T, double P, double limit_scale = 1.,
+                          double* water_kg = nullptr, bool with_gas = true) const;
+
+    /// True if nodes q1 and q2 have the same species bounds (dul, dll) and surface areas (aPH): then
+    /// materialVolume gives the same result for both (at the same T, P and amounts).
+    bool sameNodeLimits(size_t q1, size_t q2) const;
+
+    /// Gives node q the composition, T, P and equilibrium state of node ref, in C0 and C1, without a GEM run.
+    /// Use it only for a node that gets the same inputs as ref (same T, P, composition and sameNodeLimits):
+    /// then the equilibrium of ref is the equilibrium of q. With C0 = C1, a later GEM SIA step skips the node
+    /// until its composition changes (TNodeArray::NeedGEMS), as for any node already in equilibrium.
+    void copyNodeEquilibrium(size_t q, size_t ref);
+
+    /// The chemistry fields of a node (DBR): inputs (bIC, T, P) and the equilibrium state (primal and dual
+    /// solution, phases, scalars). Not the node handle, the node type, the transport values and the limits.
+    struct NodeResult {
+        bool valid = false;
+        long int status = 0, iterations = 0;
+        double TK = 0., P = 0., Vs = 0., Vi = 0., Ms = 0., Mi = 0., Gs = 0., Hs = 0., Hi = 0., IC = 0., pH = 0., pe = 0., Eh = 0.;
+        std::vector<double> bIC, rMB, uIC, bSP, xDC, gam, xPH, omPH, vPS, mPS, xPA, bPS;
+    };
+    /// Copies the chemistry fields of a DBR into r.
+    void saveNodeResult(const DATABR* n, NodeResult& r) const;
+    /// Copies the chemistry fields of r into a DBR; bIC, T and P only if with_inputs.
+    void loadNodeResult(const NodeResult& r, DATABR* n, bool with_inputs) const;
+
+    /// Per node: the last converged GEM result of the run (for the rescue of a failed calculation)
+    std::vector<NodeResult> last_converged;
+    /// pa_DHB of the GEMS3K settings (read once per run in rescueNode; <= 0: not read yet)
+    double mass_balance_tolerance = -1.;
+    /// Node ii (C1) has a BAD or ERR result after GEM. Tries, in this order:
+    /// 1. GEM SIA from the last converged result of the node, with the new bulk composition;
+    /// 2. the last converged result, if no element amount changed by more than pa_DHB (the relative mass balance
+    ///    tolerance of GEM) since then: the old result is then also an answer for the new input.
+    /// Else the node keeps the result of the first calculation. Returns 1 or 2 for a rescue, 0 if none.
+    int rescueNode(long int ii, const TestModeGEMParam& mode_param, std::string& message);
+
+    /// The inputs of node q (bulk composition in DBR order, T, P), to restore the node after a failed setup.
+    /// state1, state0: the chemistry fields of the node in C1 and C0 (for an exact restore).
+    struct NodeInputs {
+        std::vector<double> bIC;
+        double TK = 0., P = 0.;
+        NodeResult state1, state0;
+    };
+    NodeInputs saveNodeInputs(size_t q) const;
+    /// Gives node q its saved state back: the exact chemistry fields of C1 and C0, without a GEM calculation
+    /// (if only bIC, T, P were saved: these inputs, equilibrated again from scratch, AIA).
+    void restoreNodeInputs(size_t q, const NodeInputs& in);
+
+    /// True in the modes with transport properties per node (HydP): 'A', 'C', 'W' (after initNodes).
+    bool hasNodeTransport() const { return mtp->HydP != nullptr; }
+    /// Porosity (transport) of node q: HydP, or the initial porosity in the modes without HydP.
+    double nodePorosity(size_t q) const
+    {  return (mtp->HydP && q < static_cast<size_t>(mtp->nC)) ? mtp->HydP[q][2] : mtp->eps_in; }
+    /// Mode of the task: S F B A C W
+    char mode() const { return mtp->PsMode; }
+    /// Text summary of the task: mode, column, time step, initial systems, and the nodes grouped by
+    /// equal setup, with the functions that change each value
+    std::string summary(size_t width = 100, bool phases = false) const;
+
+    /// GEM calculations in the nodes that failed or gave a result that is not trustful, in the last run
+    struct GemFailures {
+        bool ran = false;            ///< a run was done
+        long int count = 0;          ///< number of failed node calculations (after the rescue)
+        long int retried = 0;        ///< BAD/ERR results replaced by GEM SIA from the last converged result
+        long int kept = 0;           ///< BAD/ERR results replaced by the last converged result (input change <= pa_DHB)
+        std::set<long int> nodes;    ///< nodes with a failed calculation
+        long int first_step = -1;    ///< time step, time, node and message of the first failure
+        double first_time = 0.;
+        long int first_node = -1;
+        std::string first_message;
+    };
+    GemFailures gem_failures;
+
 
     // Use phase groups definitions
     /// MGPid: ID list of mobile phase groups
@@ -743,6 +849,7 @@ public:
 protected:
 
     std::shared_ptr<TNodeArray> na = nullptr;       // pointer to nodearray class instance
+    std::vector<std::string> dbr_file_names;        // initial systems (dbr files) read by initNodes
     TParticleArray* pa_mt = nullptr;       // pointer to TParticleArray class instance
 
     // for box flux ODE integration sims with variable time step (TBD)

@@ -115,8 +115,22 @@ jobs:
           auto-activate-base: true
       - name: Install conda-build
         shell: bash -el {0}
-        run: conda install -n base -y conda-build conda-forge-pinning  # base: that is where `conda build` is looked up
-      - name: Build base packages once, then python packages per python version
+        run: conda install -n base -y conda-build conda-forge-pinning conda-index  # base: that is where `conda build` is looked up
+      # Optima and GEMS3K take most of the build time and rarely change. Their packages are cached, keyed on
+      # the pinned commits, their recipes and the month (so that a newer conda-forge pinning is picked up).
+      # A cache hit keeps the build number of the run that made them; xgem2mt always gets a new one.
+      - name: Cache key for the base packages
+        id: basekey
+        shell: bash
+        run: echo "key=base-${{ matrix.subdir }}-$(date -u +%Y-%m)-${OPTIMA_REV:0:12}-${GEMS3K_REV:0:12}-${{ hashFiles('packaging/conda/optima/**', 'packaging/conda/gems3k/**') }}" >> "$GITHUB_OUTPUT"
+      - name: Restore the base packages
+        id: basecache
+        uses: actions/cache/restore@v4
+        with:
+          path: basepkgs
+          key: ${{ steps.basekey.outputs.key }}
+      - name: Build the base packages
+        if: steps.basecache.outputs.cache-hit != 'true'
         shell: bash -el {0}
         run: |
           # A new build number on every run and every rerun gives new file names, so conda neither reuses a
@@ -124,11 +138,35 @@ jobs:
           # A rerun looks up the Optima and GEMS3K branch heads again, so it can build other source.
           export XGEM2MT_BUILD_NUMBER=$(( (1000 + GITHUB_RUN_NUMBER) * 100 + GITHUB_RUN_ATTEMPT ))
           PIN="$(conda info --base)/conda_build_config.yaml"
+          for p in $BASE_PACKAGES; do
+            conda build "$RECIPE_ROOT/$p" -m "$PIN" --output-folder "$BUILD_DIR" -c "$UPSTREAM_CHANNEL" ||
+              { echo "::error::base package $p failed"; exit 1; }
+          done
+          mkdir -p basepkgs
+          for p in $BASE_PACKAGES; do cp "$BUILD_DIR/${{ matrix.subdir }}/$p"-[0-9]*.conda basepkgs/; done
+      - name: Save the base packages
+        if: steps.basecache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: basepkgs
+          key: ${{ steps.basekey.outputs.key }}
+      - name: Build the python packages per python version
+        shell: bash -el {0}
+        run: |
+          export XGEM2MT_BUILD_NUMBER=$(( (1000 + GITHUB_RUN_NUMBER) * 100 + GITHUB_RUN_ATTEMPT ))
+          PIN="$(conda info --base)/conda_build_config.yaml"
+          if [ "${{ steps.basecache.outputs.cache-hit }}" = true ]; then
+            echo "Using cached base packages:"; ls basepkgs
+            mkdir -p "$BUILD_DIR/${{ matrix.subdir }}" "$BUILD_DIR/noarch"
+            cp basepkgs/*.conda "$BUILD_DIR/${{ matrix.subdir }}/"
+            # the output folder is the local channel xgem2mt resolves gems3k from; `python` here can be the
+            # system one, so run the indexer in base, where conda-build and conda-index are installed
+            conda run -n base python -m conda_index "$BUILD_DIR"
+          fi
           build() {  # build() <recipe> [--variants "<variant>"]
             local r="$1"; shift
             conda build "$RECIPE_ROOT/$r" -m "$PIN" "$@" --output-folder "$BUILD_DIR" -c "$UPSTREAM_CHANNEL"
           }
-          for p in $BASE_PACKAGES; do build "$p" || { echo "::error::base package $p failed"; exit 1; }; done
           for v in $PYTHON_VERSIONS; do
             if ! VARIANT=$(python "$RECIPE_ROOT/python_variant.py" "$PIN" "$v"); then
               echo "::warning::python $v is not in the conda-forge pinning yet - skipped"; continue

@@ -66,6 +66,7 @@ def task_S(nnodes: int, ipm_lst: str, dbr_lst: str) -> int:
             # Set the flux definition: flux order, flux rate, MGP quantity
             mt_task.setFluxDefinition(ii, 0.0, 1.0, 0, 0)
 
+        print(mt_task)  # setup summary after the last change: nodes, time step, properties, fluxes
         mt_task.dumpTask("gem2mt_out.dat")
 
         # (5) Here we call the mass-transport finite-difference coupled routine

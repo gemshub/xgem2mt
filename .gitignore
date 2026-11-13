@@ -18,3 +18,9 @@ demos/ipmlog.txt
 CMakeLists.txt.user
 environment.yml
 
+CLAUDE.md
+
+# Log and profile files that GEMS3K and xGEM2MT write to the working folder
+ipmlog.txt
+xGEM2MT*.log
+*-log2.dat

@@ -75,6 +75,7 @@ def task_C(nnodes: int, ipm_lst: str, dbr_lst: str) -> int:
         # Set list of selected fields and indexes to VTK format
         mt_task.setVTKfields([[33, 0], [32, 0], [38, 1], [38, 4]])
 
+        print(mt_task)  # setup summary after the last change: nodes, time step, properties, fluxes
         mt_task.dumpTask("gem2mt_out.dat")
 
         # (5) Here we call the mass-transport finite-difference coupled routine

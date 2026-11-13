@@ -40,6 +40,14 @@ struct MassTransport::Impl
     /// The instance of ChemicalEngineArray linked to gem2mt_task internal data
     std::shared_ptr<ChemicalEngineArray> chem_array;
 
+    /// Modes with node transport ('A', 'C', 'W'): kg of water of the nodes set up with a pore solution. The first
+    /// setNodes call with a pore solution sets it; later calls without water_mass scale their nodes to it, so
+    /// that all nodes have the same water. Reset by initNodes.
+    std::optional<double> node_water_mass;
+
+    /// setNodes/setSystem write a short progress text to std::cout (setProgressMessages)
+    bool progress = true;
+
     /// Write IPM, DCH and DBR files (in binary, txt or json mode)
     GEMS3KGenerator::IOModes io_mode = GEMS3KGenerator::f_json;
 

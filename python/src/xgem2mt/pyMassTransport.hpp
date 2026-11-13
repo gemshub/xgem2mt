@@ -18,11 +18,16 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/functional.h>
 #include <pybind11/stl.h>
+#include <pybind11/iostream.h>
+#include <mutex>
 #include <memory>
 #include <string>
 #include <vector>
 #include <array>
 #include <utility>
+#include <limits>
+#include <map>
+#include <optional>
 
 #include "xGEM2MT/MassTransport.hpp"
 
@@ -30,8 +35,194 @@ namespace py = pybind11;
 using namespace xGEM2MT;
 
 
+// Node index or list of node indices
+/// Runs f (a native setup call) without the GIL, with std::cout sent to sys.stdout, so that Jupyter shows the progress
+/// text while f runs. One call at a time in the process: the native task data are global, and the redirect of
+/// std::cout must not change while a call writes to it. The lock is taken without the GIL (no deadlock with a thread
+/// that needs the GIL), the redirect is made with the GIL.
+template<class F>
+void callWithProgress(F&& f)
+{
+    static std::mutex native_call;
+    std::unique_lock<std::mutex> lock(native_call, std::defer_lock);
+    {
+        py::gil_scoped_release release;
+        lock.lock();
+    }
+    py::scoped_ostream_redirect out(std::cout, py::module_::import("sys").attr("stdout"));
+    py::gil_scoped_release release;
+    f();
+}
+
+inline std::vector<size_t> toNodes(py::object nodes)
+{
+    if(py::isinstance<py::int_>(nodes))
+        return {nodes.cast<size_t>()};
+    return nodes.cast<std::vector<size_t>>();
+}
+
+// None, an xGEMS Material (anything with b_dict()), a dict or a sequence of element amounts
+// None, an xGEMS Material (anything with b_dict()), a dict or a sequence of element amounts
+inline Composition toComposition(py::object c)
+{
+    if(c.is_none())
+        return std::monostate{};
+    if(py::hasattr(c, "b_dict"))
+        c = c.attr("b_dict")();
+    if(py::isinstance<py::dict>(c))
+        return c.cast<std::map<std::string, double>>();
+    return c.cast<std::vector<double>>();
+}
+
+inline NodeSetup toSetup(py::object composition, std::optional<double> T, std::optional<double> P,
+                         std::optional<TransportProperties> transport,
+                         py::object pore_solution = py::none(), py::object solids = py::none(),
+                         std::optional<double> grain_density = std::nullopt,
+                         std::optional<double> water_mass = std::nullopt,
+                         std::optional<double> water_saturation = std::nullopt,
+                         std::vector<Part> parts = {})
+{
+    NodeSetup setup;
+    setup.composition = toComposition(composition);
+    setup.temperature = T;
+    setup.pressure = P;
+    if(transport)
+        setup.transport = *transport;
+    setup.pore_solution = toComposition(pore_solution);
+    setup.solids = toComposition(solids);
+    setup.grain_density = grain_density;
+    setup.water_mass = water_mass;
+    setup.water_saturation = water_saturation;
+    setup.parts = std::move(parts);
+    return setup;
+}
+
+void exportTransportProperties(py::module& m)
+{
+    py::class_<Part>(m, "Part",
+        R"doc(
+        A part of a node for ``setNodes``/``setSystem(..., parts=[...])``: a phase or a solid, given as a
+        material and the share of the node that it fills.
+
+        ``of`` says which volume the part fills: ``"pore"`` (a gas, another liquid) or ``"solid"``. Give either
+        ``fraction`` (a share of that volume) or ``mass``. The material can have any amount: it is scaled. The
+        volume of the part comes from a GEM calculation at the T and P of the node (the volume that it adds to
+        the pore solution, with the models of the chemical system, e.g. a non-ideal gas), unless ``density`` is
+        given.
+
+        :param material: an xGEMS ``Material``, a dict ``{element: mol}`` or a list of element amounts.
+        :param float fraction: share of the ``of`` volume, 0 to 1. Pore: water_saturation and the pore
+            fractions add up to 1 or less. Solid: the solid fractions are shares of the solid volume that the
+            parts given by mass leave, and they add up to 1.
+        :param float mass: kg of the part in the node. Its volume is taken from the ``of`` volume.
+        :param str of: ``"pore"`` or ``"solid"``.
+        :param float density: kg/L; if not given, from GEM.
+
+        **Example:**
+
+        .. code-block:: python
+
+            task.setSystem(1, pore_solution=water, water_saturation=0.9,
+                           parts=[Part(air, fraction=0.1, of="pore"),
+                                  Part(quartz, fraction=0.99, of="solid"),
+                                  Part(calcite, fraction=0.01, of="solid", density=2.71),
+                                  Part(organic, mass=0.005, of="solid")])
+        )doc")
+        .def(py::init([](py::object material, std::optional<double> fraction, std::optional<double> mass,
+                         std::optional<std::string> of, std::optional<double> density) {
+                 Part pt;
+                 pt.material = toComposition(material);
+                 pt.fraction = fraction; pt.mass = mass; pt.of = of.value_or(""); pt.density = density;
+                 return pt;
+             }),
+             py::arg("material"), py::kw_only(), py::arg("fraction") = py::none(), py::arg("mass") = py::none(),
+             py::arg("of") = py::none(), py::arg("density") = py::none())
+        .def_readwrite("fraction", &Part::fraction)
+        .def_readwrite("mass", &Part::mass)
+        .def_readwrite("of", &Part::of)
+        .def_readwrite("density", &Part::density)
+        .def("__repr__", [](const Part& p) {
+            std::string r = "Part(";
+            if(p.fraction) r += "fraction=" + py::repr(py::float_(*p.fraction)).cast<std::string>();
+            if(p.mass) r += "mass=" + py::repr(py::float_(*p.mass)).cast<std::string>();
+            r += ", of=\"" + p.of + "\"";
+            if(p.density) r += ", density=" + py::repr(py::float_(*p.density)).cast<std::string>();
+            return r + ")";
+        });
+
+    py::class_<GEMFailures>(m, "GEMFailures",
+        "GEM calculations in the nodes that failed or were not trustful in the last run.")
+        .def_readonly("ran", &GEMFailures::ran)
+        .def_readonly("count", &GEMFailures::count)
+        .def_readonly("retried", &GEMFailures::retried,
+                      "BAD/ERR results replaced by a GEM run (SIA) from the last converged result of the node.")
+        .def_readonly("kept", &GEMFailures::kept,
+                      "BAD/ERR results replaced by the last converged result (input change <= pa_DHB).")
+        .def_readonly("nodes", &GEMFailures::nodes)
+        .def_readonly("first_step", &GEMFailures::first_step)
+        .def_readonly("first_time", &GEMFailures::first_time)
+        .def_readonly("first_node", &GEMFailures::first_node)
+        .def_readonly("first_message", &GEMFailures::first_message)
+        .def("message", &GEMFailures::message, "A text for a log or a warning; empty if there is no failure.")
+        .def("__bool__", [](const GEMFailures& f) { return f.count > 0; })
+        .def("__repr__", [](const GEMFailures& f) {
+            if(!f.ran) return std::string("GEMFailures(no run yet)");
+            return "GEMFailures(count=" + std::to_string(f.count) + ", nodes=" + std::to_string(f.nodes.size()) +
+                   ", retried=" + std::to_string(f.retried) + ", kept=" + std::to_string(f.kept) +
+                   (f.count ? ", first: step " + std::to_string(f.first_step) + " node " + std::to_string(f.first_node) +
+                              ": " + f.first_message : std::string()) + ")";
+        });
+
+    py::class_<TransportProperties>(m, "TransportProperties",
+        R"doc(
+        Physical transport properties of a node. A property that is None is not changed.
+
+        In mode 'A', ``velocity`` changes only the dispersion of the node (advection uses
+        ``setFluidAdvectionVelocity``); ``volume`` and ``permeability`` are not used.
+        Dispersion coefficient: D = dispersivity * velocity + diffusivity * porosity / tortuosity.
+
+        :param float volume: total node volume, m³
+        :param float velocity: fluid advection velocity, m/s
+        :param float porosity: effective porosity, 0 to 1
+        :param float permeability: effective permeability, m²
+        :param float dispersivity: longitudinal dispersivity, m
+        :param float diffusivity: diffusion coefficient in water, m²/s
+        :param float tortuosity: tortuosity factor, 1 to 10
+        )doc")
+        .def(py::init([](std::optional<double> volume, std::optional<double> velocity,
+                         std::optional<double> porosity, std::optional<double> permeability,
+                         std::optional<double> dispersivity, std::optional<double> diffusivity,
+                         std::optional<double> tortuosity) {
+                 return TransportProperties{volume, velocity, porosity, permeability,
+                                            dispersivity, diffusivity, tortuosity};
+             }),
+             py::kw_only(), py::arg("volume") = py::none(), py::arg("velocity") = py::none(),
+             py::arg("porosity") = py::none(), py::arg("permeability") = py::none(),
+             py::arg("dispersivity") = py::none(), py::arg("diffusivity") = py::none(),
+             py::arg("tortuosity") = py::none())
+        .def_readwrite("volume", &TransportProperties::volume)
+        .def_readwrite("velocity", &TransportProperties::velocity)
+        .def_readwrite("porosity", &TransportProperties::porosity)
+        .def_readwrite("permeability", &TransportProperties::permeability)
+        .def_readwrite("dispersivity", &TransportProperties::dispersivity)
+        .def_readwrite("diffusivity", &TransportProperties::diffusivity)
+        .def_readwrite("tortuosity", &TransportProperties::tortuosity)
+        .def("__repr__", [](const TransportProperties& t) {
+            std::string r = "TransportProperties(";
+            const std::pair<const char*, const std::optional<double>*> f[] = {
+                {"volume", &t.volume}, {"velocity", &t.velocity}, {"porosity", &t.porosity},
+                {"permeability", &t.permeability}, {"dispersivity", &t.dispersivity},
+                {"diffusivity", &t.diffusivity}, {"tortuosity", &t.tortuosity}};
+            bool first = true;
+            for(const auto& [name, v]: f)
+                if(*v) { r += (first ? "" : ", ") + std::string(name) + "=" + py::repr(py::float_(**v)).cast<std::string>(); first = false; }
+            return r + ")";
+        });
+}
+
 void exportMassTransport(py::module& m)
 {
+    exportTransportProperties(m);
     py::class_<MassTransport>(m, "MassTransport",
                               R"doc(
         Mass Transport simulator for simple reactive mass transport models coupled with GEM
@@ -111,7 +302,31 @@ void exportMassTransport(py::module& m)
              :param str ipm_filename: The path where the IPM work structure file will be saved (optional).
              )doc")
 
-        .def("initNodes", &MassTransport::initNodes,
+        .def("initNodes", py::overload_cast<const std::string&>(&MassTransport::initNodes),
+             py::arg("ipm_filename"),
+             R"doc(
+             Initializes all nodes from one GEMS3K ``*-dat.lst`` file.
+
+             The initial systems are the dbr files listed in the ``*-dat.lst`` file (after the dch and ipm
+             files, separated by spaces), in their order: the first file is system 0. A ``*-dbr.lst`` file is
+             not necessary.
+
+             .. note::
+                 GEMS3K reads the initial systems only from a list file. This function writes a temporary
+                 hidden list file in the folder of ``ipm_filename`` and removes it after reading. The folder
+                 must be writable; if it is not, use the two-file form.
+
+             :param str ipm_filename: Path to the ``*-dat.lst`` file.
+             :raises RuntimeError: If a file cannot be read, or if no dbr files are listed.
+
+             **Example:**
+
+             .. code-block:: python
+
+                 task.initNodes("my-system-dat.lst")
+             )doc")
+
+        .def("initNodes", py::overload_cast<const std::string&, const std::string&>(&MassTransport::initNodes),
              py::arg("ipm_filename"),
              py::arg("dbr_filename"),
              R"doc(
@@ -160,7 +375,13 @@ void exportMassTransport(py::module& m)
                  engine.initNodesFromStrings(dch, ipm, dbr)
              )doc")
 
-        .def("runMassTransport", &MassTransport::runMassTransport,
+        .def("runMassTransport",
+             [](MassTransport& self) {
+                 self.runMassTransport();
+                 const auto msg = self.gemFailures().message();      // the same text that C++ writes to the log
+                 if(!msg.empty())
+                     py::module_::import("warnings").attr("warn")(msg, py::module_::import("builtins").attr("RuntimeWarning"), 2);
+             },
              R"doc(
              Executes the coupled finite-difference mass-transport simulation loop.
 
@@ -171,6 +392,22 @@ void exportMassTransport(py::module& m)
                  Before calling this method, the simulator must be properly initialized.
 
              :raises RuntimeError: If the simulation fails to converge or hits a numerical instability.
+
+             If the GEM calculation of a node fails or is not trustful, xGEM2MT calculates the node again from
+             its last converged result (SIA), or keeps that result if the bulk composition changed by no more
+             than the mass balance tolerance of GEM (``pa_DHB``). If both rescues fail, the run goes on and
+             Python gives a ``RuntimeWarning``; see ``gemFailures()``.
+             )doc")
+
+        .def("gemFailures", &MassTransport::gemFailures,
+             R"doc(
+             The GEM calculations that failed or were not trustful in the last run.
+
+             :return GEMFailures: ``ran`` (False before the first run: then there is no result), ``count``
+                 (failures after the rescues; 0: all converged), ``nodes``, ``first_step``, ``first_time``,
+                 ``first_node``, ``first_message`` of the first failure, and the rescues: ``retried`` (calculated
+                 again from the last converged result of the node) and ``kept`` (the last converged result kept).
+                 The calculations of ``initNodes`` and ``setNodes`` are not counted.
              )doc")
 
         .def_property_readonly("nNodes", &MassTransport::nNodes,
@@ -720,6 +957,132 @@ void exportMassTransport(py::module& m)
                  task.setHydraulicParameters(0, 1.0, 1e-4, 0.3, 1e-12, 0.1, 2e-9, 1.5)
              )doc")
 
+        .def("summary", &MassTransport::summary, py::arg("width") = 100, py::arg("phases") = false,
+             R"doc(
+             Text summary of the task, also given by ``print(task)``.
+
+             Shows the mode, the column, the time step that the program will use, the initial systems,
+             and the nodes grouped by equal setup (system, role, node type, transport properties, and
+             after initNodes: T, P, mass, volume). The last part tells which function changes
+             each value.
+
+             :param int width: Maximum line length (default 100). Long tables and texts continue on
+                 the next lines. ``print(task)`` uses the default.
+             :param bool phases: Also show a table of the phase amounts (mol) in the node groups, one
+                 column for each phase present in a node (default False: only the phase names).
+             )doc")
+        .def("nodeSystem", &MassTransport::nodeSystem, py::arg("node_ndx"),
+             "Index of the initial system (dbr file) the node was set up from.")
+        .def("nodeType", &MassTransport::nodeType, py::arg("node_ndx"),
+             "Node type of the node (see setNodeType).")
+        .def("nodesOfSystem", &MassTransport::nodesOfSystem, py::arg("system_ndx"),
+             R"doc(
+             Indices of all nodes set up from initial system ``system_ndx``.
+
+             In 'A' and 'C' modes nodes 0 and 1 get system 0 (inflowing fluid) and all other nodes system 1.
+             )doc")
+        .def("nodesOfType", &MassTransport::nodesOfType, py::arg("type"),
+             "Indices of all nodes of the given node type (see setNodeType).")
+        .def("setNodesType", &MassTransport::setNodesType, py::arg("nodes"), py::arg("type"),
+             "As setNodeType(node_ndx, type), for a list of nodes. A node index out of range gives a RuntimeError "
+             "before any node is changed.")
+
+        .def("transportProperties", &MassTransport::transportProperties, py::arg("node_ndx"),
+             "Transport properties of a node (all fields set). Available after initNodes().")
+
+        .def("setNodes",
+             [](MassTransport& self, py::object nodes, py::object composition,
+                std::optional<double> T, std::optional<double> P, std::optional<TransportProperties> transport,
+                py::object pore_solution, py::object solids, std::optional<double> grain_density, std::optional<double> water_mass,
+                std::optional<double> water_saturation, std::vector<Part> parts) {
+                 const auto q = toNodes(nodes);
+                 const auto setup = toSetup(composition, T, P, transport, pore_solution, solids, grain_density, water_mass, water_saturation, std::move(parts));
+                 callWithProgress([&]() { self.setNodes(q, setup); });   // progress text shown live
+             },
+             py::arg("nodes"), py::kw_only(), py::arg("composition") = py::none(),
+             py::arg("T") = py::none(), py::arg("P") = py::none(), py::arg("transport") = py::none(),
+             py::arg("pore_solution") = py::none(), py::arg("solids") = py::none(),
+             py::arg("grain_density") = py::none(), py::arg("water_mass") = py::none(),
+             py::arg("water_saturation") = py::none(), py::arg("parts") = std::vector<Part>{},
+             R"doc(
+             Sets up nodes: composition, temperature, pressure and transport properties.
+
+             Call after initNodes() and before runMassTransport(). Only the arguments that are given are
+             changed. The transport properties are set first. If ``composition``, ``T`` or ``P`` is given,
+             each node is then equilibrated again from scratch.
+
+             :param nodes: A node index or a list of node indices (see nodesOfSystem, nodesOfType).
+             :param composition: Element amounts in mol: an xGEMS ``Material`` (its ``b_dict()`` is used),
+                 a dict ``{element: amount}`` (elements not listed get 0), or a sequence in element order.
+             :param T: Temperature in K.
+             :param P: Pressure in Pa.
+             :param TransportProperties transport: Physical transport properties; fields not set are not changed.
+             :param pore_solution: In place of ``composition``: the pore solution (aqueous phase), any amount
+                 (a ``Material``, a dict or a sequence). It is scaled to ``water_mass``.
+             :param solids: With ``pore_solution``: the composition of the dry solid (scaled by its own mass, so
+                 any amount can be given).
+             :param float grain_density: kg of solid per L of solid grains for ``solids`` (quartz sand about
+                 2.65). If not given, from a GEM calculation of the solid. From a measured bulk density:
+                 grain density = bulk density / (1 - porosity).
+             :param float water_mass: kg of liquid water (H2O solvent) in each node. Default: the water in
+                 ``pore_solution`` as given (from a GEM calculation at the T and P of the node). In the modes
+                 'A', 'C' and 'W' all nodes need the same water: the first call with ``pore_solution`` sets it,
+                 and later calls without ``water_mass`` scale their pore solution to it.
+             :param float water_saturation: share of the pore volume with pore solution (default 1).
+             :param parts: a list of ``Part`` objects: the other phases and solids of the node, e.g.
+                 ``Part(air, fraction=0.1, of="pore")``, ``Part(quartz, fraction=1, of="solid")``.
+
+             With ``pore_solution`` and ``parts``/``solids`` the program calculates the node composition. For each
+             node: pore volume = volume of the pore solution / water_saturation, solid volume = pore volume ×
+             (1 - porosity) / porosity (transport porosity of the node). Each part fills its share of these
+             volumes. The volumes come from GEM calculations of each material alone at the T and P of the node.
+             :raises RuntimeError: For a bad node index, a wrong size or an unknown element, or when the
+                 GEM calculation fails.
+
+             **Example:**
+
+             .. code-block:: python
+
+                 task.setNodes(range(40, 80), transport=TransportProperties(porosity=0.25))
+             )doc")
+
+        .def("setProgressMessages", &MassTransport::setProgressMessages, py::arg("enable"),
+             R"doc(
+             Switches the progress text of ``setNodes`` and ``setSystem`` on or off (default on).
+
+             The text shows one line for each node with GEM calculations (with the time), one line for the nodes
+             that get the state of an equal node, and the total time. The GEM calculations of a node can take
+             minutes, so the text shows that the setup is not stuck.
+
+             :param bool enable: True to show the text, False to hide it.
+             )doc")
+
+        .def("setSystem",
+             [](MassTransport& self, size_t system, py::object composition,
+                std::optional<double> T, std::optional<double> P, std::optional<TransportProperties> transport,
+                py::object pore_solution, py::object solids, std::optional<double> grain_density, std::optional<double> water_mass,
+                std::optional<double> water_saturation, std::vector<Part> parts) {
+                 const auto setup = toSetup(composition, T, P, transport, pore_solution, solids, grain_density, water_mass, water_saturation, std::move(parts));
+                 callWithProgress([&]() { self.setSystem(system, setup); });
+             },
+             py::arg("system_ndx"), py::kw_only(), py::arg("composition") = py::none(),
+             py::arg("T") = py::none(), py::arg("P") = py::none(), py::arg("transport") = py::none(),
+             py::arg("pore_solution") = py::none(), py::arg("solids") = py::none(),
+             py::arg("grain_density") = py::none(), py::arg("water_mass") = py::none(),
+             py::arg("water_saturation") = py::none(), py::arg("parts") = std::vector<Part>{},
+             R"doc(
+             Sets up all nodes of initial system ``system_ndx``. The same as
+             ``setNodes(task.nodesOfSystem(system_ndx), ...)``.
+
+             **Example:**
+
+             .. code-block:: python
+
+                 task.setSystem(0, composition=fluid)     # inflowing fluid, nodes 0 and 1 in mode 'A'
+                 task.setSystem(1, composition=column,
+                                transport=TransportProperties(porosity=0.32, dispersivity=0.0067))
+             )doc")
+
         .def_property_readonly("nMGPfluxes", &MassTransport::nMGPfluxes,
                                R"doc(
              Gets the number of MGP fluxes defined in the megasystem.
@@ -1105,25 +1468,7 @@ void exportMassTransport(py::module& m)
                                     Must accept three arguments: (engine: ChemicalEngineArray, step: int, time: float)
              )doc")
 
-        .def("__str__", [](const MassTransport& engine) {
-            std::ostringstream oss;
-            oss << engine;
-            return oss.str();
-        },
-             R"doc(
-        Outputs the internal state of the MassTransport object as a human-readable string.
-
-        Formats the simulator's parameters, active mode, and current node states
-        into a human-readable format, suitable for logging or console output.
-
-        :return str: A string representation of the MassTransport internal state.
-
-        **Example:**
-
-             .. code-block:: python
-
-                 task = MassTransport('F', 100)
-                 print(task)
-        )doc");
+        .def("__str__", [](const MassTransport& self) { return self.summary(); },
+             "The same as summary().");
 
 }
